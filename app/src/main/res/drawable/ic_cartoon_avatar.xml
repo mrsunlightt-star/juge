@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- 头部轮廓 (圆圈) -->
+    <path
+        android:pathData="M50,45 m-20,0 a20,20 0 1,1 40,0 a20,20 0 1,1 -40,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#1E2436"/>
+    <!-- 弯弯的微笑眼睛 -->
+    <path
+        android:pathData="M38,42 Q42,38 44,42"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M56,42 Q60,38 62,42"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+    <!-- 嘴巴 (微小的微笑) -->
+    <path
+        android:pathData="M46,52 Q50,56 54,52"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+    <!-- 腮红 (粉红小圈) -->
+    <path
+        android:pathData="M34,48 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#FF8A80"/>
+    <path
+        android:pathData="M60,48 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#FF8A80"/>
+    <!-- 简单的身体 (线条) -->
+    <path
+        android:pathData="M50,65 L50,85 M50,72 L35,78 M50,72 L65,78 M38,95 L50,85 L62,95"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+</vector>

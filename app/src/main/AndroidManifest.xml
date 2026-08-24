@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication">
+        
+        <!-- 主编辑页面 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 快捷编辑悬浮窗，配置为 Dialog 主题 -->
+        <activity
+            android:name=".QuickAdjustActivity"
+            android:exported="false"
+            android:theme="@style/Theme.QuickAdjustDialog"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 桌面 Widget AppWidgetProvider 声明 (4×2 尺寸) -->
+        <receiver
+            android:name=".ReminderWidgetProvider"
+            android:exported="true"
+            android:label="句阁 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+            <!-- MIUI/HyperOS Widget 曝光刷新标识 -->
+            <meta-data
+                android:name="miuiWidget"
+                android:value="true" />
+            <meta-data
+                android:name="miuiWidgetRefresh"
+                android:value="exposure" />
+            <meta-data
+                android:name="miuiWidgetRefreshMinInterval"
+                android:value="10000" />
+        </receiver>
+
+        <!-- 桌面 Widget AppWidgetProvider 声明 (4×4 尺寸) -->
+        <receiver
+            android:name=".ReminderWidgetProvider4x4"
+            android:exported="true"
+            android:label="句阁 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_4x4" />
+            <!-- MIUI/HyperOS Widget 曝光刷新标识 -->
+            <meta-data
+                android:name="miuiWidget"
+                android:value="true" />
+            <meta-data
+                android:name="miuiWidgetRefresh"
+                android:value="exposure" />
+            <meta-data
+                android:name="miuiWidgetRefreshMinInterval"
+                android:value="10000" />
+        </receiver>
+
+    </application>
+
+</manifest>

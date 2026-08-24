@@ -1,0 +1,74 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="80dp"
+    android:viewportWidth="120"
+    android:viewportHeight="80">
+    <!-- 中央交叉的双剑 (两把银色长剑交叉成 X) -->
+    <path
+        android:pathData="M40,6 L72,50"
+        android:strokeColor="#C0C7CE"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M80,6 L48,50"
+        android:strokeColor="#C0C7CE"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"/>
+    <!-- 剑柄护手 (交叉点下方) -->
+    <path
+        android:pathData="M52,46 L68,46"
+        android:strokeColor="#8A929B"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M68,46 L52,46"
+        android:strokeColor="#8A929B"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"/>
+
+    <!-- 左侧骑士 -->
+    <path
+        android:pathData="M34,30 L44,30 L46,42 L40,54 L32,42 Z"
+        android:strokeColor="#9AA3AD"
+        android:strokeWidth="2"
+        android:fillColor="#D7DCE1"/>
+    <!-- 左侧骑士头盔 -->
+    <path
+        android:pathData="M32,22 Q39,14 46,22 L46,30 Q39,34 32,30 Z"
+        android:strokeColor="#8A929B"
+        android:strokeWidth="2"
+        android:fillColor="#E9EDF0"/>
+    <!-- 左侧举剑手臂 -->
+    <path
+        android:pathData="M40,32 Q44,28 50,30"
+        android:strokeColor="#9AA3AD"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"/>
+
+    <!-- 右侧骑士 (镜像) -->
+    <path
+        android:pathData="M86,30 L76,30 L74,42 L80,54 L88,42 Z"
+        android:strokeColor="#9AA3AD"
+        android:strokeWidth="2"
+        android:fillColor="#D7DCE1"/>
+    <!-- 右侧骑士头盔 -->
+    <path
+        android:pathData="M88,22 Q81,14 74,22 L74,30 Q81,34 88,30 Z"
+        android:strokeColor="#8A929B"
+        android:strokeWidth="2"
+        android:fillColor="#E9EDF0"/>
+    <!-- 右侧举剑手臂 -->
+    <path
+        android:pathData="M80,32 Q76,28 70,30"
+        android:strokeColor="#9AA3AD"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"/>
+
+    <!-- 底座 (两骑士站立) -->
+    <path
+        android:pathData="M28,54 L48,54 L46,58 L30,58 Z"
+        android:fillColor="#B7BEC6"/>
+    <path
+        android:pathData="M92,54 L72,54 L74,58 L90,58 Z"
+        android:fillColor="#B7BEC6"/>
+</vector>

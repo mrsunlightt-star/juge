@@ -1,0 +1,782 @@
+package com.juge.app.data
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.Typeface
+import androidx.compose.ui.graphics.toArgb
+import org.json.JSONObject
+
+// 预定义字体枚举
+enum class WidgetFont(val fontPath: String?, val displayName: String) {
+    DEFAULT(null, "系统默认"),
+    SOURCE_HAN_SERIF("fonts/SourceHanSerifCN-Regular.ttf", "思源宋体"),
+    LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷"),
+    AOYAGI_GYOUSHO("fonts/MasaFont-Regular.ttf", "青柳行书"),
+    KOUZAN_SOUSHO("fonts/KouzanBrushFontSousyo.ttf", "衡山草书"),
+    PANGMEN_CUSHUTI("fonts/PangMenZhengDao-CuShuTi.ttf", "粗书体"),
+    MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书"),
+    PANGMEN_XINQINGNIAN("fonts/PangMenZhengDaoBiaoTiTi.ttf", "新青年体");
+
+    fun getTypeface(context: Context): Typeface {
+        if (fontPath != null) {
+            typefaceCache[fontPath]?.let { return it }
+            try {
+                val typeface = Typeface.createFromAsset(context.assets, fontPath)
+                typefaceCache[fontPath] = typeface
+                return typeface
+            } catch (e: Exception) {
+                // 读取失败则优雅降级
+            }
+        }
+        return if (this == SOURCE_HAN_SERIF) Typeface.SERIF else Typeface.DEFAULT
+    }
+
+    companion object {
+        // createFromAsset 是昂贵的 IO 操作，按路径缓存避免重复创建
+        private val typefaceCache = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
+    }
+}
+
+// 预定义形状枚举
+enum class WidgetShape(val displayName: String) {
+    RECTANGLE("矩形"),
+    CIRCLE("圆形"),
+    ELLIPSE("椭圆形"),
+    HEART("心形"),
+    SPEECH_BUBBLE("漫画气泡"),
+    HANDBOOK_TAPE("手账胶带"),
+    PET_PEEK("萌宠探头"),
+    LUXUN_SAYS("鲁迅立言"),
+    TORN_PAPER("撕裂纸片"),
+    SPLIT_CARD("图文明信片"),
+    SPLIT_CARD_HORIZONTAL("左右分割明信片"),
+    PILL("药丸胶囊"),
+    METAL_OCTAGON("金属八角骑士"),
+    FEATHER_LETTER("羽毛信纸"),
+    PIXEL_RETRO("复古像素"),
+    PET_CAT_NAP("萌宠猫咪趴"),
+    BLUE_NOTE("蓝色便签"),
+    ZHU_QING_SI_ZHI("竹青撕纸")
+}
+
+// 图片缩放模式
+enum class ImageScaleMode {
+    STRETCH, // 拉伸
+    CENTER_CROP, // 裁剪
+    CENTER_FIT, // 等比全部完整显示(左右留透明)
+    TILE // 平铺
+}
+
+// 文字阴影设置
+data class TextShadow(
+    val enabled: Boolean = false,
+    val color: Int = Color.parseColor("#80000000"),
+    val radius: Float = 4f,
+    val dx: Float = 2f,
+    val dy: Float = 2f
+) {
+    fun toJson(): JSONObject {
+        return JSONObject().apply {
+            put("enabled", enabled)
+            put("color", color)
+            put("radius", radius.toDouble())
+            put("dx", dx.toDouble())
+            put("dy", dy.toDouble())
+        }
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject): TextShadow {
+            return TextShadow(
+                enabled = json.optBoolean("enabled", false),
+                color = json.optInt("color", Color.parseColor("#80000000")),
+                radius = json.optDouble("radius", 4.0).toFloat(),
+                dx = json.optDouble("dx", 2.0).toFloat(),
+                dy = json.optDouble("dy", 2.0).toFloat()
+            )
+        }
+    }
+}
+
+// 整体组件风格配置
+data class WidgetStyle(
+    val shape: WidgetShape = WidgetShape.RECTANGLE,
+    val cornerRadiusDp: Float = 12f, // 圆角设置 0-30dp
+    val backgroundColor: Int = Color.parseColor("#F5F5F5"), // RGB背景颜色
+    val backgroundOpacity: Float = 1.0f, // 0.0 - 1.0
+    val backgroundImagePath: String? = null, // 自定义背景图路径
+    val bgImageScaleMode: ImageScaleMode = ImageScaleMode.CENTER_CROP,
+    val font: WidgetFont = WidgetFont.DEFAULT,
+    val fontSizeSp: Float = 19f, // 12-48sp
+    val fontBold: Boolean = false,
+    val fontItalic: Boolean = false,
+    val fontColor: Int = Color.parseColor("#333333"), // 字体颜色
+    val textAlign: String = "CENTER", // LEFT, CENTER, RIGHT
+    val shadow: TextShadow = TextShadow(),
+    val gradientColors: List<Int>? = null,
+    val gradientAngle: Float = 45f,
+    val bgBlurRadius: Float = 0f,
+    val bgScrimAlpha: Float = 0f,
+    val showCardShadow: Boolean = false,
+    val cardBorderWidthDp: Float = 0f,
+    val cardBorderColor: Int = android.graphics.Color.TRANSPARENT,
+    val showQuoteMark: Boolean = false,
+    val textureType: String = "NONE",
+    val authorSignature: String? = null,
+    val presetImageResName: String? = null,
+    val lineSpacingMultiplier: Float = 1.0f,
+    val letterSpacing: Float = 0f,
+    // 预设身份标识：套用内置预设时携带，copy() 微调后依然保留，
+    // 用于精确判定样式是否源自 PRO 预设（字段匹配可被微调绕过）
+    val presetId: String? = null
+) {
+    fun toJsonString(): String {
+        return JSONObject().apply {
+            put("shape", shape.name)
+            put("presetId", presetId ?: JSONObject.NULL)
+            put("cornerRadiusDp", cornerRadiusDp.toDouble())
+            put("backgroundColor", backgroundColor)
+            put("backgroundOpacity", backgroundOpacity.toDouble())
+            put("backgroundImagePath", backgroundImagePath ?: "")
+            put("bgImageScaleMode", bgImageScaleMode.name)
+            put("font", font.name)
+            put("fontSizeSp", fontSizeSp.toDouble())
+            put("fontBold", fontBold)
+            put("fontItalic", fontItalic)
+            put("fontColor", fontColor)
+            put("textAlign", textAlign)
+            put("shadow", shadow.toJson())
+            
+            // 序列化新增字段
+            if (gradientColors != null) {
+                put("gradientColors", org.json.JSONArray(gradientColors))
+            } else {
+                put("gradientColors", JSONObject.NULL)
+            }
+            put("gradientAngle", gradientAngle.toDouble())
+            put("bgBlurRadius", bgBlurRadius.toDouble())
+            put("bgScrimAlpha", bgScrimAlpha.toDouble())
+            put("showCardShadow", showCardShadow)
+            put("cardBorderWidthDp", cardBorderWidthDp.toDouble())
+            put("cardBorderColor", cardBorderColor)
+            put("showQuoteMark", showQuoteMark)
+            put("textureType", textureType)
+            put("authorSignature", authorSignature ?: JSONObject.NULL)
+            put("presetImageResName", presetImageResName ?: JSONObject.NULL)
+            put("lineSpacingMultiplier", lineSpacingMultiplier.toDouble())
+            put("letterSpacing", letterSpacing.toDouble())
+        }.toString()
+    }
+
+    companion object {
+
+        // 单个枚举字段非法（旧版本数据、被篡改）时仅降级该字段，不影响整体样式
+        private inline fun <reified T : Enum<T>> safeEnum(name: String, fallback: T): T =
+            try { enumValueOf<T>(name) } catch (e: IllegalArgumentException) { fallback }
+
+        fun fromJsonString(jsonStr: String?): WidgetStyle {
+            if (jsonStr.isNullOrEmpty()) return WidgetStyle()
+            return try {
+                val json = JSONObject(jsonStr)
+                WidgetStyle(
+                    shape = safeEnum(json.optString("shape", WidgetShape.RECTANGLE.name), WidgetShape.RECTANGLE),
+                    presetId = if (json.has("presetId") && !json.isNull("presetId")) {
+                        json.optString("presetId").takeIf { it.isNotEmpty() }
+                    } else {
+                        null
+                    },
+                    cornerRadiusDp = json.optDouble("cornerRadiusDp", 12.0).toFloat(),
+                    backgroundColor = json.optInt("backgroundColor", Color.parseColor("#F5F5F5")),
+                    backgroundOpacity = json.optDouble("backgroundOpacity", 1.0).toFloat(),
+                    backgroundImagePath = json.optString("backgroundImagePath", "").takeIf { it.isNotEmpty() },
+                    bgImageScaleMode = safeEnum(json.optString("bgImageScaleMode", ImageScaleMode.CENTER_CROP.name), ImageScaleMode.CENTER_CROP),
+                    font = try {
+                        val fontStr = json.optString("font", WidgetFont.DEFAULT.name)
+                        val mappedFontStr = when (fontStr) {
+                            "SERIF" -> "SOURCE_HAN_SERIF"
+                            // 旧版本曾使用的 "SANS_SERIF" 对应系统默认字体；枚举中不存在 SOURCE_HAN_SANS，
+                            // 若映射到不存在的枚举会在 valueOf 抛异常后整体回退，这里显式映射到 DEFAULT。
+                            "SANS_SERIF" -> "DEFAULT"
+                            else -> fontStr
+                        }
+                        WidgetFont.valueOf(mappedFontStr)
+                    } catch (e: Exception) {
+                        WidgetFont.DEFAULT
+                    },
+                    fontSizeSp = json.optDouble("fontSizeSp", 19.0).toFloat(),
+                    fontBold = json.optBoolean("fontBold", false),
+                    fontItalic = json.optBoolean("fontItalic", false),
+                    fontColor = json.optInt("fontColor", Color.parseColor("#333333")),
+                    textAlign = json.optString("textAlign", "CENTER"),
+                    shadow = if (json.has("shadow")) {
+                        TextShadow.fromJson(json.getJSONObject("shadow"))
+                    } else {
+                        TextShadow()
+                    },
+                    // 反序列化新增字段并兼容处理默认值
+                    gradientColors = if (json.has("gradientColors") && !json.isNull("gradientColors")) {
+                        val arr = json.getJSONArray("gradientColors")
+                        List(arr.length()) { arr.getInt(it) }
+                    } else {
+                        null
+                    },
+                    gradientAngle = json.optDouble("gradientAngle", 45.0).toFloat(),
+                    bgBlurRadius = json.optDouble("bgBlurRadius", 0.0).toFloat(),
+                    bgScrimAlpha = json.optDouble("bgScrimAlpha", 0.0).toFloat(),
+                    showCardShadow = json.optBoolean("showCardShadow", false),
+                    cardBorderWidthDp = json.optDouble("cardBorderWidthDp", 0.0).toFloat(),
+                    cardBorderColor = json.optInt("cardBorderColor", android.graphics.Color.TRANSPARENT),
+                    showQuoteMark = json.optBoolean("showQuoteMark", false),
+                    textureType = json.optString("textureType", "NONE"),
+                    authorSignature = if (json.has("authorSignature") && !json.isNull("authorSignature")) {
+                        json.getString("authorSignature")
+                    } else {
+                        null
+                    },
+                    presetImageResName = if (json.has("presetImageResName") && !json.isNull("presetImageResName")) {
+                        json.getString("presetImageResName")
+                    } else {
+                        null
+                    },
+                    lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat().coerceIn(0.5f, 3.0f),
+                    letterSpacing = json.optDouble("letterSpacing", 0.0).toFloat().coerceIn(0f, 20f)
+                )
+            } catch (e: Exception) {
+                WidgetStyle()
+            }
+        }
+
+        // 内置的 9 种极具质感的风格预设值
+        private val RAW_PRESETS = listOf(
+            // 免费默认风格：纯色圆角
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#FFFFFF"),
+                fontColor = Color.parseColor("#1F2937"),
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 19f,
+                fontBold = false,
+                showCardShadow = false,
+                textAlign = "CENTER"
+            ), // 0. 纯色圆角 (免费)
+            WidgetStyle(
+                shape = WidgetShape.TORN_PAPER, // 拟物撕纸
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#E2EAD8"),
+                fontColor = Color.parseColor("#5E6852"),
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 19f,
+                textureType = "PAPER",
+                showCardShadow = true,
+                authorSignature = "—— 撕纸手账"
+            ), // 4. 拟物撕纸风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.HANDBOOK_TAPE, // 手账胶带
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#FCF6E5"),
+                fontColor = Color.parseColor("#8A6F4E"),
+                font = WidgetFont.LXGW_WENKAI,
+                fontBold = true,
+                showCardShadow = true,
+                cardBorderWidthDp = 1.5f,
+                cardBorderColor = Color.parseColor("#DCD0BA"),
+                authorSignature = "—— 手账心情"
+            ), // 5. 复古手账风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 15f,
+                gradientColors = listOf(Color.parseColor("#E8C5C8"), Color.parseColor("#C4D6E0")), // 梦幻渐变
+                gradientAngle = 135f,
+                fontColor = Color.parseColor("#3C4A5A"),
+                font = WidgetFont.DEFAULT,
+                fontBold = true,
+                showQuoteMark = true,
+                showCardShadow = true
+            ), // 6. 梦幻渐变风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.ELLIPSE,
+                gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")), // 深邃星海渐变
+                gradientAngle = 45f,
+                fontColor = Color.parseColor("#FFFFFF"),
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontItalic = true,
+                showQuoteMark = true,
+                authorSignature = "—— 星辰大海"
+            ), // 7. 深邃星海风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPEECH_BUBBLE,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#FFF9E6"),
+                fontColor = Color.parseColor("#8C6239"),
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 17f,
+                textureType = "FABRIC",
+                cardBorderWidthDp = 2f,
+                cardBorderColor = Color.parseColor("#D9B48F")
+            ), // 8. 萌宠气泡风格 (PRO)
+
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")),
+                gradientAngle = 45f,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.parseColor("#1F1F1F"),
+                showQuoteMark = true,
+                authorSignature = "—— 明信片寄语"
+            ), // 10. 蓝色画报风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#4A3B32"),
+                showQuoteMark = true,
+                authorSignature = "—— 咕咕嘎嘎",
+                presetImageResName = "gugugaga"
+            ), // 11. 咕咕嘎嘎风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— doro3d",
+                presetImageResName = "doro3d"
+            ), // 12. doro3d风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.parseColor("#3A4D5C"),
+                showQuoteMark = true,
+                authorSignature = "—— 晨曦日出",
+                presetImageResName = "bg_illustration_1"
+            ), // 12. 晨曦画报风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.parseColor("#6B4C4C"),
+                showQuoteMark = true,
+                authorSignature = "—— 治愈落日",
+                presetImageResName = "bg_illustration_2"
+            ), // 13. 治愈画报风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.parseColor("#1B2845"),
+                showQuoteMark = true,
+                authorSignature = "—— 星空森林",
+                presetImageResName = "bg_illustration_3"
+            ), // 14. 星空画报风格 (PRO)
+
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                backgroundColor = Color.parseColor("#1E6DD0"),
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.WHITE,
+                showQuoteMark = true,
+                authorSignature = "—— 天空之蓝",
+                presetImageResName = "rectangle_1"
+            ), // 15. 天空蓝风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontColor = Color.parseColor("#2E2E2E"),
+                showQuoteMark = true,
+                authorSignature = "—— 鲁迅立言",
+                presetImageResName = "bg_illustration_luxun"
+            ), // 16. 鲁迅画报风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 咕嘎与doro",
+                presetImageResName = "guga_doro"
+            ), // 17. 咕嘎与doro风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 53号机车",
+                presetImageResName = "motorcycle_53"
+            ), // 18. 53号机车风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 蓝天白云",
+                presetImageResName = "blue_sky_clouds"
+            ), // 19. 蓝天白云风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 天天向上",
+                presetImageResName = "tiantian_xiangshang"
+            ), // 20. 天天向上风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 搏击俱乐部",
+                presetImageResName = "boji_julebu"
+            ), // 21. 搏击俱乐部风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 绝命毒师",
+                presetImageResName = "breaking_bad"
+            ), // 22. 绝命毒师风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— V字仇杀队",
+                presetImageResName = "v_for_vendetta"
+            ), // 23. V字仇杀队风格 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 不要犹豫",
+                presetImageResName = "bu_yao_you_yu"
+            ), // 不要犹豫 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 保持专注",
+                presetImageResName = "bao_chi_zhuan_zhu"
+            ), // 保持专注 (PRO)
+
+            // 新风格：经典左右分割（会员专属）
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 可爱猫咪",
+                presetImageResName = "cute_cat"
+            ), // 可爱猫咪 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 毛绒小狗",
+                presetImageResName = "fluffy_dog"
+            ), // 毛绒小狗 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 快乐小狗",
+                presetImageResName = "happy_dog"
+            ), // 快乐小狗 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 毛绒猫咪",
+                presetImageResName = "fluffy_cat"
+            ), // 毛绒猫咪 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 天天开心",
+                presetImageResName = "happy_daily"
+            ), // 天天开心 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 梅花相见",
+                presetImageResName = "plum_blossom"
+            ), // 梅花相见 (PRO)
+
+            // 免费预设：极简风格（扩大免费用户吸引力）
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 8f,
+                backgroundColor = Color.parseColor("#FFFFFF"),
+                fontColor = Color.parseColor("#1F2937"),
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 21f,
+                fontBold = false,
+                cardBorderWidthDp = 0.5f,
+                cardBorderColor = Color.parseColor("#E5E7EB"),
+                showCardShadow = false,
+                textAlign = "CENTER"
+            ), // 24. 白底黑字 (免费)
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#1E293B"),
+                backgroundOpacity = 0.92f,
+                fontColor = Color.parseColor("#E2E8F0"),
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 19f,
+                showCardShadow = false,
+                textAlign = "CENTER"
+            ), // 25. 深夜模式 (免费)
+            WidgetStyle(
+                shape = WidgetShape.PILL,
+                cornerRadiusDp = 0f,
+                backgroundColor = Color.parseColor("#F8FAFC"),
+                fontColor = Color.parseColor("#334155"),
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 17f,
+                fontBold = false,
+                showCardShadow = false,
+                cardBorderWidthDp = 0.5f,
+                cardBorderColor = Color.parseColor("#E2E8F0"),
+                textAlign = "CENTER"
+            ), // 26. 极简药丸 (免费)
+
+            // 磨砂玻璃预设 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#FFFFFF"),
+                backgroundOpacity = 0.55f,
+                fontColor = Color.parseColor("#1E293B"),
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 19f,
+                fontBold = false,
+                showCardShadow = true,
+                cardBorderWidthDp = 0.5f,
+                cardBorderColor = Color.parseColor("#A0C4FF"),
+                authorSignature = "—— 磨砂玻璃"
+            ), // 27. 磨砂玻璃 (PRO)
+
+            // 金属八角骑士比剑 (PRO)
+            WidgetStyle(
+                shape = WidgetShape.METAL_OCTAGON,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#EDEFF2"), // 浅灰留白文字区
+                fontColor = Color.parseColor("#374151"), // 深灰文字
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 19f,
+                fontBold = false,
+                showCardShadow = true,
+                cardBorderWidthDp = 0f,
+                textAlign = "CENTER",
+                authorSignature = "—— 骑士之誓"
+            ), // 28. 金属八角骑士 (PRO)
+
+            // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
+            WidgetStyle(
+                shape = WidgetShape.FEATHER_LETTER,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT, // 信纸外透明
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH, // 信纸图铺满卡片区
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 20f,
+                fontColor = Color.parseColor("#5C4A3A"), // 信纸上的深褐色文字
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "feather_letter",
+                authorSignature = "—— 羽毛信纸"
+            ), // 29. 羽毛信纸 (PRO)
+
+            // 复古像素 (PRO)：像素风方框(红框+虚线+薄荷绿底)即卡片，文字落框内留白
+            WidgetStyle(
+                shape = WidgetShape.PIXEL_RETRO,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT, // 框外透明
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH, // 像素图铺满
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 22f,
+                fontColor = Color.parseColor("#1B2A4A"), // 深蓝黑,匹配像素风
+                textAlign = "CENTER",
+                fontBold = true,
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "pixel_retro",
+                authorSignature = "—— 复古像素"
+            ), // 30. 复古像素 (PRO)
+
+            // 萌宠猫咪趴 (PRO)：橘猫趴在渐变卡片顶，卡片做主体，文字落卡片中下部(避开猫)
+            WidgetStyle(
+                shape = WidgetShape.PET_CAT_NAP,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT, // 卡片外透明
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 等比完整显示整只猫+卡片，避免压扁或裁掉猫身
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 22f,
+                fontColor = Color.parseColor("#5C6270"), // 深灰,匹配渐变卡片
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "cute_cat_lying",
+                authorSignature = "—— 萌宠猫咪趴"
+            ), // 31. 萌宠猫咪趴 (PRO)
+
+            // 蓝色便签 (PRO)：SVG 设计稿还原 — #43A8F0 蓝底圆角 + 顶部 NOTE + 右上信息钮 + 底部米白手写签条
+            WidgetStyle(
+                shape = WidgetShape.BLUE_NOTE,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#43A8F0"),
+                backgroundOpacity = 1f,
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 19f,
+                fontColor = Color.WHITE,
+                textAlign = "CENTER",
+                fontBold = false,
+                showCardShadow = true,
+                cardBorderWidthDp = 0f,
+                authorSignature = "—— 蓝色便签"
+            ), // 32. 蓝色便签 (PRO)
+            // 竹青撕纸 (PRO)：米白锯齿撕纸即卡片(外透明透桌面)，文字落纸面中部
+            WidgetStyle(
+                shape = WidgetShape.ZHU_QING_SI_ZHI,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 20f,
+                fontColor = Color.parseColor("#3A4A3A"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "zhu_qing_si_zhi",
+                authorSignature = "—— 竹青撕纸"
+            ) // 33. 竹青撕纸 (PRO)
+        )
+
+        // 为每个预设打上稳定的身份标识（preset_下标），套用预设后随 copy() 保留，
+        // 付费判定依据身份而不是字段值，杜绝"改一个字段绕过会员校验"
+        val PRESETS: List<WidgetStyle> = RAW_PRESETS.mapIndexed { index, style ->
+            style.copy(presetId = "preset_$index")
+        }
+
+        // 免费预设索引：未激活用户可直接套用，渲染器与两个编辑页面统一读取，
+        // 避免各处用"预设列表下标 >= 1"或形状枚举做启发式判断导致的锁定错乱。
+        // 注意：在 PRESETS 中间插入新预设会使下标整体漂移，需同步维护此集合。
+        val FREE_PRESET_INDICES = setOf(0, 29, 30, 31) // 纯色圆角 / 白底黑字 / 深夜模式 / 极简药丸
+        private val FREE_PRESET_IDS = FREE_PRESET_INDICES.map { "preset_$it" }.toSet()
+
+        /**
+         * 判断一个样式是否属于付费预设。
+         * 优先按 presetId 身份判定：套用预设后任意微调（字号、粗细、圆角等）仍能正确识别。
+         * 旧数据（styleJson 无 presetId）回退到关键字段匹配兜底。
+         */
+        fun isProPreset(style: WidgetStyle): Boolean {
+            val pid = style.presetId
+            if (pid != null) {
+                return pid !in FREE_PRESET_IDS
+            }
+            // 旧版本数据兜底：扩展到全部视觉标识字段，缩小字段微调绕过的空间
+            val index = PRESETS.indexOfFirst {
+                it.shape == style.shape &&
+                    it.backgroundColor == style.backgroundColor &&
+                    it.fontColor == style.fontColor &&
+                    it.font == style.font &&
+                    it.fontBold == style.fontBold &&
+                    it.fontItalic == style.fontItalic &&
+                    it.gradientColors == style.gradientColors &&
+                    it.presetImageResName == style.presetImageResName &&
+                    it.textureType == style.textureType &&
+                    it.showQuoteMark == style.showQuoteMark &&
+                    it.authorSignature == style.authorSignature &&
+                    it.cardBorderWidthDp == style.cardBorderWidthDp &&
+                    it.cardBorderColor == style.cardBorderColor &&
+                    it.showCardShadow == style.showCardShadow
+            }
+            return index != -1 && index !in FREE_PRESET_INDICES
+        }
+
+        // 明信片/画报风格可选插图（资源名 → 展示名）。
+        // 主界面与快捷面板共用同一份列表，避免两处硬编码各自维护导致入口间素材不一致。
+        // 注意：萌宠/角色类素材(guga_doro、cute_cat、fluffy_dog、happy_dog、fluffy_cat)归入
+        // 下方的 PET_PRESETS(萌宠风格)，这里刻意排除，避免分类不干净、同一批图重复出现在明信片行。
+        val ILLUSTRATION_PRESETS: List<Pair<String, String>> = listOf(
+            "bg_illustration_1" to "晨曦日出",
+            "bg_illustration_2" to "治愈落日",
+            "bg_illustration_3" to "星空森林",
+            "bg_illustration_luxun" to "鲁迅画报",
+            "rectangle_1" to "天空蓝",
+            "motorcycle_53" to "53号机车",
+            "blue_sky_clouds" to "蓝天白云",
+            "tiantian_xiangshang" to "天天向上",
+            "boji_julebu" to "搏击俱乐部",
+            "breaking_bad" to "绝命毒师",
+            "v_for_vendetta" to "V字仇杀队",
+            "bu_yao_you_yu" to "不要犹豫",
+            "bao_chi_zhuan_zhu" to "保持专注",
+            "happy_daily" to "天天开心",
+            "plum_blossom" to "梅花相见"
+        )
+
+        // 首页与快捷面板共用的推荐预设（按风格分类）。
+        // 插图类按资源名定位而不是按下标，避免在 PRESETS 中新增预设时索引漂移导致展示错位。
+        val CLASSIC_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "纯色圆角" to PRESETS[0],
+            "拟物撕纸" to PRESETS[1],
+            "复古手账" to PRESETS[2],
+            "梦幻渐变" to PRESETS[3],
+            "深邃星海" to PRESETS[4],
+            "天天开心" to (PRESETS.firstOrNull { it.presetImageResName == "happy_daily" } ?: PRESETS[0]),
+            "梅花相见" to (PRESETS.firstOrNull { it.presetImageResName == "plum_blossom" } ?: PRESETS[0]),
+            "金属八角骑士" to (PRESETS.firstOrNull { it.shape == WidgetShape.METAL_OCTAGON } ?: PRESETS[0]),
+            "羽毛信纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.FEATHER_LETTER } ?: PRESETS[0]),
+            "复古像素" to (PRESETS.firstOrNull { it.shape == WidgetShape.PIXEL_RETRO } ?: PRESETS[0]),
+            "蓝色便签" to (PRESETS.firstOrNull { it.shape == WidgetShape.BLUE_NOTE } ?: PRESETS[0]),
+            "竹青撕纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.ZHU_QING_SI_ZHI } ?: PRESETS[0])
+        )
+
+        // 萌宠风格：动物/角色类卡通插画（咕咕嘎嘎、doro3d 靠前展示）
+        val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "咕咕嘎嘎" to (PRESETS.firstOrNull { it.presetImageResName == "gugugaga" } ?: PRESETS[0]),
+            "经典doro3d" to (PRESETS.firstOrNull { it.presetImageResName == "doro3d" } ?: PRESETS[0]),
+            "可爱猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "cute_cat" } ?: PRESETS[0]),
+            "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
+            "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),
+            "毛绒猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_cat" } ?: PRESETS[0]),
+            "萌宠猫咪趴" to (PRESETS.firstOrNull { it.shape == WidgetShape.PET_CAT_NAP } ?: PRESETS[0])
+        )
+    }
+}

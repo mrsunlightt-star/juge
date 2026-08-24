@@ -1,0 +1,13 @@
+<full-backup-content>
+    <!-- 备份数据库（含 WAL/SHM 附带文件，否则最近写入会丢失） -->
+    <include domain="database" path="."/>
+
+    <!-- 备份自定义背景图，避免恢复后样式引用失效 -->
+    <include domain="file" path="bg_images/"/>
+
+    <!-- 备份 SharedPreferences，但排除付费激活状态与设备绑定数据 -->
+    <include domain="sharedpref" path="."/>
+    <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
+    <exclude domain="sharedpref" path="app_settings.xml"/>
+    <exclude domain="sharedpref" path="widget_bindings_prefs.xml"/>
+</full-backup-content>

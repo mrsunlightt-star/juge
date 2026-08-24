@@ -1,0 +1,69 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- 猫咪的头半截 (位于下半部，底部切平用于搭框) -->
+    <path
+        android:pathData="M20,100 C20,70 30,50 50,50 C70,50 80,70 80,100"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:fillColor="#1E2436"/>
+    <!-- 左耳朵 -->
+    <path
+        android:pathData="M26,62 L12,40 L38,52 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#1E2436"/>
+    <!-- 右耳朵 -->
+    <path
+        android:pathData="M74,62 L88,40 L62,52 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#1E2436"/>
+    <!-- 耳朵内侧 (粉红) -->
+    <path
+        android:pathData="M23,59 L17,47 L31,53 Z"
+        android:fillColor="#FF8A80"/>
+    <path
+        android:pathData="M77,59 L83,47 L69,53 Z"
+        android:fillColor="#FF8A80"/>
+    <!-- 猫眼睛 (圆圆亮亮) -->
+    <path
+        android:pathData="M38,70 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M54,70 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"
+        android:fillColor="#FFFFFF"/>
+    <!-- 瞳孔 (黑竖线) -->
+    <path
+        android:pathData="M42,67 L42,73 M58,67 L58,73"
+        android:strokeColor="#000000"
+        android:strokeWidth="2"/>
+    <!-- 倒三角猫嘴巴 -->
+    <path
+        android:pathData="M47,78 Q50,81 53,78"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"/>
+    <!-- 猫胡须 (左三根，右三根) -->
+    <path
+        android:pathData="M25,75 L8,73 M25,78 L5,78 M25,81 L8,83"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"/>
+    <path
+        android:pathData="M75,75 L92,73 M75,78 L95,78 M75,81 L92,83"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"/>
+    <!-- 小猫爪子 (搭在框线上) -->
+    <path
+        android:pathData="M30,92 C30,87 35,85 38,87 C40,89 40,92 40,95"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#1E2436"/>
+    <path
+        android:pathData="M70,92 C70,87 65,85 62,87 C60,89 60,92 60,95"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#1E2436"/>
+</vector>

@@ -1,0 +1,66 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "com.juge.app"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.juge.app"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        compose = true
+    }
+    testOptions {
+        // WidgetStyle 默认值与 PRESETS 使用 android.graphics.Color.parseColor，
+        // 本地单元测试的 mockable android.jar 需要返回默认值而不是抛 "not mocked"
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.exifinterface)
+    implementation(libs.coil.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.timber)
+    testImplementation(libs.junit)
+    // WidgetStyle 的 JSON 序列化在单元测试中依赖 org.json；Android 运行时自带，测试运行时需要显式引入
+    testImplementation("org.json:json:20240303")
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.junit)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+}
