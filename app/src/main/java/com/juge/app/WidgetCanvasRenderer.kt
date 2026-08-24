@@ -31,30 +31,14 @@ object WidgetCanvasRenderer {
     private const val SPLIT_CARD_HORIZONTAL_RATIO = 0.333f
     // 检测近白相框阈值：RGB 均大于该值视为“留白像素”
     private const val LIGHT_BORDER_THRESHOLD = 228
-    private const val PET_PEEK_OFFSET_DP = 30f
-    private const val WHITE_THRESHOLD = 252
     private const val TORN_SEED = 42L
     private const val TEXTURE_SEED = 2026L
     private const val FONT_SIZE_SCALE = 1.2f
     private const val QUOTE_MARK_FONT_SIZE_SCALE = 3.5f
     private const val DEFAULT_OUTER_CORNER_RADIUS_DP = 16f
-    private const val AVATAR_WIDTH_RATIO = 0.65f
-    private const val AVATAR_HEIGHT_RATIO = 0.75f
-    private const val BUBBLE_FILL_ALPHA = 235
     private const val QUOTE_ALPHA = 25
     private const val TORN_BORDER_ALPHA = 220
     private const val TAPE_LINE_ALPHA = 45
-    private const val HEART_CURVE_X1 = 0.1f
-    private const val HEART_CURVE_Y1 = 0.05f
-    private const val HEART_CURVE_X2 = 0.02f
-    private const val HEART_CURVE_Y2 = 0.6f
-    private const val HEART_CURVE_X3 = 0.5f
-    private const val HEART_CURVE_Y3 = 0.9f
-    private const val HEART_CURVE_X4 = 0.98f
-    private const val HEART_CURVE_Y4 = 0.6f
-    private const val HEART_CURVE_X5 = 0.9f
-    private const val HEART_CURVE_Y5 = 0.05f
-    private const val HEART_BASE_Y = 0.3f
 
     fun render(
         context: Context,
@@ -77,11 +61,11 @@ object WidgetCanvasRenderer {
 
         // 1. 绘制背景区域与形状裁切路径
         val path = Path()
-        val offsetY = if (style.shape == WidgetShape.PET_PEEK) PET_PEEK_OFFSET_DP * densityScale else 0f
+        val offsetY = 0f
         val rectF = RectF(0f, offsetY, targetWidth.toFloat(), targetHeight.toFloat())
         
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.PET_PEEK, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PILL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI -> {
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI -> {
                 val rx = style.cornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
@@ -101,56 +85,8 @@ object WidgetCanvasRenderer {
                 // 羽毛信纸：居中撕纸信纸矩形，四周留出卡片边距
                 drawFeatherLetterPath(path, targetWidth.toFloat(), targetHeight.toFloat(), densityScale)
             }
-            WidgetShape.CIRCLE -> {
-                // 非正方形组件必须取内切圆半径，取长边会把圆裁出画布变成胶囊
-                val radius = (targetWidth.coerceAtMost(targetHeight) / 2f)
-                val cx = targetWidth / 2f
-                val cy = targetHeight / 2f
-                path.addCircle(cx, cy, radius, Path.Direction.CW)
-            }
             WidgetShape.ELLIPSE -> {
                 path.addOval(rectF, Path.Direction.CW)
-            }
-            WidgetShape.HEART -> {
-                // 绘制心形剪裁轮廓
-                drawHeartPath(path, targetWidth.toFloat(), targetHeight.toFloat())
-            }
-            WidgetShape.SPEECH_BUBBLE, WidgetShape.LUXUN_SAYS -> {
-                // 漫画气泡框：左侧为人像留出空间，动态适配图像高宽比
-                var avatarWidth = targetHeight * AVATAR_WIDTH_RATIO
-                val resourceId = context.resources.getIdentifier("ic_luxun_avatar", "drawable", context.packageName)
-                if (resourceId != 0) {
-                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeResource(context.resources, resourceId, options)
-                    val ratio = options.outWidth.toFloat() / options.outHeight.toFloat()
-                    if (ratio > 0) {
-                        avatarWidth = (targetHeight * AVATAR_HEIGHT_RATIO) * ratio
-                    }
-                }
-                
-                val avatarLeft = 8f * densityScale
-                val bubbleLeft = avatarLeft + avatarWidth + 8f * densityScale
-                val bubbleRight = targetWidth - 12f * densityScale
-                val bubbleTop = 12f * densityScale
-                val bubbleBottom = targetHeight - 12f * densityScale
-                val rx = style.cornerRadiusDp * densityScale
-                
-                if (rx <= 0f) {
-                    path.addRect(RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom), Path.Direction.CW)
-                } else {
-                    path.addRoundRect(RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom), rx, rx, Path.Direction.CW)
-                }
-                
-                // 向左指向人像的三角形尖角
-                val trianglePath = Path()
-                val triangleWidth = 10f * densityScale
-                val triangleHeight = 14f * densityScale
-                trianglePath.moveTo(bubbleLeft - triangleWidth, targetHeight / 2f)
-                trianglePath.lineTo(bubbleLeft + 2f, targetHeight / 2f - triangleHeight / 2f)
-                trianglePath.lineTo(bubbleLeft + 2f, targetHeight / 2f + triangleHeight / 2f)
-                trianglePath.close()
-                
-                path.op(trianglePath, Path.Op.UNION)
             }
         }
 
@@ -158,8 +94,8 @@ object WidgetCanvasRenderer {
         val outerPath = Path()
         // 对于矩形形状，外框圆角跟随用户设置，其余形状使用默认 DEFAULT_OUTER_CORNER_RADIUS_DP
         val outerRx = when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.PET_PEEK, WidgetShape.HANDBOOK_TAPE,
-            WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PILL, WidgetShape.BLUE_NOTE ->
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
+            WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE ->
                 style.cornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
@@ -336,15 +272,6 @@ object WidgetCanvasRenderer {
         canvas.save()
         canvas.clipPath(path)
 
-        // 若是气泡类组件，在气泡框内部加绘一层微透明的底色图层，提升与大背景的层次对比度
-        if (style.shape == WidgetShape.SPEECH_BUBBLE || style.shape == WidgetShape.LUXUN_SAYS) {
-            val bubbleFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = if (style.shape == WidgetShape.LUXUN_SAYS) Color.parseColor("#FFFDF6") else Color.WHITE
-                setAlpha(BUBBLE_FILL_ALPHA)
-            }
-            canvas.drawPath(path, bubbleFillPaint)
-        }
-
         // 释放剪裁状态
         canvas.restore()
 
@@ -417,53 +344,6 @@ object WidgetCanvasRenderer {
             canvas.drawText("NOTE", 20f * densityScale, 28f * densityScale, notePaint)
         }
 
-            // A. SPEECH_BUBBLE / LUXUN_SAYS 专属粗外描边与左侧人像绘制
-            if (style.shape == WidgetShape.SPEECH_BUBBLE || style.shape == WidgetShape.LUXUN_SAYS) {
-                // 绘制气泡框的黑色粗描边
-                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    this.style = Paint.Style.STROKE
-                    this.color = if (style.shape == WidgetShape.LUXUN_SAYS) Color.parseColor("#4E3629") else Color.BLACK
-                    this.strokeWidth = 3.5f * densityScale
-                    this.strokeJoin = Paint.Join.ROUND
-                    this.strokeCap = Paint.Cap.ROUND
-                }
-                canvas.drawPath(path, strokePaint)
-
-                // 绘制左侧人物（优先绘制去白底的鲁迅人像，降级绘制默认卡通小人）
-                try {
-                    val transparentBitmap = getTransparentAvatar(context)
-                    if (transparentBitmap != null) {
-                        val avatarHeight = targetHeight * AVATAR_HEIGHT_RATIO
-                        val ratio = transparentBitmap.width.toFloat() / transparentBitmap.height.toFloat()
-                        val avatarWidth = avatarHeight * ratio
-                        val avatarLeft = 8f * densityScale
-                        val avatarTop = (targetHeight - avatarHeight) / 2f
-
-                        val srcRect = android.graphics.Rect(0, 0, transparentBitmap.width, transparentBitmap.height)
-                        val dstRect = RectF(avatarLeft, avatarTop, avatarLeft + avatarWidth, avatarTop + avatarHeight)
-                        canvas.drawBitmap(transparentBitmap, srcRect, dstRect, Paint(Paint.ANTI_ALIAS_FLAG))
-                    } else {
-                        // 降级使用卡通人物
-                        val drawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_cartoon_avatar)
-                        if (drawable != null) {
-                            val avatarHeight = targetHeight * AVATAR_WIDTH_RATIO
-                            val avatarWidth = avatarHeight
-                            val avatarLeft = 12f * densityScale
-                            val avatarTop = (targetHeight - avatarHeight) / 2f
-                            drawable.setBounds(
-                                avatarLeft.toInt(),
-                                avatarTop.toInt(),
-                                (avatarLeft + avatarWidth).toInt(),
-                                (avatarTop + avatarHeight).toInt()
-                            )
-                            drawable.draw(canvas)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed to draw avatar")
-                }
-            }
-
             // B. 计算安全的文本安全排版边界，防止遮挡人物
             val paddingLeft: Float
             val paddingRight: Float
@@ -471,34 +351,7 @@ object WidgetCanvasRenderer {
             val cardTop: Float
             val cardHeight: Float
 
-            if (style.shape == WidgetShape.SPEECH_BUBBLE || style.shape == WidgetShape.LUXUN_SAYS) {
-                var avatarWidth = targetHeight * AVATAR_WIDTH_RATIO
-                val resourceId = context.resources.getIdentifier("ic_luxun_avatar", "drawable", context.packageName)
-                if (resourceId != 0) {
-                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeResource(context.resources, resourceId, options)
-                    val ratio = options.outWidth.toFloat() / options.outHeight.toFloat()
-                    if (ratio > 0) {
-                        avatarWidth = (targetHeight * AVATAR_HEIGHT_RATIO) * ratio
-                    }
-                }
-                val avatarLeft = 8f * densityScale
-                val bubbleLeft = avatarLeft + avatarWidth + 8f * densityScale
-                val bubbleRight = targetWidth - 12f * densityScale
-                
-                // 气泡框内部留出 padding
-                paddingLeft = bubbleLeft + 12f * densityScale
-                paddingRight = bubbleRight - 12f * densityScale
-                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                cardTop = 12f * densityScale
-                cardHeight = targetHeight - 24f * densityScale
-            } else if (style.shape == WidgetShape.PET_PEEK) {
-                paddingLeft = 16f * densityScale
-                paddingRight = targetWidth - 16f * densityScale
-                textWidth = paddingRight - paddingLeft
-                cardTop = offsetY // 留出了上方的猫咪空间
-                cardHeight = targetHeight - cardTop
-            } else if (style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
+            if (style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
                 paddingLeft = targetWidth * SPLIT_CARD_HORIZONTAL_RATIO + 12f * densityScale
                 paddingRight = targetWidth - 12f * densityScale
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
@@ -639,26 +492,6 @@ object WidgetCanvasRenderer {
                 drawTape(canvas, targetWidth - 24f * densityScale, targetHeight - 16f * densityScale, 70f * densityScale, 18f * densityScale, 18f, Color.parseColor("#80FF8A80"), densityScale) // 右下角粉胶带
             }
 
-            // D. 绘制右上角萌宠探头 (PET_PEEK)
-            if (style.shape == WidgetShape.PET_PEEK) {
-                try {
-                    val drawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_peeking_cat)
-                    if (drawable != null) {
-                        val catWidth = 75f * densityScale
-                        val catHeight = 75f * densityScale
-                        val margin = 16f * densityScale
-                        val catLeft = targetWidth - catWidth - margin
-                        val catRight = targetWidth - margin
-                        val catTop = offsetY - catHeight * 0.82f
-                        val catBottom = offsetY + catHeight * 0.18f
-                        drawable.setBounds(catLeft.toInt(), catTop.toInt(), catRight.toInt(), catBottom.toInt())
-                        drawable.draw(canvas)
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed to draw peeking cat")
-                }
-            }
-
         return bitmap
     }
 
@@ -724,18 +557,6 @@ object WidgetCanvasRenderer {
         canvas.drawLine(halfW - 32f * densityScale, -halfH + 2f * densityScale, halfW - 22f * densityScale, halfH - 2f * densityScale, linePaint)
 
         canvas.restore()
-    }
-
-    // 绘制心形路径
-    private fun drawHeartPath(path: Path, width: Float, height: Float) {
-        path.reset()
-        val x = width / 2f
-        val y = height * HEART_BASE_Y
-        path.moveTo(x, y)
-        // 使用三次贝塞尔曲线绘制浪漫的心形轮廓
-        path.cubicTo(width * HEART_CURVE_X1, height * HEART_CURVE_Y1, width * HEART_CURVE_X2, height * HEART_CURVE_Y2, x, height * HEART_CURVE_Y3)
-        path.cubicTo(width * HEART_CURVE_X4, height * HEART_CURVE_Y4, width * HEART_CURVE_X5, height * HEART_CURVE_Y5, x, y)
-        path.close()
     }
 
     // 构造金属八角形路径：4 个角切角，8 个顶点
@@ -1445,18 +1266,6 @@ object WidgetCanvasRenderer {
     }
 
     @Synchronized
-    private fun getTransparentAvatar(context: Context): Bitmap? {
-        cachedTransparentAvatar?.let { if (!it.isRecycled) return it }
-        val resourceId = context.resources.getIdentifier("ic_luxun_avatar", "drawable", context.packageName)
-        if (resourceId == 0) return null
-        val originalBitmap = BitmapFactory.decodeResource(context.resources, resourceId) ?: return null
-        val transparentBitmap = removeWhiteBackground(originalBitmap)
-        originalBitmap.recycle()
-        cachedTransparentAvatar = transparentBitmap
-        return transparentBitmap
-    }
-
-    // 按目标尺寸采样解码文件，防止超大图片解码后 OOM
     private fun decodeFileSampled(path: String, targetWidth: Int, targetHeight: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, bounds)
@@ -1489,29 +1298,6 @@ object WidgetCanvasRenderer {
             sampleSize *= 2
         }
         return sampleSize
-    }
-
-    // 实时抠除纯白背景像素的图像处理算法
-    private fun removeWhiteBackground(src: Bitmap): Bitmap {
-        val width = src.width
-        val height = src.height
-        val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val pixels = IntArray(width * height)
-        src.getPixels(pixels, 0, width, 0, 0, width, height)
-        
-        for (i in pixels.indices) {
-            val color = pixels[i]
-            val r = (color shr 16) and 0xFF
-            val g = (color shr 8) and 0xFF
-            val b = color and 0xFF
-            
-            // 为了保留人物长衫本身的纸墨灰白高光质感，只滤除非常接近绝对纯白的背景像素 (>= WHITE_THRESHOLD)
-            if (r >= WHITE_THRESHOLD && g >= WHITE_THRESHOLD && b >= WHITE_THRESHOLD) {
-                pixels[i] = Color.TRANSPARENT
-            }
-        }
-        out.setPixels(pixels, 0, width, 0, 0, width, height)
-        return out
     }
 
     // 随机生成撕纸效果 Path

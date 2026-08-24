@@ -731,11 +731,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                             ) {
                                                 Text("🖼 背景与物理外框", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
 
-                                                val canAdjustCorner = currentStyle.shape != WidgetShape.SPEECH_BUBBLE &&
-                                                                      currentStyle.shape != WidgetShape.LUXUN_SAYS &&
-                                                                      currentStyle.shape != WidgetShape.HEART &&
-                                                                      currentStyle.shape != WidgetShape.CIRCLE &&
-                                                                      currentStyle.shape != WidgetShape.ELLIPSE &&
+                                                val canAdjustCorner = currentStyle.shape != WidgetShape.ELLIPSE &&
                                                                       currentStyle.shape != WidgetShape.TORN_PAPER
 
                                                 // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
@@ -1087,9 +1083,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 return@Button
                                             }
                                             val isProShape = currentStyle.shape != WidgetShape.RECTANGLE &&
-                                                currentStyle.shape != WidgetShape.CIRCLE &&
-                                                currentStyle.shape != WidgetShape.ELLIPSE &&
-                                                currentStyle.shape != WidgetShape.PILL
+                                                currentStyle.shape != WidgetShape.ELLIPSE
                                             val needPay = !trialManager.isActivated() && (
                                                 WidgetStyle.isProPreset(currentStyle) || isProShape || !currentStyle.backgroundImagePath.isNullOrEmpty()
                                             )

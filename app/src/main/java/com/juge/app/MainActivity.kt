@@ -320,9 +320,7 @@ class MainActivity : ComponentActivity() {
         val onStyleChange: (Int, Long, String, WidgetStyle) -> Unit = onStyleChange@{ widgetId, configId, newContent, newStyle ->
             val isSyncToDesktop = widgetId != -1
             val isProShapeSync = newStyle.shape != WidgetShape.RECTANGLE &&
-                newStyle.shape != WidgetShape.CIRCLE &&
-                newStyle.shape != WidgetShape.ELLIPSE &&
-                newStyle.shape != WidgetShape.PILL
+                newStyle.shape != WidgetShape.ELLIPSE
             val needPay = isSyncToDesktop && !trialManager.isActivated() && (
                 WidgetStyle.isProPreset(newStyle) || isProShapeSync || !newStyle.backgroundImagePath.isNullOrEmpty()
                 )
@@ -2430,11 +2428,7 @@ class MainActivity : ComponentActivity() {
 
                         // 背景圆角尺寸 Slider (适用于卡片类形状)
                         // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
-                        val canAdjustCorner = selectedStyle.shape != WidgetShape.SPEECH_BUBBLE &&
-                                              selectedStyle.shape != WidgetShape.LUXUN_SAYS &&
-                                              selectedStyle.shape != WidgetShape.HEART &&
-                                              selectedStyle.shape != WidgetShape.CIRCLE &&
-                                              selectedStyle.shape != WidgetShape.ELLIPSE &&
+                        val canAdjustCorner = selectedStyle.shape != WidgetShape.ELLIPSE &&
                                               selectedStyle.shape != WidgetShape.TORN_PAPER
                         Row(
                             modifier = Modifier.fillMaxWidth(),

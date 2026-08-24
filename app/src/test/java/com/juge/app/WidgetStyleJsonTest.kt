@@ -32,7 +32,7 @@ class WidgetStyleJsonTest {
     @Test
     fun `full style round-trips through json`() {
         val style = WidgetStyle(
-            shape = WidgetShape.SPEECH_BUBBLE,
+            shape = WidgetShape.HANDBOOK_TAPE,
             cornerRadiusDp = 20f,
             backgroundColor = 0xFF112233.toInt(),
             backgroundOpacity = 0.6f,
@@ -95,9 +95,9 @@ class WidgetStyleJsonTest {
 
     @Test
     fun `legacy partial json keeps default values for missing fields`() {
-        val json = """{"shape":"CIRCLE","fontSizeSp":30}"""
+        val json = """{"shape":"TORN_PAPER","fontSizeSp":30}"""
         val parsed = WidgetStyle.fromJsonString(json)
-        assertEquals(WidgetShape.CIRCLE, parsed.shape)
+        assertEquals(WidgetShape.TORN_PAPER, parsed.shape)
         assertEquals(30f, parsed.fontSizeSp)
         assertEquals(12f, parsed.cornerRadiusDp)
         assertFalse(parsed.fontBold)

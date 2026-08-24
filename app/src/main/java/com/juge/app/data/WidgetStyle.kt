@@ -40,17 +40,11 @@ enum class WidgetFont(val fontPath: String?, val displayName: String) {
 // 预定义形状枚举
 enum class WidgetShape(val displayName: String) {
     RECTANGLE("矩形"),
-    CIRCLE("圆形"),
     ELLIPSE("椭圆形"),
-    HEART("心形"),
-    SPEECH_BUBBLE("漫画气泡"),
     HANDBOOK_TAPE("手账胶带"),
-    PET_PEEK("萌宠探头"),
-    LUXUN_SAYS("鲁迅立言"),
     TORN_PAPER("撕裂纸片"),
     SPLIT_CARD("图文明信片"),
     SPLIT_CARD_HORIZONTAL("左右分割明信片"),
-    PILL("药丸胶囊"),
     METAL_OCTAGON("金属八角骑士"),
     FEATHER_LETTER("羽毛信纸"),
     PIXEL_RETRO("复古像素"),
@@ -304,17 +298,6 @@ data class WidgetStyle(
                 showQuoteMark = true,
                 authorSignature = "—— 星辰大海"
             ), // 7. 深邃星海风格 (PRO)
-            WidgetStyle(
-                shape = WidgetShape.SPEECH_BUBBLE,
-                cornerRadiusDp = 12f,
-                backgroundColor = Color.parseColor("#FFF9E6"),
-                fontColor = Color.parseColor("#8C6239"),
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 17f,
-                textureType = "FABRIC",
-                cardBorderWidthDp = 2f,
-                cardBorderColor = Color.parseColor("#D9B48F")
-            ), // 8. 萌宠气泡风格 (PRO)
 
             WidgetStyle(
                 shape = WidgetShape.SPLIT_CARD,
@@ -553,19 +536,6 @@ data class WidgetStyle(
                 showCardShadow = false,
                 textAlign = "CENTER"
             ), // 25. 深夜模式 (免费)
-            WidgetStyle(
-                shape = WidgetShape.PILL,
-                cornerRadiusDp = 0f,
-                backgroundColor = Color.parseColor("#F8FAFC"),
-                fontColor = Color.parseColor("#334155"),
-                font = WidgetFont.DEFAULT,
-                fontSizeSp = 17f,
-                fontBold = false,
-                showCardShadow = false,
-                cardBorderWidthDp = 0.5f,
-                cardBorderColor = Color.parseColor("#E2E8F0"),
-                textAlign = "CENTER"
-            ), // 26. 极简药丸 (免费)
 
             // 磨砂玻璃预设 (PRO)
             WidgetStyle(
@@ -696,7 +666,7 @@ data class WidgetStyle(
         // 免费预设索引：未激活用户可直接套用，渲染器与两个编辑页面统一读取，
         // 避免各处用"预设列表下标 >= 1"或形状枚举做启发式判断导致的锁定错乱。
         // 注意：在 PRESETS 中间插入新预设会使下标整体漂移，需同步维护此集合。
-        val FREE_PRESET_INDICES = setOf(0, 29, 30, 31) // 纯色圆角 / 白底黑字 / 深夜模式 / 极简药丸
+        val FREE_PRESET_INDICES = setOf(0, 28, 29) // 纯色圆角 / 白底黑字 / 深夜模式
         private val FREE_PRESET_IDS = FREE_PRESET_INDICES.map { "preset_$it" }.toSet()
 
         /**
@@ -746,9 +716,7 @@ data class WidgetStyle(
             "breaking_bad" to "绝命毒师",
             "v_for_vendetta" to "V字仇杀队",
             "bu_yao_you_yu" to "不要犹豫",
-            "bao_chi_zhuan_zhu" to "保持专注",
-            "happy_daily" to "天天开心",
-            "plum_blossom" to "梅花相见"
+            "bao_chi_zhuan_zhu" to "保持专注"
         )
 
         // 首页与快捷面板共用的推荐预设（按风格分类）。
