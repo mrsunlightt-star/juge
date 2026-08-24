@@ -955,6 +955,29 @@ object WidgetCanvasRenderer {
                 }
                 canvas.drawBitmap(processedBitmap, srcRect, dstRect, paint)
             }
+            ImageScaleMode.CENTER_CROP_TOP -> {
+                // 等比铺满(覆盖)目标区域：先放大到两方向都 >= 目标，超出方向裁剪。
+                // 与 CENTER_CROP 不同：垂直方向多余的高度从【底部】裁掉、锚点在顶部，
+                // 让顶部主体(如趴在卡片上方的猫)完整保留，而 CENTER_FIT 会因组件过宽把整图缩得左右留白。
+                val content = detectLightBorder(processedBitmap)
+                val cw = content.right - content.left
+                val ch = content.bottom - content.top
+                val targetRatio = rectF.width() / rectF.height()
+                val srcRatio = cw.toFloat() / ch.toFloat()
+                val srcRect = android.graphics.Rect()
+
+                if (srcRatio > targetRatio) {
+                    // 源更宽：以宽为准铺满、上下选裁，但要保住顶部主体 → 从顶部取满高，不居中
+                    val srcWidth = (ch * targetRatio).toInt()
+                    val left = content.left + (cw - srcWidth) / 2
+                    srcRect.set(left, content.top, left + srcWidth, content.bottom)
+                } else {
+                    // 源更高：以高为准铺满、左右居中裁 → 顶部锚定，底部超出的往下裁掉
+                    val srcHeight = (cw / targetRatio).toInt()
+                    srcRect.set(content.left, content.top, content.right, content.top + srcHeight)
+                }
+                canvas.drawBitmap(processedBitmap, srcRect, rectF, paint)
+            }
             ImageScaleMode.TILE -> {
                 val shader = BitmapShader(processedBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                 val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -1198,48 +1221,12 @@ object WidgetCanvasRenderer {
         return bitmap
     }
 
-    // 绘制试用期过期（未激活）组件内容
-    private fun drawTrialExpiredPrompt(canvas: Canvas, width: Int, height: Int, scale: Float) {
-        // 绘制蒙版或背景：小清新温暖淡黄色背景
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFDF2")
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
-
-        val mainPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#5C4033") // 优雅的深暖褐色
-            textSize = 20f * scale
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#8A7968") // 辅助中暖棕色
-            textSize = 12f * scale
-        }
-
-        val mainText = "1元永久激活"
-        val subText = "解锁8+内置风格，后续免费更新"
-
-        val mainWidth = mainPaint.measureText(mainText)
-        val subWidth = subPaint.measureText(subText)
-
-        val mainX = (width - mainWidth) / 2f
-        val subX = (width - subWidth) / 2f
-
-        val centerY = height / 2f
-        canvas.drawText(mainText, mainX, centerY - 10f * scale, mainPaint)
-        canvas.drawText(subText, subX, centerY + 20f * scale, subPaint)
-    }
-
     // 预设插画缓存：桌面组件每次刷新都会渲染，避免重复全尺寸解码。
     // key 必须带上目标尺寸，否则首次按小尺寸解码的位图会被 4×4 大组件复用，
     // 导致桌面显示被放大的模糊图。
     private val presetImageCache = object : android.util.LruCache<String, Bitmap>(16 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
-
-    // 去白底鲁迅人像缓存：逐像素处理开销大，只需计算一次
-    @Volatile
-    private var cachedTransparentAvatar: Bitmap? = null
 
     @Synchronized
     private fun getPresetImage(context: Context, resName: String, targetWidth: Int, targetHeight: Int): Bitmap? {

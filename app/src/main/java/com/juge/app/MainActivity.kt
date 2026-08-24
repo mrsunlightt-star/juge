@@ -280,10 +280,14 @@ class MainActivity : ComponentActivity() {
                         .split("*").getOrNull(1)?.toIntOrNull() ?: 2
                 } else 2
             val sy = spanY.coerceIn(2, 4)
-            return when (shape) {
+            val adaptiveHeight = when (shape) {
                 WidgetShape.SPLIT_CARD_HORIZONTAL -> 130
                 else -> 60 + sy * 50
             }
+            // 预览组件显示区域统一抬高到 180dp（含当前常见的 2 行卡片，使其上下各扩约 5dp）；
+            // 更高的规格（如 4×4 的 260dp）保持自适应值防裁切。此值仅影响页面预览展示，
+            // 不影响桌面小组件的真实栅格尺寸。
+            return adaptiveHeight.coerceAtLeast(180)
         }
         // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
         // 统一只收紧一行(24dp)：固定 244dp，仅当组件需要的渲染高度超过时才抬高，
@@ -557,7 +561,7 @@ class MainActivity : ComponentActivity() {
                                         try {
                                             WidgetCanvasRenderer.render(
                                                 context = this@MainActivity,
-                                                widthDp = 312,
+                                                widthDp = 360,
                                                 heightDp = previewHeightDp,
                                                 content = pageContent,
                                                 style = pageStyle,
@@ -2556,6 +2560,7 @@ class MainActivity : ComponentActivity() {
                                         ImageScaleMode.STRETCH -> "拉伸"
                                         ImageScaleMode.CENTER_CROP -> "裁剪"
                                         ImageScaleMode.CENTER_FIT -> "完整"
+                                        ImageScaleMode.CENTER_CROP_TOP -> "铺满"
                                         ImageScaleMode.TILE -> "平铺"
                                     }
                                     FilterChip(

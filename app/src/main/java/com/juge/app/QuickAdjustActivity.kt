@@ -830,6 +830,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 ImageScaleMode.STRETCH -> "拉伸"
                                                                 ImageScaleMode.CENTER_CROP -> "裁剪"
                                                                 ImageScaleMode.CENTER_FIT -> "完整"
+                                                                ImageScaleMode.CENTER_CROP_TOP -> "铺满"
                                                                 ImageScaleMode.TILE -> "平铺"
                                                             }
                                                             FilterChip(

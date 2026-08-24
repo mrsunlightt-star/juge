@@ -58,6 +58,7 @@ enum class ImageScaleMode {
     STRETCH, // 拉伸
     CENTER_CROP, // 裁剪
     CENTER_FIT, // 等比全部完整显示(左右留透明)
+    CENTER_CROP_TOP, // 等比铺满(覆盖)但顶部对齐：顶部主体(如趴着的猫)不裁切，多余高度从底部裁掉
     TILE // 平铺
 }
 
@@ -312,6 +313,7 @@ data class WidgetStyle(
             WidgetStyle(
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#4A3B32"),
                 showQuoteMark = true,
@@ -321,6 +323,7 @@ data class WidgetStyle(
             WidgetStyle(
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
                 showQuoteMark = true,
@@ -459,6 +462,7 @@ data class WidgetStyle(
             WidgetStyle(
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
                 showQuoteMark = true,
@@ -477,6 +481,7 @@ data class WidgetStyle(
             WidgetStyle(
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
                 showQuoteMark = true,
@@ -612,7 +617,7 @@ data class WidgetStyle(
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 卡片外透明
                 backgroundOpacity = 1f,
                 backgroundImagePath = null,
-                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 等比完整显示整只猫+卡片，避免压扁或裁掉猫身
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP_TOP, // 等比铺满且顶部对齐：渐变卡片铺满整组件宽、趴在顶部的猫不被裁切
                 font = WidgetFont.LXGW_WENKAI,
                 fontSizeSp = 22f,
                 fontColor = Color.parseColor("#5C6270"), // 深灰,匹配渐变卡片
@@ -622,6 +627,21 @@ data class WidgetStyle(
                 presetImageResName = "cute_cat_lying",
                 authorSignature = "—— 萌宠猫咪趴"
             ), // 31. 萌宠猫咪趴 (PRO)
+
+            // 可爱四小只 (PRO)：四个圆形萌宠头像(企鹅帽/蓝绿双马尾/黄脸/粉发双丸子)排成 2×2 网格，左图右文
+            WidgetStyle(
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 四小只头像为透明圆形抠图，等比完整显示不被裁切
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 19f,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "cute_four_kids",
+                authorSignature = "—— 可爱四小只"
+            ), // 可爱四小只 (PRO)
 
             // 蓝色便签 (PRO)：SVG 设计稿还原 — #43A8F0 蓝底圆角 + 顶部 NOTE + 右上信息钮 + 底部米白手写签条
             WidgetStyle(
@@ -744,7 +764,8 @@ data class WidgetStyle(
             "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
             "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),
             "毛绒猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_cat" } ?: PRESETS[0]),
-            "萌宠猫咪趴" to (PRESETS.firstOrNull { it.shape == WidgetShape.PET_CAT_NAP } ?: PRESETS[0])
+            "萌宠猫咪趴" to (PRESETS.firstOrNull { it.shape == WidgetShape.PET_CAT_NAP } ?: PRESETS[0]),
+            "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0])
         )
     }
 }
