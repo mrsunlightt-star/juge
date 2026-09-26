@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 支付下单/查单：访问支付后端接口 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- targetSdk 30+ 的包可见性声明：缺少此声明时支付宝 SDK 会退化为 H5 收银台，无法拉起支付宝 App -->
+    <queries>
+        <package android:name="com.eg.android.AlipayGphone" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

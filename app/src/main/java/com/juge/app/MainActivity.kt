@@ -42,7 +42,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.account.AccountDialog
+import com.juge.app.account.AccountStore
+import com.juge.app.account.AccountSync
 import com.juge.app.data.*
+import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -56,6 +60,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.scale
@@ -63,13 +72,16 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 
-private val darkBg = Color(0xFFF8FAFC) // 网站同款清爽晨曦底色 (Fresh Breeze Background)
+private val darkBg = Color(0xFFEEF2F7) // 页面底色（冷调浅灰蓝）：比纯白卡片深一档，让白卡片能"浮"起来，同时保持清爽
 private val cardBg = Color(0xFFFFFFFF) // 纯净白卡片
 private val accentBlue = Color(0xFF0F766E) // 网站薄荷青翠主色 (Fresh Mint Teal)
 private val accentLightBlue = Color(0xFF0284C7) // 晴空天蓝 (Sky Cyan)
 private val borderBlue = Color(0xFFE2E8F0) // 网站同款精细边框与网格线
 private val textWhite = Color(0xFF0F172A) // 现代极简墨色 (Slate Ink)
 private val textGray = Color(0xFF64748B) // 板岩轻灰，副标题/描述文字 (Slate Muted)
+private val mintBright = Color(0xFF2DD4BF) // 选中/激活态填充·薄荷青明亮版（呼应主界面极光渐变）
+private val mintSky = Color(0xFF38BDF8) // 主按钮渐变终点·晴空天蓝（与主界面同源）
+private val mintInk = Color(0xFF134E4A) // 明亮薄荷底上的深色文字/图标，保证对比度
 
 class MainActivity : ComponentActivity() {
 
@@ -124,6 +136,9 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
+        // 当前展开的协议全文：null / "user" / "privacy"
+        var openDoc by remember { mutableStateOf<String?>(null) }
+
         Dialog(
             onDismissRequest = {},
             properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
@@ -150,7 +165,37 @@ class MainActivity : ComponentActivity() {
                     )
 
                     Text(
-                        text = "感谢您使用《句阁》！我们非常重视您的隐私与个人信息保护。在您使用本应用的服务（包括金句展示、自定义背景与桌面组件刷新等）之前，请仔细阅读《用户协议》和《隐私政策》。\n\n1. 本应用为纯本地小部件应用，您的自定义提醒与偏好配置全部保存在您的设备本地中，我们不会收集或向第三方服务器传输您的任何金句数据。\n2. 自定义背景图通过系统图片选择器挑选，图片仅在您主动选择确认后才会导入本应用，未经您选择不会读取相册中的任何内容。\n\n如您同意以上协议，请点击“同意”开始使用我们的服务。",
+                        text = "感谢您使用《句阁》！我们非常重视您的隐私与个人信息保护。在您使用本应用的服务（包括金句展示、自定义背景与桌面组件刷新等）之前，请仔细阅读以下协议：",
+                        fontSize = 13.sp,
+                        color = Color(0xFF6B7280),
+                        lineHeight = 18.sp
+                    )
+
+                    // 协议全文入口：合规要求条款必须能在应用内完整查阅
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "《用户协议》",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accentLightBlue,
+                            modifier = Modifier.clickable { openDoc = "user" }
+                        )
+                        Text(
+                            text = "《隐私政策》",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accentLightBlue,
+                            modifier = Modifier.clickable { openDoc = "privacy" }
+                        )
+                    }
+
+                    Text(
+                        text = "1. 本应用为纯本地小部件应用，您的自定义提醒与偏好配置全部保存在您的设备本地中，我们不会收集或向第三方服务器传输您的任何金句数据。\n2. 自定义背景图通过系统图片选择器挑选，图片仅在您主动选择确认后才会导入本应用，未经您选择不会读取相册中的任何内容。\n\n如您同意以上协议，请点击“同意”开始使用我们的服务。",
                         fontSize = 13.sp,
                         color = Color(0xFF6B7280),
                         lineHeight = 18.sp,
@@ -173,13 +218,388 @@ class MainActivity : ComponentActivity() {
                         Button(
                             onClick = onAgree,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = accentBlue)
+                            colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk)
                         ) {
-                            Text("同意并继续", fontSize = 13.sp, color = Color.White)
+                            Text("同意并继续", fontSize = 13.sp, color = mintInk)
                         }
                     }
                 }
             }
+        }
+
+        openDoc?.let { doc ->
+            LegalDocDialog(
+                title = if (doc == "user") "《用户协议》" else "《隐私政策》",
+                body = if (doc == "user") LegalDocs.USER_AGREEMENT else LegalDocs.PRIVACY_POLICY,
+                onDismiss = { openDoc = null }
+            )
+        }
+    }
+
+    /**
+     * 《用户协议》/《隐私政策》全文查看器。
+     * 合规要求：条款必须能在应用内完整查阅，且可随时关闭返回。
+     */
+    @Composable
+    fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
+        Dialog(onDismissRequest = onDismiss) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .padding(12.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.dp, borderBlue)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937)
+                        )
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "关闭",
+                                tint = textGray,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = borderBlue,
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = body,
+                            fontSize = 13.sp,
+                            color = Color(0xFF4B5563),
+                            lineHeight = 21.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk)
+                    ) {
+                        Text("我知道了", fontSize = 13.sp, color = mintInk)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 「我的」页统一卡片外壳 */
+    @Composable
+    fun ProfileCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            border = BorderStroke(1.dp, borderBlue)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentBlue
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                content()
+            }
+        }
+    }
+
+    /** 「我的」页左标签右取值的信息行 */
+    @Composable
+    fun ProfileInfoRow(label: String, value: String, valueColor: Color = textWhite) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = textGray
+            )
+            Text(
+                text = value,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = valueColor,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+            )
+        }
+    }
+
+    /**
+     * 「跃然纸上」「个性定制」两页底部共用的协议与备案页脚。
+     * 备案号需在 App 内可见，点击跳转工信部备案查询系统。
+     */
+    @Composable
+    fun LegalFooter(onOpenDoc: (String) -> Unit) {
+        val context = LocalContext.current
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = "《用户协议》",
+                    fontSize = 11.sp,
+                    color = accentLightBlue,
+                    modifier = Modifier.clickable { onOpenDoc("user") }
+                )
+                Text(
+                    text = "《隐私政策》",
+                    fontSize = 11.sp,
+                    color = accentLightBlue,
+                    modifier = Modifier.clickable { onOpenDoc("privacy") }
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = LegalDocs.ICP_LICENSE,
+                fontSize = 11.sp,
+                color = Color(0xFF94A3B8),
+                modifier = Modifier.clickable {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(LegalDocs.ICP_QUERY_URL))
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * 「我的」页：账号、会员激活记录、协议入口与版本信息。
+     *
+     * 激活记录取自 TrialManager 本地存储；本次升级前就已激活的用户没有记录，
+     * 支付方式显示为「未记录」，不影响其会员权益。
+     */
+    @Composable
+    fun ProfileTabContent(
+        isActivated: Boolean,
+        accountName: String?,
+        onOpenAccount: () -> Unit,
+        onOpenDoc: (String) -> Unit
+    ) {
+        val context = LocalContext.current
+        val versionName = remember {
+            runCatching {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            }.getOrNull() ?: "1.0"
+        }
+        val record = remember(isActivated) { trialManager.activationRecord() }
+        val activatedAtText = record?.let {
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(it.activatedAt))
+        } ?: "未记录"
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ProfileCard(title = "账号") {
+                ProfileInfoRow(
+                    label = "登录状态",
+                    value = accountName ?: "未登录",
+                    valueColor = if (accountName == null) textGray else textWhite
+                )
+                Text(
+                    text = if (accountName == null) {
+                        "登录后可在更换手机或重装应用后找回已购 PRO。不登录也能完整使用全部功能。"
+                    } else {
+                        "本机 PRO 权益已绑定账号，在其他设备登录后可自动找回。"
+                    },
+                    fontSize = 12.sp,
+                    color = textGray,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                OutlinedButton(
+                    onClick = onOpenAccount,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    border = BorderStroke(1.dp, borderBlue),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentBlue)
+                ) {
+                    Text(
+                        text = if (accountName == null) "登录 / 注册账号" else "管理账号",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            ProfileCard(title = "会员") {
+                ProfileInfoRow(
+                    label = "会员状态",
+                    value = if (isActivated) "✨ 已激活 PRO" else "未激活",
+                    valueColor = if (isActivated) accentBlue else textGray
+                )
+                ProfileInfoRow(label = "激活时间", value = activatedAtText)
+                ProfileInfoRow(
+                    label = "支付方式",
+                    value = record?.payMethod ?: "未记录"
+                )
+                ProfileInfoRow(label = "权益有效期", value = "永久有效")
+                if (!isActivated) {
+                    Text(
+                        text = "尚未激活。点击顶部「👑 激活PRO」即可解锁全部内置风格。",
+                        fontSize = 12.sp,
+                        color = textGray,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            ProfileCard(title = "协议与政策") {
+                Text(
+                    text = "《用户协议》",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentLightBlue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenDoc("user") }
+                        .padding(vertical = 8.dp)
+                )
+                Text(
+                    text = "《隐私政策》",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentLightBlue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenDoc("privacy") }
+                        .padding(vertical = 8.dp)
+                )
+            }
+
+            ProfileCard(title = "关于") {
+                ProfileInfoRow(label = "应用名称", value = "句阁 DeskQuotes")
+                ProfileInfoRow(label = "版本", value = versionName)
+                ProfileInfoRow(label = "数据存储", value = "全部保存在本机")
+                ProfileInfoRow(label = "广告", value = "无任何广告")
+
+                // 可点开发信的邮箱：应用商店审核要求存在可联系渠道
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_SENDTO,
+                                        Uri.parse("mailto:${LegalDocs.EMAIL}")
+                                    )
+                                )
+                            }.onFailure {
+                                Toast.makeText(
+                                    context,
+                                    "未找到邮件应用，联系邮箱：${LegalDocs.EMAIL}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "联系邮箱",
+                        fontSize = 13.sp,
+                        color = textGray
+                    )
+                    Text(
+                        text = LegalDocs.EMAIL,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accentLightBlue,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+
+    /**
+     * ⚠️ 开发期临时控件：一键切换 PRO 状态。
+     *
+     * 直接读写 TrialManager 的真实存储，所以切到 PRO 后付费墙、预设锁定态、
+     * 桌面组件徽章的表现与真实购买完全一致，便于逐项验证。
+     * 发布前删除本函数及顶部栏中的调用点。
+     */
+    @Composable
+    fun DevProToggle(activated: Boolean, onToggle: (Boolean) -> Unit) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.92f))
+                .border(BorderStroke(1.dp, Color(0xFFF59E0B)), RoundedCornerShape(20.dp))
+                .padding(start = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "开发",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFB45309)
+            )
+            Switch(
+                checked = activated,
+                onCheckedChange = onToggle,
+                modifier = Modifier.scale(0.7f),
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF059669),
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color(0xFFCBD5E1)
+                )
+            )
         }
     }
 
@@ -188,6 +608,37 @@ class MainActivity : ComponentActivity() {
     fun MainAppScreen(startOnActivate: Boolean, targetEditConfigId: Long) {
         var subTab by remember { mutableStateOf("library") }
         var isActivatedState by remember { mutableStateOf(trialManager.isActivated()) }
+        // 支付进行中：用于按钮置忙，避免重复拉起收银台
+        var isPaying by remember { mutableStateOf(false) }
+        var showAccountDialog by remember { mutableStateOf(false) }
+        // 「我的」页打开的协议全文：null / "user" / "privacy"
+        var showLegalDoc by remember { mutableStateOf<String?>(null) }
+        var accountName by remember { mutableStateOf(AccountStore.snapshot(this@MainActivity)?.displayName) }
+
+        // 上次支付被中断（App 被杀 / 切后台）时复查留存订单，兜底「已付款但没激活成功」
+        LaunchedEffect(Unit) {
+            if (!trialManager.isActivated() &&
+                ProPurchase.recoverPending(this@MainActivity) is ProPurchase.Outcome.Paid
+            ) {
+                trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
+                isActivatedState = true
+                ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                Toast.makeText(this@MainActivity, "🎉 已找回支付订单，PRO 激活成功！", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 已登录时用服务端结论回灌本地 PRO：换机、重装后这是唯一的找回入口。
+        // 未登录或网络不可用时静默跳过，不影响本地任何功能。
+        LaunchedEffect(Unit) {
+            val serverSaysPro = AccountSync.refresh(this@MainActivity)
+            accountName = AccountStore.snapshot(this@MainActivity)?.displayName
+            if (serverSaysPro && !trialManager.isActivated()) {
+                trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                isActivatedState = true
+                ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                Toast.makeText(this@MainActivity, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         var categories by remember { mutableStateOf(emptyList<Category>()) }
         var reminders by remember { mutableStateOf(emptyList<Reminder>()) }
@@ -323,10 +774,10 @@ class MainActivity : ComponentActivity() {
         // 未激活时切到付费风格仍允许在 App 内预览，但点保存同步到桌面时弹激活。
         val onStyleChange: (Int, Long, String, WidgetStyle) -> Unit = onStyleChange@{ widgetId, configId, newContent, newStyle ->
             val isSyncToDesktop = widgetId != -1
-            val isProShapeSync = newStyle.shape != WidgetShape.RECTANGLE &&
-                newStyle.shape != WidgetShape.ELLIPSE
+            // 付费点只有两个：会员专属风格、自定义背景图。
+            // 字体、字号、颜色、圆角、不透明度等细节调整全部免费，不再参与判定。
             val needPay = isSyncToDesktop && !trialManager.isActivated() && (
-                WidgetStyle.isProPreset(newStyle) || isProShapeSync || !newStyle.backgroundImagePath.isNullOrEmpty()
+                WidgetStyle.isProPreset(newStyle) || !newStyle.backgroundImagePath.isNullOrEmpty()
                 )
             if (needPay) {
                 showProDialog = true
@@ -361,21 +812,65 @@ class MainActivity : ComponentActivity() {
         if (showProDialog) {
             ProActivationDialog(
                 isActivated = isActivatedState,
+                isPaying = isPaying,
+                accountName = accountName,
                 onActivate = {
-                    trialManager.activate()
-                    isActivatedState = true
-                    showProDialog = false
-                    // 桌面组件上未激活时的提示位图需要重绘
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
-                    Toast.makeText(this@MainActivity, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                    if (!isPaying) {
+                        isPaying = true
+                        lifecycleScope.launch {
+                            when (val outcome = ProPurchase.purchase(this@MainActivity)) {
+                                is ProPurchase.Outcome.Paid -> {
+                                    trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
+                                    isActivatedState = true
+                                    showProDialog = false
+                                    // 桌面组件上未激活时的提示位图需要重绘
+                                    ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                                    Toast.makeText(this@MainActivity, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                                }
+
+                                is ProPurchase.Outcome.Unpaid -> if (outcome.message.isNotEmpty()) {
+                                    Toast.makeText(this@MainActivity, outcome.message, Toast.LENGTH_LONG).show()
+                                }
+
+                                is ProPurchase.Outcome.Failed -> {
+                                    Toast.makeText(this@MainActivity, outcome.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                            isPaying = false
+                        }
+                    }
                 },
-                onDismiss = { showProDialog = false }
+                onOpenAccount = { showAccountDialog = true },
+                onDismiss = { if (!isPaying) showProDialog = false }
+            )
+        }
+
+        if (showAccountDialog) {
+            AccountDialog(
+                onProConfirmed = {
+                    trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                    isActivatedState = true
+                    ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                    Toast.makeText(this@MainActivity, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = {
+                    showAccountDialog = false
+                    accountName = AccountStore.snapshot(this@MainActivity)?.displayName
+                },
+            )
+        }
+
+        showLegalDoc?.let { doc ->
+            LegalDocDialog(
+                title = if (doc == "user") "《用户协议》" else "《隐私政策》",
+                body = if (doc == "user") LegalDocs.USER_AGREEMENT else LegalDocs.PRIVACY_POLICY,
+                onDismiss = { showLegalDoc = null }
             )
         }
 
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color(0xFFF8FAFC)
+            color = darkBg
         ) {
             Box(
                 modifier = Modifier
@@ -388,7 +883,7 @@ class MainActivity : ComponentActivity() {
                                     Color(0xFF5EEAD4), // 鲜明深薄荷 (Rich Vibrant Mint)
                                     Color(0xFF38BDF8), // 晴空澄澈天蓝 (Sky Cyan)
                                     Color(0xFFBAE6FD).copy(alpha = 0.50f), // 晨露浅青
-                                    Color(0xFFF8FAFC)  // 渐入清爽白
+                                    darkBg  // 渐入页面底色
                                 ),
                                 start = Offset(0f, 0f),
                                 end = Offset(size.width, size.height * 0.44f)
@@ -481,9 +976,9 @@ class MainActivity : ComponentActivity() {
                                     Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF065F46), modifier = Modifier.size(18.dp))
                                 }
 
-                                val badgeText = if (isActivatedState) "✨ PRO" else "👑 激活PRO ￥1"
+                                val badgeText = if (isActivatedState) "✨ PRO" else "👑 激活PRO ${ProPurchase.PRICE_TEXT}"
                                 val badgeBg = if (isActivatedState) {
-                                    Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7)))
+                                    Brush.horizontalGradient(listOf(mintBright, mintSky))
                                 } else {
                                     Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706)))
                                 }
@@ -501,9 +996,29 @@ class MainActivity : ComponentActivity() {
                                         text = badgeText,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = mintInk
                                     )
                                 }
+
+                                // ⚠️ 开发期临时开关：一键在「已激活 / 未激活」之间切换，用于验证付费墙与锁定态。
+                                // 发布前必须整块删除——留着等于把付费墙拆了。
+                                DevProToggle(
+                                    activated = isActivatedState,
+                                    onToggle = { checked ->
+                                        if (checked) {
+                                            trialManager.activate(TrialManager.PAY_METHOD_DEV)
+                                        } else {
+                                            trialManager.resetActivation()
+                                        }
+                                        isActivatedState = checked
+                                        ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            if (checked) "开发开关：已切换到 PRO" else "开发开关：已切换到免费",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                )
                             }
                         }
 
@@ -633,7 +1148,7 @@ class MainActivity : ComponentActivity() {
                                 .weight(1f)
                                 .fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color.White
+                                containerColor = darkBg
                             ),
                             border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
@@ -659,15 +1174,16 @@ class MainActivity : ComponentActivity() {
                                         .fillMaxWidth()
                                         .padding(horizontal = 24.dp)
                                         .height(42.dp)
-                                        .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
                                         .padding(3.dp)
                                 ) {
                                     val width = maxWidth
-                                    val isLibrarySelected = subTab == "library"
-                                    val indicatorWidth = width / 2
+                                    val tabKeys = listOf("library", "adjust", "mine")
+                                    val selectedIndex = tabKeys.indexOf(subTab).coerceAtLeast(0)
+                                    val indicatorWidth = width / 3
 
                                     // 无动效：指示器位置随 Tab 即时切换（无过渡动画）
-                                    val selectedOffset = if (isLibrarySelected) 0.dp else indicatorWidth
+                                    val selectedOffset = indicatorWidth * selectedIndex
 
                                     // 背景滑块：仅静态到位，不含隐式/显式位移动画
                                     Box(
@@ -684,33 +1200,26 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                                .clickable { subTab = "library" },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "📜 跃然纸上",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isLibrarySelected) Color(0xFF0F766E) else Color(0xFF64748B)
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                                .clickable { subTab = "adjust" },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "⚙️ 个性定制",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (!isLibrarySelected) Color(0xFF0F766E) else Color(0xFF64748B)
-                                            )
+                                        listOf(
+                                            "library" to "📜 跃然纸上",
+                                            "adjust" to "⚙️ 个性定制",
+                                            "mine" to "👤 我的"
+                                        ).forEach { (key, label) ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
+                                                    .clickable { subTab = key },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (subTab == key) Color(0xFF0F766E) else Color(0xFF64748B),
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -822,9 +1331,10 @@ class MainActivity : ComponentActivity() {
                                             } else {
                                                 onStyleChange(selectedWidgetId, selectedConfigId, reminder.content, currentStyle)
                                             }
-                                        }
+                                        },
+                                        onOpenDoc = { showLegalDoc = it }
                                     )
-                                } else {
+                                } else if (subTab == "adjust") {
                                     AdjustTabContent(
                                         widgetConfigs = widgetConfigs,
                                         isActivated = isActivatedState,
@@ -840,7 +1350,15 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onStyleChange = { wId, rId, text, newStyle ->
                                             onStyleChange(wId, rId, text, newStyle)
-                                        }
+                                        },
+                                        onOpenDoc = { showLegalDoc = it }
+                                    )
+                                } else {
+                                    ProfileTabContent(
+                                        isActivated = isActivatedState,
+                                        accountName = accountName,
+                                        onOpenAccount = { showAccountDialog = true },
+                                        onOpenDoc = { showLegalDoc = it }
                                     )
                                 }
                             }
@@ -854,7 +1372,10 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun ProActivationDialog(
         isActivated: Boolean,
+        isPaying: Boolean,
+        accountName: String?,
         onActivate: () -> Unit,
+        onOpenAccount: () -> Unit,
         onDismiss: () -> Unit
     ) {
         Dialog(
@@ -875,12 +1396,12 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text("👑 PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E293B))
-                    Text("￥1 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F766E))
+                    Text("${ProPurchase.PRICE_TEXT} 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F766E))
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(
                             "解锁全部内置卡片风格，后续新增免费更新",
-                            "自定义背景图、字体、颜色与形状全部开放",
+                            "自定义背景图（本地照片）无限制使用",
                             "多组件独立配置，一次激活永久保留"
                         ).forEach { benefit ->
                             Text("✓ $benefit", fontSize = 12.sp, color = Color(0xFF4B5563))
@@ -895,29 +1416,56 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .height(44.dp)
                                 .shadow(2.dp, RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(12.dp)),
+                                .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("好的", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("好的", color = mintInk, fontWeight = FontWeight.Bold)
                         }
                     } else {
-                        Text("完成支付后，点击下方按钮立即完成激活。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
+                        Text("点击下方按钮，将拉起支付宝完成支付。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
                         Button(
                             onClick = onActivate,
+                            enabled = !isPaying,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(46.dp)
                                 .shadow(4.dp, RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(12.dp)),
+                                .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("我已支付，立即激活", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            if (isPaying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = mintInk,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("支付确认中…", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            } else {
+                                Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
                         }
-                        TextButton(onClick = onDismiss) {
+                        Text("支付成功后自动激活，无需手动操作。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
+                        TextButton(onClick = onDismiss, enabled = !isPaying) {
                             Text("暂不需要", color = Color(0xFF9CA3AF), fontSize = 12.sp)
                         }
+                    }
+
+                    // 账号入口常驻两种状态：不登录是常态，所以只做引导，不做拦截
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF1F5F9)))
+                    TextButton(onClick = onOpenAccount, enabled = !isPaying) {
+                        Text(
+                            if (accountName.isNullOrBlank()) {
+                                "账号登录 · 换手机也能找回 PRO"
+                            } else {
+                                "账号：$accountName"
+                            },
+                            color = Color(0xFF0284C7),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
             }
@@ -941,7 +1489,8 @@ class MainActivity : ComponentActivity() {
         onAddReminder: (String, Long) -> Unit,
         onEditReminderSave: (Long, String, Long) -> Unit,
         onDeleteReminder: (Long) -> Unit,
-        onReminderClick: (Reminder) -> Unit
+        onReminderClick: (Reminder) -> Unit,
+        onOpenDoc: (String) -> Unit
     ) {
         var showAddCategoryDialog by remember { mutableStateOf(false) }
         var showAddReminderDialog by remember { mutableStateOf(false) }
@@ -988,15 +1537,15 @@ class MainActivity : ComponentActivity() {
                             label = { Text("全部", fontWeight = if (selectedCategory == null) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 labelColor = Color(0xFF64748B),
-                                selectedLabelColor = Color.White,
-                                containerColor = Color(0xFFF1F5F9),
-                                selectedContainerColor = Color(0xFF0F766E)
+                                selectedLabelColor = mintInk,
+                                containerColor = Color.White,
+                                selectedContainerColor = mintBright
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = selectedCategory == null,
                                 borderColor = Color(0xFFE2E8F0),
-                                selectedBorderColor = Color(0xFF0F766E)
+                                selectedBorderColor = mintBright
                             )
                         )
                     }
@@ -1007,15 +1556,15 @@ class MainActivity : ComponentActivity() {
                             label = { Text(cat.name, fontWeight = if (selectedCategory?.id == cat.id) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 labelColor = Color(0xFF64748B),
-                                selectedLabelColor = Color.White,
-                                containerColor = Color(0xFFF1F5F9),
-                                selectedContainerColor = Color(0xFF0F766E)
+                                selectedLabelColor = mintInk,
+                                containerColor = Color.White,
+                                selectedContainerColor = mintBright
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = selectedCategory?.id == cat.id,
                                 borderColor = Color(0xFFE2E8F0),
-                                selectedBorderColor = Color(0xFF0F766E)
+                                selectedBorderColor = mintBright
                             ),
                             modifier = Modifier.pointerInput(cat) {
                                 detectTapGestures(
@@ -1125,6 +1674,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     item {
+                        LegalFooter(onOpenDoc)
+                    }
+                    item {
                         Spacer(modifier = Modifier.height(80.dp))
                     }
                 }
@@ -1139,7 +1691,7 @@ class MainActivity : ComponentActivity() {
                     .clip(RoundedCornerShape(25.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0xFF059669), Color(0xFF0284C7))
+                            listOf(mintBright, mintSky)
                         )
                     )
                     .clickable {
@@ -1154,9 +1706,9 @@ class MainActivity : ComponentActivity() {
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = mintInk)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("录入新句", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                    Text("录入新句", fontWeight = FontWeight.Bold, color = mintInk, fontSize = 14.sp)
                 }
             }
         }
@@ -1214,11 +1766,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(8.dp)),
+                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("确认", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("确认", color = mintInk, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1328,11 +1880,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(8.dp)),
+                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("确认", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("确认", color = mintInk, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1442,11 +1994,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(8.dp)),
+                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("保存并更新", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("保存并更新", color = mintInk, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1623,11 +2175,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(8.dp)),
+                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("添加", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("添加", color = mintInk, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1688,11 +2240,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))), RoundedCornerShape(8.dp)),
+                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("保存", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("保存", color = mintInk, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1762,7 +2314,8 @@ class MainActivity : ComponentActivity() {
         onStyleStateChange: (WidgetStyle) -> Unit,
         onContentStateChange: (String) -> Unit,
         onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
-        onStyleChange: (Int, Long, String, WidgetStyle) -> Unit
+        onStyleChange: (Int, Long, String, WidgetStyle) -> Unit,
+        onOpenDoc: (String) -> Unit
     ) {
         val scope = rememberCoroutineScope()
         val appWidgetIds = remember {
@@ -1882,6 +2435,210 @@ class MainActivity : ComponentActivity() {
 
 
 
+            // 2. 🎨 组件风格（先选风格，再到下方微调文字/字体/颜色等细节）
+            item(key = "style_preset_card") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "🎨 组件风格",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+
+                        // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
+                        // 间距统一交给外层 Column 的 spacedBy(10.dp)，这里不再叠加 Spacer/分割线
+                        val widgetSizeStr = ReminderWidgetProvider.getWidgetSizeString(this@MainActivity, selectedWidgetId)
+                        // 分类标题尾部统一附加默认卡片尺寸，如 4×2 / 4×4
+                        val sizeLabel = widgetSizeStr.replace("x", "×").replace("*", "×")
+
+                        // 复用：单个预设横滑列表
+                        @Composable
+                        fun PresetRow(presets: List<Pair<String, WidgetStyle>>, title: String?) {
+                            if (title != null) {
+                                // 标题后附加"会员专属"角标（分类含会员功能时）
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                }
+                            }
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                items(presets.size) { index ->
+                                    val (presetName, preset) = presets[index]
+                                    val isProPreset = WidgetStyle.isProPreset(preset)
+                                    val isLocked = !isActivated && isProPreset
+
+                                    val presetBitmap by produceState<Bitmap?>(
+                                        initialValue = null,
+                                        preset, presetName, isActivated
+                                    ) {
+                                        value = withContext(Dispatchers.Default) {
+                                            try {
+                                                WidgetCanvasRenderer.render(
+                                                    context = this@MainActivity,
+                                                    widthDp = 150,
+                                                    heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
+                                                    content = presetName,
+                                                    style = preset,
+                                                    trialManager = trialManager,
+                                                    isPreview = true
+                                                )
+                                            } catch (t: Throwable) {
+                                                Bitmap.createBitmap(150, 80, Bitmap.Config.ARGB_8888)
+                                            }
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .width(150.dp)
+                                            .height(80.dp)
+                                            .clickable {
+                                                val newPresetStyle = preset.copy(
+                                                    backgroundOpacity = selectedStyle.backgroundOpacity,
+                                                    cornerRadiusDp = selectedStyle.cornerRadiusDp
+                                                )
+                                                android.util.Log.d("JugeTap", "preset=$presetName shape=${preset.shape} locked=$isLocked selectPath=${if (isLocked) "preview" else "save"}")
+                                                if (isLocked) {
+                                                    // 非激活用户：预览模式，仅更新顶部预览组件，不保存
+                                                    onStyleStateChange(newPresetStyle)
+                                                } else {
+                                                    onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                                                }
+                                            }
+                                    ) {
+                                        if (presetBitmap != null) {
+                                            Image(
+                                                bitmap = presetBitmap!!.asImageBitmap(),
+                                                contentDescription = "Preset Style ${index + 1}",
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp)),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                            )
+                                        }
+
+                                        // 免费风格角标：当前只有「纯色圆角」一款免费，单独标出来避免与分类标题的"会员专属"混淆
+                                        if (!isProPreset) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(4.dp)
+                                                    .background(mintBright, RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                                            ) {
+                                                Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = mintInk)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
+                        PresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格 · $sizeLabel")
+                        // 2. 萌宠风格（位于经典与明信片之间）
+                        PresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属 · $sizeLabel")
+
+                        // 精选卡片插画
+                        // 明信片风格固定为 4×4（竖版上下分割），不随当前组件尺寸变化
+                        Text("明信片风格 · 会员专属 · 4×4", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
+                            
+                            illustrations.forEachIndexed { illusIndex, (resName, desc) ->
+                                 val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
+                                 val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
+                                 val isSelected = selectedStyle.presetImageResName == resName && selectedStyle.shape == targetShape && selectedStyle.backgroundImagePath.isNullOrEmpty()
+                                val resId = resources.getIdentifier(resName, "drawable", packageName)
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .width(150.dp)
+                                        .height(80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFF1F5F9))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                             val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
+                                             val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
+                                             val newStyle = selectedStyle.copy(
+                                                 shape = targetShape,
+                                                 presetImageResName = resName,
+                                                 backgroundImagePath = null,
+                                                 bgImageScaleMode = matchingPreset?.bgImageScaleMode ?: ImageScaleMode.CENTER_CROP,
+                                                 authorSignature = matchingPreset?.authorSignature ?: selectedStyle.authorSignature
+                                             )
+                                            onStyleStateChange(newStyle)
+                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                        }
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(0.6f)
+                                        ) {
+                                            if (resId != 0) {
+                                                AsyncImage(
+                                                    model = resId,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.LightGray)
+                                                )
+                                            } else {
+                                                Box(modifier = Modifier.fillMaxSize().background(Color.Gray))
+                                            }
+                                        }
+                                        HorizontalDivider(color = Color(0xFFE2E8F0))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(0.4f)
+                                                .background(Color.White),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = desc,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color(0xFF0F766E) else Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+
             // 3. ✍️ 文本内容与字形定制
             item(key = "text_style_card") {
                 Card(
@@ -1942,15 +2699,15 @@ class MainActivity : ComponentActivity() {
                                     label = { Text(fnt.displayName, fontSize = 12.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         labelColor = Color(0xFF64748B),
-                                        selectedLabelColor = Color.White,
+                                        selectedLabelColor = mintInk,
                                         containerColor = Color(0xFFF1F5F9),
-                                        selectedContainerColor = Color(0xFF0F766E)
+                                        selectedContainerColor = mintBright
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = true,
                                         selected = selectedStyle.font == fnt,
                                         borderColor = Color(0xFFE2E8F0),
-                                        selectedBorderColor = Color(0xFF0F766E)
+                                        selectedBorderColor = mintBright
                                     )
                                 )
                             }
@@ -1974,8 +2731,8 @@ class MainActivity : ComponentActivity() {
                             valueRange = 12.0f..48.0f,
                             modifier = Modifier.fillMaxWidth().height(24.dp),
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF0F766E),
-                                activeTrackColor = Color(0xFF0F766E),
+                                thumbColor = mintBright,
+                                activeTrackColor = mintBright,
                                 inactiveTrackColor = Color(0xFFE2E8F0)
                             )
                         )
@@ -1994,7 +2751,8 @@ class MainActivity : ComponentActivity() {
                                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF0F766E),
+                                        checkedColor = mintBright,
+                                        checkmarkColor = mintInk,
                                         uncheckedColor = Color(0xFF94A3B8)
                                     ),
                                     modifier = Modifier.size(24.dp)
@@ -2012,7 +2770,8 @@ class MainActivity : ComponentActivity() {
                                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF0F766E),
+                                        checkedColor = mintBright,
+                                        checkmarkColor = mintInk,
                                         uncheckedColor = Color(0xFF94A3B8)
                                     ),
                                     modifier = Modifier.size(24.dp)
@@ -2039,7 +2798,8 @@ class MainActivity : ComponentActivity() {
                                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF0F766E),
+                                        checkedColor = mintBright,
+                                        checkmarkColor = mintInk,
                                         uncheckedColor = Color(0xFF94A3B8)
                                     ),
                                     modifier = Modifier.size(24.dp)
@@ -2071,15 +2831,15 @@ class MainActivity : ComponentActivity() {
                                     label = { Text(label, fontSize = 12.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         labelColor = Color(0xFF64748B),
-                                        selectedLabelColor = Color.White,
+                                        selectedLabelColor = mintInk,
                                         containerColor = Color(0xFFF1F5F9),
-                                        selectedContainerColor = Color(0xFF0F766E)
+                                        selectedContainerColor = mintBright
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = true,
                                         selected = selectedStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
                                         borderColor = Color(0xFFE2E8F0),
-                                        selectedBorderColor = Color(0xFF0F766E)
+                                        selectedBorderColor = mintBright
                                     )
                                 )
                             }
@@ -2134,7 +2894,7 @@ class MainActivity : ComponentActivity() {
                                         .background(Color(parsedColor))
                                         .border(
                                             width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF0F766E) else Color(0xFFE2E8F0),
+                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
                                             shape = CircleShape
                                         )
                                         .clickable {
@@ -2289,7 +3049,7 @@ class MainActivity : ComponentActivity() {
                                         .background(Color(colorInt))
                                         .border(
                                             width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF0F766E) else Color(0xFFE2E8F0),
+                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
                                             shape = CircleShape
                                         )
                                         .clickable {
@@ -2462,8 +3222,8 @@ class MainActivity : ComponentActivity() {
                             enabled = canAdjustCorner,
                             modifier = Modifier.fillMaxWidth().height(24.dp),
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF0F766E),
-                                activeTrackColor = Color(0xFF0F766E),
+                                thumbColor = mintBright,
+                                activeTrackColor = mintBright,
                                 inactiveTrackColor = Color(0xFFE2E8F0),
                                 disabledThumbColor = Color(0xFFCBD5E1),
                                 disabledInactiveTrackColor = Color(0xFFE2E8F0)
@@ -2488,8 +3248,8 @@ class MainActivity : ComponentActivity() {
                             valueRange = 0.0f..1.0f,
                             modifier = Modifier.fillMaxWidth().height(24.dp),
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF0F766E),
-                                activeTrackColor = Color(0xFF0F766E),
+                                thumbColor = mintBright,
+                                activeTrackColor = mintBright,
                                 inactiveTrackColor = Color(0xFFE2E8F0)
                             )
                         )
@@ -2514,11 +3274,11 @@ class MainActivity : ComponentActivity() {
                                             selectImageLauncher.launch("image/*")
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("+ 选择本地图片", color = Color.White, fontSize = 12.sp)
+                                    Text("+ 选择本地图片", color = mintInk, fontSize = 12.sp)
                                 }
                             } else {
                                 Button(
@@ -2573,202 +3333,21 @@ class MainActivity : ComponentActivity() {
                                         label = { Text(modeDesc, fontSize = 12.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             labelColor = Color(0xFF64748B),
-                                            selectedLabelColor = Color.White,
+                                            selectedLabelColor = mintInk,
                                             containerColor = Color(0xFFF1F5F9),
-                                            selectedContainerColor = Color(0xFF0F766E)
+                                            selectedContainerColor = mintBright
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = selectedStyle.bgImageScaleMode == mode,
                                             borderColor = Color(0xFFE2E8F0),
-                                            selectedBorderColor = Color(0xFF0F766E)
+                                            selectedBorderColor = mintBright
                                         )
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
-                        HorizontalDivider(color = Color(0xFFF1F5F9))
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
-                        val widgetSizeStr = ReminderWidgetProvider.getWidgetSizeString(this@MainActivity, selectedWidgetId)
-                        // 分类标题尾部统一附加默认卡片尺寸，如 4×2 / 4×4
-                        val sizeLabel = widgetSizeStr.replace("x", "×").replace("*", "×")
-                        Text("推荐风格套用 (当前小组件大小: $widgetSizeStr)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // 复用：单个预设横滑列表
-                        @Composable
-                        fun PresetRow(presets: List<Pair<String, WidgetStyle>>, title: String?) {
-                            if (title != null) {
-                                // 标题后附加"会员专属"角标（分类含会员功能时）
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                items(presets.size) { index ->
-                                    val (presetName, preset) = presets[index]
-                                    val isProPreset = WidgetStyle.isProPreset(preset)
-                                    val isLocked = !isActivated && isProPreset
-
-                                    val presetBitmap by produceState<Bitmap?>(
-                                        initialValue = null,
-                                        preset, presetName, isActivated
-                                    ) {
-                                        value = withContext(Dispatchers.Default) {
-                                            try {
-                                                WidgetCanvasRenderer.render(
-                                                    context = this@MainActivity,
-                                                    widthDp = 150,
-                                                    heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
-                                                    content = presetName,
-                                                    style = preset,
-                                                    trialManager = trialManager,
-                                                    isPreview = true
-                                                )
-                                            } catch (t: Throwable) {
-                                                Bitmap.createBitmap(150, 80, Bitmap.Config.ARGB_8888)
-                                            }
-                                        }
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .width(150.dp)
-                                            .height(80.dp)
-                                            .clickable {
-                                                val newPresetStyle = preset.copy(
-                                                    backgroundOpacity = selectedStyle.backgroundOpacity,
-                                                    cornerRadiusDp = selectedStyle.cornerRadiusDp
-                                                )
-                                                android.util.Log.d("JugeTap", "preset=$presetName shape=${preset.shape} locked=$isLocked selectPath=${if (isLocked) "preview" else "save"}")
-                                                if (isLocked) {
-                                                    // 非激活用户：预览模式，仅更新顶部预览组件，不保存
-                                                    onStyleStateChange(newPresetStyle)
-                                                } else {
-                                                    onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
-                                                }
-                                            }
-                                    ) {
-                                        if (presetBitmap != null) {
-                                            Image(
-                                                bitmap = presetBitmap!!.asImageBitmap(),
-                                                contentDescription = "Preset Style ${index + 1}",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp)),
-                                                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
-                                            )
-                                        }
-
-                                        // 去掉卡片右上角 PRO 徽标，改为在分类标题后统一标注"会员专属"
-                                    }
-                                }
-                            }
-                        }
-
-                        // 1. 经典风格（除纯色圆角外为会员专属）
-                        PresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格 · 会员专属 · $sizeLabel")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        // 2. 萌宠风格（位于经典与明信片之间）
-                        PresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属 · $sizeLabel")
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        HorizontalDivider(color = Color(0xFFF1F5F9))
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // 精选卡片插画
-                        Text("明信片风格 · 会员专属 · $sizeLabel", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
-                            
-                            illustrations.forEachIndexed { illusIndex, (resName, desc) ->
-                                 val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-                                 val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
-                                 val isSelected = selectedStyle.presetImageResName == resName && selectedStyle.shape == targetShape && selectedStyle.backgroundImagePath.isNullOrEmpty()
-                                val resId = resources.getIdentifier(resName, "drawable", packageName)
-                                
-                                Box(
-                                    modifier = Modifier
-                                        .width(150.dp)
-                                        .height(80.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFF1F5F9))
-                                        .border(
-                                            width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF0F766E) else Color(0xFFE2E8F0),
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable {
-                                             val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-                                             val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
-                                             val newStyle = selectedStyle.copy(
-                                                 shape = targetShape,
-                                                 presetImageResName = resName,
-                                                 backgroundImagePath = null,
-                                                 bgImageScaleMode = matchingPreset?.bgImageScaleMode ?: ImageScaleMode.CENTER_CROP,
-                                                 authorSignature = matchingPreset?.authorSignature ?: selectedStyle.authorSignature
-                                             )
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        }
-                                ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(0.6f)
-                                        ) {
-                                            if (resId != 0) {
-                                                AsyncImage(
-                                                    model = resId,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.LightGray)
-                                                )
-                                            } else {
-                                                Box(modifier = Modifier.fillMaxSize().background(Color.Gray))
-                                            }
-                                        }
-                                        HorizontalDivider(color = Color(0xFFE2E8F0))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(0.4f)
-                                                .background(Color.White),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = desc,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) Color(0xFF0F766E) else Color(0xFF64748B)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                        }
                     }
                 }
             }
@@ -2781,15 +3360,19 @@ class MainActivity : ComponentActivity() {
                         .height(48.dp)
                         .shadow(3.dp, RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7))))
+                        .background(Brush.horizontalGradient(listOf(mintBright, mintSky)))
                         .clickable {
                             onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
                             Toast.makeText(this@MainActivity, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("保存并应用到桌面小组件", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("保存并应用到桌面小组件", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+            }
+
+            item {
+                LegalFooter(onOpenDoc)
             }
 
             item {

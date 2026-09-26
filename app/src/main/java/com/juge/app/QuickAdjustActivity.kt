@@ -39,20 +39,27 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.focus.onFocusChanged
 import java.io.File
+import com.juge.app.account.AccountDialog
+import com.juge.app.account.AccountStore
+import com.juge.app.account.AccountSync
 import com.juge.app.data.*
+import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 
-private val darkBg = androidx.compose.ui.graphics.Color(0xFFF8FAFC)
+private val panelBg = androidx.compose.ui.graphics.Color(0xFFEEF2F7) // 面板底色（冷调浅灰蓝）：让面板内的纯白卡片分离出来
 private val cardBg = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
 private val accentBlue = androidx.compose.ui.graphics.Color(0xFF0F766E)
 private val accentLightBlue = androidx.compose.ui.graphics.Color(0xFF0284C7)
 private val borderBlue = androidx.compose.ui.graphics.Color(0xFFE2E8F0)
 private val textWhite = androidx.compose.ui.graphics.Color(0xFF0F172A)
 private val textGray = androidx.compose.ui.graphics.Color(0xFF64748B)
+private val mintBright = androidx.compose.ui.graphics.Color(0xFF2DD4BF) // 选中/激活态填充·薄荷青明亮版（呼应主界面极光渐变）
+private val mintSky = androidx.compose.ui.graphics.Color(0xFF38BDF8) // 主按钮渐变终点·晴空天蓝（与主界面同源）
+private val mintInk = androidx.compose.ui.graphics.Color(0xFF134E4A) // 明亮薄荷底上的深色文字/图标，保证对比度
 
 class QuickAdjustActivity : ComponentActivity() {
 
@@ -119,10 +126,27 @@ class QuickAdjustActivity : ComponentActivity() {
                 
                 var pendingCropUri by remember { mutableStateOf<Uri?>(null) }
                 var showProDialog by remember { mutableStateOf(false) }
+                // 支付进行中：用于按钮置忙，避免重复拉起收银台
+                var isPaying by remember { mutableStateOf(false) }
                 // 保存进行中标记：防止快速连点导致重复写库、重复刷新
                 var isSaving by remember { mutableStateOf(false) }
                 // 激活状态用可变状态承载：面板内完成激活后预设列表的锁定标记能立即刷新
                 var isActivated by remember { mutableStateOf(trialManager.isActivated()) }
+                var showAccountDialog by remember { mutableStateOf(false) }
+                var accountName by remember { mutableStateOf(AccountStore.snapshot(this@QuickAdjustActivity)?.displayName) }
+
+                // 组件面板可从桌面直接拉起，所以这里也要做一次账号对账：
+                // 已登录时用服务端结论回灌本地 PRO，换机后这是唯一的找回入口
+                LaunchedEffect(Unit) {
+                    val serverSaysPro = AccountSync.refresh(this@QuickAdjustActivity)
+                    accountName = AccountStore.snapshot(this@QuickAdjustActivity)?.displayName
+                    if (serverSaysPro && !trialManager.isActivated()) {
+                        trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                        isActivated = true
+                        ReminderWidgetProvider.triggerUpdateAllWidgets(this@QuickAdjustActivity)
+                        Toast.makeText(applicationContext, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                    }
+                }
                 val selectImageLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.GetContent()
                 ) { uri: Uri? ->
@@ -147,7 +171,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                 .fillMaxHeight(0.85f)
                                 .clickable(enabled = false) {}, 
                             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                            color = cardBg.copy(alpha = 0.95f),
+                            color = panelBg.copy(alpha = 0.96f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, borderBlue.copy(alpha = 0.4f)),
                             tonalElevation = 8.dp
                         ) {
@@ -205,7 +229,229 @@ class QuickAdjustActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // 卡片一（✍️ 文本与字形）
+                                    // 卡片一（🎨 组件风格）—— 先选风格，再到下方微调文字、字体、颜色等细节
+                                    item {
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF5EFE6)),
+                                            shape = RoundedCornerShape(16.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Text("🎨 组件风格", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+
+                                                // 复用：单个预设横滑列表
+                                                @Composable
+                                                fun QuickPresetRow(presets: List<Pair<String, WidgetStyle>>, title: String?) {
+                                                    if (title != null) {
+                                                        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .horizontalScroll(rememberScrollState()),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        presets.forEachIndexed { index, (name, preset) ->
+                                                            val isLocked = !isActivated && WidgetStyle.isProPreset(preset)
+                                                            val isSelected = currentStyle.shape == preset.shape &&
+                                                                             currentStyle.backgroundColor == preset.backgroundColor &&
+                                                                             currentStyle.gradientColors == preset.gradientColors &&
+                                                                             currentStyle.textureType == preset.textureType &&
+                                                                             currentStyle.presetImageResName == preset.presetImageResName
+
+                                                            val presetText = name
+
+                                                            val presetBitmap by produceState<Bitmap?>(
+                                                                initialValue = null,
+                                                                preset, presetText, isActivated
+                                                            ) {
+                                                                value = withContext(Dispatchers.Default) {
+                                                                    try {
+                                                                        WidgetCanvasRenderer.render(
+                                                                            context = this@QuickAdjustActivity,
+                                                                            widthDp = 120,
+                                                                            heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
+                                                                            content = presetText,
+                                                                            style = preset,
+                                                                            trialManager = trialManager,
+                                                                            isPreview = true
+                                                                        )
+                                                                    } catch (t: Throwable) {
+                                                                        Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .width(90.dp)
+                                                                    .height(72.dp)
+                                                                    .clip(RoundedCornerShape(8.dp))
+                                                                    .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                                    .border(
+                                                                        width = if (isSelected) 3.dp else 1.dp,
+                                                                        color = if (isSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                        shape = RoundedCornerShape(8.dp)
+                                                                    )
+                                                                    .clickable {
+                                                                        if (isLocked) {
+                                                                            Toast.makeText(this@QuickAdjustActivity, "此高级风格为 PRO 专属，请先一键激活！", Toast.LENGTH_SHORT).show()
+                                                                        } else {
+                                                                            currentStyle = preset
+                                                                        }
+                                                                    }
+                                                            ) {
+                                                                Column(
+                                                                    modifier = Modifier.fillMaxSize()
+                                                                ) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .weight(0.6f)
+                                                                    ) {
+                                                                        if (presetBitmap != null) {
+                                                                            Image(
+                                                                                bitmap = presetBitmap!!.asImageBitmap(),
+                                                                                contentDescription = name,
+                                                                                modifier = Modifier.fillMaxSize(),
+                                                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                    HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .weight(0.4f)
+                                                                            .background(androidx.compose.ui.graphics.Color.White),
+                                                                        contentAlignment = Alignment.Center
+                                                                    ) {
+                                                                        Text(
+                                                                            text = name,
+                                                                            fontSize = 9.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            color = if (isSelected) accentBlue else textGray
+                                                                        )
+                                                                    }
+                                                                }
+
+                                                                // 免费风格角标：当前只有「纯色圆角」一款免费
+                                                                if (!WidgetStyle.isProPreset(preset)) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .align(Alignment.TopStart)
+                                                                            .padding(4.dp)
+                                                                            .background(mintBright, RoundedCornerShape(4.dp))
+                                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                                    ) {
+                                                                        Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = mintInk)
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
+                                                QuickPresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格")
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                // 2. 萌宠风格（位于经典与明信片之间）
+                                                QuickPresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属")
+
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Spacer(modifier = Modifier.height(4.dp))
+
+                                                // 精选卡片插画
+                                                Text("明信片风格 · 会员专属", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .horizontalScroll(rememberScrollState()),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
+                                                    
+                                                    illustrations.forEachIndexed { illusIndex, (resName, desc) ->
+                                                         val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
+                                                         val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
+                                                         val isSelected = currentStyle.presetImageResName == resName && currentStyle.shape == targetShape && currentStyle.backgroundImagePath.isNullOrEmpty()
+                                                        val resId = resources.getIdentifier(resName, "drawable", packageName)
+                                                        
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(90.dp)
+                                                                .height(72.dp)
+                                                                .clip(RoundedCornerShape(8.dp))
+                                                                .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                                .border(
+                                                                    width = if (isSelected) 3.dp else 1.dp,
+                                                                    color = if (isSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                )
+                                                                .clickable {
+                                                                     val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
+                                                                     val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
+                                                                     currentStyle = currentStyle.copy(
+                                                                         shape = targetShape,
+                                                                         presetImageResName = resName,
+                                                                         backgroundImagePath = null,
+                                                                         bgImageScaleMode = matchingPreset?.bgImageScaleMode ?: ImageScaleMode.CENTER_CROP,
+                                                                         authorSignature = matchingPreset?.authorSignature ?: currentStyle.authorSignature
+                                                                     )
+                                                                }
+                                                        ) {
+                                                            Column(
+                                                                modifier = Modifier.fillMaxSize()
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .weight(0.6f)
+                                                                ) {
+                                                                    if (resId != 0) {
+                                                                        AsyncImage(
+                                                                            model = resId,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.fillMaxSize(),
+                                                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                                            error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color.LightGray)
+                                                                        )
+                                                                    } else {
+                                                                        Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Gray))
+                                                                    }
+                                                                }
+                                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .fillMaxWidth()
+                                                                        .weight(0.4f)
+                                                                        .background(androidx.compose.ui.graphics.Color.White),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Text(
+                                                                        text = desc,
+                                                                        fontSize = 9.sp,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        color = if (isSelected) accentBlue else textGray
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // 卡片二（✍️ 文本与字形）
                                     item {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
@@ -251,15 +497,15 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             label = { Text(font.displayName, fontSize = 12.sp) },
                                                             colors = FilterChipDefaults.filterChipColors(
                                                                 labelColor = textGray,
-                                                                selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                                                                selectedLabelColor = mintInk,
                                                                 containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                selectedContainerColor = accentBlue
+                                                                selectedContainerColor = mintBright
                                                             ),
                                                             border = FilterChipDefaults.filterChipBorder(
                                                                 enabled = true,
                                                                 selected = currentStyle.font == font,
                                                                 borderColor = borderBlue,
-                                                                selectedBorderColor = accentBlue
+                                                                selectedBorderColor = mintBright
                                                             )
                                                         )
                                                     }
@@ -272,8 +518,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     valueRange = 12.0f..48.0f,
                                                     modifier = Modifier.fillMaxWidth().height(24.dp),
                                                     colors = SliderDefaults.colors(
-                                                        thumbColor = accentBlue,
-                                                        activeTrackColor = accentBlue,
+                                                        thumbColor = mintBright,
+                                                        activeTrackColor = mintBright,
                                                         inactiveTrackColor = borderBlue
                                                     )
                                                 )
@@ -287,7 +533,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             checked = currentStyle.fontBold,
                                                             onCheckedChange = { currentStyle = currentStyle.copy(fontBold = it) },
                                                             colors = CheckboxDefaults.colors(
-                                                                checkedColor = accentBlue,
+                                                                checkedColor = mintBright,
+                                                                checkmarkColor = mintInk,
                                                                 uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
                                                             ),
                                                             modifier = Modifier.size(24.dp)
@@ -300,7 +547,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             checked = currentStyle.fontItalic,
                                                             onCheckedChange = { currentStyle = currentStyle.copy(fontItalic = it) },
                                                             colors = CheckboxDefaults.colors(
-                                                                checkedColor = accentBlue,
+                                                                checkedColor = mintBright,
+                                                                checkmarkColor = mintInk,
                                                                 uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
                                                             ),
                                                             modifier = Modifier.size(24.dp)
@@ -324,7 +572,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 )
                                                             },
                                                             colors = CheckboxDefaults.colors(
-                                                                checkedColor = accentBlue,
+                                                                checkedColor = mintBright,
+                                                                checkmarkColor = mintInk,
                                                                 uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
                                                             ),
                                                             modifier = Modifier.size(24.dp)
@@ -351,15 +600,15 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             label = { Text(label, fontSize = 12.sp) },
                                                             colors = FilterChipDefaults.filterChipColors(
                                                                 labelColor = textGray,
-                                                                selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                                                                selectedLabelColor = mintInk,
                                                                 containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                selectedContainerColor = accentBlue
+                                                                selectedContainerColor = mintBright
                                                             ),
                                                             border = FilterChipDefaults.filterChipBorder(
                                                                 enabled = true,
                                                                 selected = currentStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
                                                                 borderColor = borderBlue,
-                                                                selectedBorderColor = accentBlue
+                                                                selectedBorderColor = mintBright
                                                             )
                                                         )
                                                     }
@@ -382,8 +631,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             valueRange = 0.5f..3.0f,
                                                             modifier = Modifier.fillMaxWidth().height(24.dp),
                                                             colors = SliderDefaults.colors(
-                                                                thumbColor = accentBlue,
-                                                                activeTrackColor = accentBlue,
+                                                                thumbColor = mintBright,
+                                                                activeTrackColor = mintBright,
                                                                 inactiveTrackColor = borderBlue
                                                             )
                                                         )
@@ -396,8 +645,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             valueRange = 0f..1.0f,
                                                             modifier = Modifier.fillMaxWidth().height(24.dp),
                                                             colors = SliderDefaults.colors(
-                                                                thumbColor = accentBlue,
-                                                                activeTrackColor = accentBlue,
+                                                                thumbColor = mintBright,
+                                                                activeTrackColor = mintBright,
                                                                 inactiveTrackColor = borderBlue
                                                             )
                                                         )
@@ -406,7 +655,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                             }
                                         }
 
-                                    // 卡片二（🌈 风格与色彩）
+                                    // 卡片三（🌈 风格与色彩）
                                     item {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
@@ -597,7 +846,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 .background(androidx.compose.ui.graphics.Color(colorInt))
                                                                 .border(
                                                                     width = if (isSelected) 3.dp else 1.dp,
-                                                                    color = if (isSelected) accentBlue else borderBlue,
+                                                                    color = if (isSelected) mintBright else borderBlue,
                                                                     shape = CircleShape
                                                                 )
                                                                 .clickable {
@@ -717,7 +966,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // 卡片三（🖼 背景与物理外框）
+                                    // 卡片四（🖼 背景与物理外框）
                                     item {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
@@ -749,8 +998,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     enabled = canAdjustCorner,
                                                     modifier = Modifier.fillMaxWidth().height(24.dp),
                                                     colors = SliderDefaults.colors(
-                                                        thumbColor = accentBlue,
-                                                        activeTrackColor = accentBlue,
+                                                        thumbColor = mintBright,
+                                                        activeTrackColor = mintBright,
                                                         inactiveTrackColor = borderBlue,
                                                         disabledThumbColor = borderBlue,
                                                         disabledInactiveTrackColor = borderBlue
@@ -764,8 +1013,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     valueRange = 0.0f..1.0f,
                                                     modifier = Modifier.fillMaxWidth().height(24.dp),
                                                     colors = SliderDefaults.colors(
-                                                        thumbColor = accentBlue,
-                                                        activeTrackColor = accentBlue,
+                                                        thumbColor = mintBright,
+                                                        activeTrackColor = mintBright,
                                                         inactiveTrackColor = borderBlue
                                                     )
                                                 )
@@ -787,11 +1036,11 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                     selectImageLauncher.launch("image/*")
                                                                 }
                                                             },
-                                                            colors = ButtonDefaults.buttonColors(containerColor = accentBlue),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk),
                                                             shape = RoundedCornerShape(8.dp),
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            Text("+ 选择背景图片", color = androidx.compose.ui.graphics.Color.White, fontSize = 12.sp)
+                                                            Text("+ 选择背景图片", color = mintInk, fontSize = 12.sp)
                                                         }
                                                     } else {
                                                         Button(
@@ -839,215 +1088,19 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 label = { Text(modeDesc, fontSize = 12.sp) },
                                                                 colors = FilterChipDefaults.filterChipColors(
                                                                     labelColor = textGray,
-                                                                    selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                                                                    selectedLabelColor = mintInk,
                                                                     containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                    selectedContainerColor = accentBlue
+                                                                    selectedContainerColor = mintBright
                                                                 ),
                                                                 border = FilterChipDefaults.filterChipBorder(
                                                                     enabled = true,
                                                                     selected = currentStyle.bgImageScaleMode == mode,
                                                                     borderColor = borderBlue,
-                                                                    selectedBorderColor = accentBlue
+                                                                    selectedBorderColor = mintBright
                                                                 )
                                                             )
                                                         }
                                                     }
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
-                                                val sizeStr = ReminderWidgetProvider.getWidgetSizeString(this@QuickAdjustActivity, appWidgetId)
-                                                Text("推荐风格套用 (当前小组件大小: $sizeStr)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-
-                                                // 复用：单个预设横滑列表
-                                                @Composable
-                                                fun QuickPresetRow(presets: List<Pair<String, WidgetStyle>>, title: String?) {
-                                                    if (title != null) {
-                                                        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                    }
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .horizontalScroll(rememberScrollState()),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                    ) {
-                                                        presets.forEachIndexed { index, (name, preset) ->
-                                                            val isLocked = !isActivated && WidgetStyle.isProPreset(preset)
-                                                            val isSelected = currentStyle.shape == preset.shape &&
-                                                                             currentStyle.backgroundColor == preset.backgroundColor &&
-                                                                             currentStyle.gradientColors == preset.gradientColors &&
-                                                                             currentStyle.textureType == preset.textureType &&
-                                                                             currentStyle.presetImageResName == preset.presetImageResName
-
-                                                            val presetText = name
-
-                                                            val presetBitmap by produceState<Bitmap?>(
-                                                                initialValue = null,
-                                                                preset, presetText, isActivated
-                                                            ) {
-                                                                value = withContext(Dispatchers.Default) {
-                                                                    try {
-                                                                        WidgetCanvasRenderer.render(
-                                                                            context = this@QuickAdjustActivity,
-                                                                            widthDp = 120,
-                                                                            heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
-                                                                            content = presetText,
-                                                                            style = preset,
-                                                                            trialManager = trialManager,
-                                                                            isPreview = true
-                                                                        )
-                                                                    } catch (t: Throwable) {
-                                                                        Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .width(90.dp)
-                                                                    .height(72.dp)
-                                                                    .clip(RoundedCornerShape(8.dp))
-                                                                    .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
-                                                                    .border(
-                                                                        width = if (isSelected) 3.dp else 1.dp,
-                                                                        color = if (isSelected) accentBlue else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
-                                                                        shape = RoundedCornerShape(8.dp)
-                                                                    )
-                                                                    .clickable {
-                                                                        if (isLocked) {
-                                                                            Toast.makeText(this@QuickAdjustActivity, "此高级风格为 PRO 专属，请先一键激活！", Toast.LENGTH_SHORT).show()
-                                                                        } else {
-                                                                            currentStyle = preset
-                                                                        }
-                                                                    }
-                                                            ) {
-                                                                Column(
-                                                                    modifier = Modifier.fillMaxSize()
-                                                                ) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxWidth()
-                                                                            .weight(0.6f)
-                                                                    ) {
-                                                                        if (presetBitmap != null) {
-                                                                            Image(
-                                                                                bitmap = presetBitmap!!.asImageBitmap(),
-                                                                                contentDescription = name,
-                                                                                modifier = Modifier.fillMaxSize(),
-                                                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                    HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxWidth()
-                                                                            .weight(0.4f)
-                                                                            .background(androidx.compose.ui.graphics.Color.White),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Text(
-                                                                            text = name,
-                                                                            fontSize = 9.sp,
-                                                                            fontWeight = FontWeight.Bold,
-                                                                            color = if (isSelected) accentBlue else textGray
-                                                                        )
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-
-                                                // 1. 经典风格（除纯色圆角外为会员专属）
-                                                QuickPresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格 · 会员专属")
-                                                Spacer(modifier = Modifier.height(6.dp))
-                                                // 2. 萌宠风格（位于经典与明信片之间）
-                                                QuickPresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属")
-
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Spacer(modifier = Modifier.height(4.dp))
-
-                                                // 精选卡片插画
-                                                Text("明信片风格 · 会员专属", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .horizontalScroll(rememberScrollState()),
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
-                                                    
-                                                    illustrations.forEachIndexed { illusIndex, (resName, desc) ->
-                                                         val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-                                                         val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
-                                                         val isSelected = currentStyle.presetImageResName == resName && currentStyle.shape == targetShape && currentStyle.backgroundImagePath.isNullOrEmpty()
-                                                        val resId = resources.getIdentifier(resName, "drawable", packageName)
-                                                        
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .width(90.dp)
-                                                                .height(72.dp)
-                                                                .clip(RoundedCornerShape(8.dp))
-                                                                .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
-                                                                .border(
-                                                                    width = if (isSelected) 3.dp else 1.dp,
-                                                                    color = if (isSelected) accentBlue else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
-                                                                    shape = RoundedCornerShape(8.dp)
-                                                                )
-                                                                .clickable {
-                                                                     val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-                                                                     val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
-                                                                     currentStyle = currentStyle.copy(
-                                                                         shape = targetShape,
-                                                                         presetImageResName = resName,
-                                                                         backgroundImagePath = null,
-                                                                         bgImageScaleMode = matchingPreset?.bgImageScaleMode ?: ImageScaleMode.CENTER_CROP,
-                                                                         authorSignature = matchingPreset?.authorSignature ?: currentStyle.authorSignature
-                                                                     )
-                                                                }
-                                                        ) {
-                                                            Column(
-                                                                modifier = Modifier.fillMaxSize()
-                                                            ) {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .weight(0.6f)
-                                                                ) {
-                                                                    if (resId != 0) {
-                                                                        AsyncImage(
-                                                                            model = resId,
-                                                                            contentDescription = null,
-                                                                            modifier = Modifier.fillMaxSize(),
-                                                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                                            error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color.LightGray)
-                                                                        )
-                                                                    } else {
-                                                                        Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Gray))
-                                                                    }
-                                                                }
-                                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .weight(0.4f)
-                                                                        .background(androidx.compose.ui.graphics.Color.White),
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Text(
-                                                                        text = desc,
-                                                                        fontSize = 9.sp,
-                                                                        fontWeight = FontWeight.Bold,
-                                                                        color = if (isSelected) accentBlue else textGray
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
                                                 }
                                             }
                                         }
@@ -1083,10 +1136,9 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 Toast.makeText(this@QuickAdjustActivity, "内容不能为空，请输入文字", Toast.LENGTH_SHORT).show()
                                                 return@Button
                                             }
-                                            val isProShape = currentStyle.shape != WidgetShape.RECTANGLE &&
-                                                currentStyle.shape != WidgetShape.ELLIPSE
+                                            // 付费点只有两个：会员专属风格、自定义背景图；字体/字号/颜色/圆角等调整全部免费
                                             val needPay = !trialManager.isActivated() && (
-                                                WidgetStyle.isProPreset(currentStyle) || isProShape || !currentStyle.backgroundImagePath.isNullOrEmpty()
+                                                WidgetStyle.isProPreset(currentStyle) || !currentStyle.backgroundImagePath.isNullOrEmpty()
                                             )
                                             if (needPay) {
                                                 showProDialog = true
@@ -1136,8 +1188,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                             .background(
                                                 androidx.compose.ui.graphics.Brush.horizontalGradient(
                                                     listOf(
-                                                        androidx.compose.ui.graphics.Color(0xFF059669),
-                                                        androidx.compose.ui.graphics.Color(0xFF0284C7)
+                                                        mintBright,
+                                                        mintSky
                                                     )
                                                 ),
                                                 RoundedCornerShape(12.dp)
@@ -1145,7 +1197,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                                     ) {
-                                        Text("保存并刷新", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
+                                        Text("保存并刷新", color = mintInk, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1167,7 +1219,7 @@ class QuickAdjustActivity : ComponentActivity() {
                             )
                         }
                         if (showProDialog) {
-                            Dialog(onDismissRequest = { showProDialog = false }) {
+                            Dialog(onDismissRequest = { if (!isPaying) showProDialog = false }) {
                                 androidx.compose.material3.Surface(
                                     modifier = Modifier.fillMaxWidth().padding(24.dp),
                                     shape = RoundedCornerShape(20.dp),
@@ -1180,23 +1232,76 @@ class QuickAdjustActivity : ComponentActivity() {
                                         verticalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         androidx.compose.material3.Text("👑 PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = androidx.compose.ui.graphics.Color(0xFF1E293B))
-                                        androidx.compose.material3.Text("￥1 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF0F766E))
+                                        androidx.compose.material3.Text("${ProPurchase.PRICE_TEXT} 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF0F766E))
                                         androidx.compose.material3.Text("解锁全部内置卡片风格，后续新增免费更新", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF4B5563))
                                         androidx.compose.material3.Button(
                                             onClick = {
-                                                trialManager.activate()
-                                                isActivated = true
-                                                showProDialog = false
-                                                Toast.makeText(applicationContext, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                                                if (!isPaying) {
+                                                    isPaying = true
+                                                    lifecycleScope.launch {
+                                                        when (val outcome = ProPurchase.purchase(this@QuickAdjustActivity)) {
+                                                            is ProPurchase.Outcome.Paid -> {
+                                                                trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
+                                                                isActivated = true
+                                                                showProDialog = false
+                                                                Toast.makeText(applicationContext, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                                                            }
+
+                                                            is ProPurchase.Outcome.Unpaid -> if (outcome.message.isNotEmpty()) {
+                                                                Toast.makeText(applicationContext, outcome.message, Toast.LENGTH_LONG).show()
+                                                            }
+
+                                                            is ProPurchase.Outcome.Failed -> {
+                                                                Toast.makeText(applicationContext, outcome.message, Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                        isPaying = false
+                                                    }
+                                                }
                                             },
-                                            modifier = Modifier.fillMaxWidth().height(46.dp).shadow(4.dp, RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF059669), androidx.compose.ui.graphics.Color(0xFF0284C7))), RoundedCornerShape(12.dp)),
+                                            enabled = !isPaying,
+                                            modifier = Modifier.fillMaxWidth().height(46.dp).shadow(4.dp, RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
                                             colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                                             shape = RoundedCornerShape(12.dp)
-                                        ) { androidx.compose.material3.Text("我已支付，立即激活", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                                        androidx.compose.material3.TextButton(onClick = { showProDialog = false }) { androidx.compose.material3.Text("暂不需要", color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), fontSize = 12.sp) }
+                                        ) {
+                                            if (isPaying) {
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = mintInk, strokeWidth = 2.dp)
+                                                Spacer(Modifier.width(8.dp))
+                                                androidx.compose.material3.Text("支付确认中…", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            } else {
+                                                androidx.compose.material3.Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            }
+                                        }
+                                        androidx.compose.material3.Text("支付成功后自动激活，无需手动操作。", fontSize = 11.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+                                        androidx.compose.material3.TextButton(onClick = { if (!isPaying) showProDialog = false }, enabled = !isPaying) { androidx.compose.material3.Text("暂不需要", color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), fontSize = 12.sp) }
+                                        // 账号入口常驻：不登录是常态，所以只做引导，不做拦截
+                                        Box(Modifier.fillMaxWidth().height(1.dp).background(androidx.compose.ui.graphics.Color(0xFFF1F5F9)))
+                                        androidx.compose.material3.TextButton(onClick = { showAccountDialog = true }, enabled = !isPaying) {
+                                            androidx.compose.material3.Text(
+                                                if (accountName.isNullOrBlank()) "账号登录 · 换手机也能找回 PRO" else "账号：$accountName",
+                                                color = androidx.compose.ui.graphics.Color(0xFF0284C7),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
+                        }
+
+                        if (showAccountDialog) {
+                            AccountDialog(
+                                onProConfirmed = {
+                                    trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                                    isActivated = true
+                                    ReminderWidgetProvider.triggerUpdateAllWidgets(this@QuickAdjustActivity)
+                                    Toast.makeText(applicationContext, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                                },
+                                onDismiss = {
+                                    showAccountDialog = false
+                                    accountName = AccountStore.snapshot(this@QuickAdjustActivity)?.displayName
+                                }
+                            )
                         }
                     }
                 }

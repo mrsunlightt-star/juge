@@ -27,6 +27,14 @@ class TrialManager private constructor(context: Context) {
     private val signatureKey: String = getSignatureHash(appContext)
 
     /**
+     * 一条激活记录，用于「我的」页展示激活时间与支付方式。
+     */
+    data class ActivationRecord(
+        val activatedAt: Long,
+        val payMethod: String
+    )
+
+    /**
      * 是否已永久激活会员
      */
     fun isActivated(): Boolean {
@@ -63,16 +71,24 @@ class TrialManager private constructor(context: Context) {
     }
 
     /**
-     * 激活会员
+     * 激活会员。
+     *
+     * 激活记录（时间 + 支付方式）仅用于「我的」页展示，不参与 isActivated() 的放行判定，
+     * 因此故意不纳入 [computeChecksum]——否则新增字段会让存量用户的校验和失配而被误判为未激活。
      */
-    fun activate() {
+    fun activate(
+        payMethod: String = PAY_METHOD_UNRECORDED,
+        activatedAt: Long = System.currentTimeMillis()
+    ) {
         prefs.edit()
             .putBoolean(obfuscateKey(KEY_ACTIVATED_1), true)
             .putBoolean(obfuscateKey(KEY_ACTIVATED_2), true)
             .putBoolean(obfuscateKey(KEY_ACTIVATED_3), true)
             .putString(obfuscateKey(KEY_CHECKSUM), computeChecksum(true))
+            .putLong(obfuscateKey(KEY_ACTIVATED_AT), activatedAt)
+            .putString(obfuscateKey(KEY_PAY_METHOD), payMethod)
             .apply()
-        Timber.i("TrialManager: activated")
+        Timber.i("TrialManager: activated via %s", payMethod)
     }
 
     /**
@@ -84,8 +100,22 @@ class TrialManager private constructor(context: Context) {
             .remove(obfuscateKey(KEY_ACTIVATED_2))
             .remove(obfuscateKey(KEY_ACTIVATED_3))
             .remove(obfuscateKey(KEY_CHECKSUM))
+            .remove(obfuscateKey(KEY_ACTIVATED_AT))
+            .remove(obfuscateKey(KEY_PAY_METHOD))
             .apply()
         Timber.i("TrialManager: activation reset")
+    }
+
+    /**
+     * 激活记录，供「我的」页展示。
+     * 未激活、或本次升级前就已激活（无记录）时返回 null。
+     */
+    fun activationRecord(): ActivationRecord? {
+        if (!isActivated()) return null
+        val at = prefs.getLong(obfuscateKey(KEY_ACTIVATED_AT), 0L)
+        val method = prefs.getString(obfuscateKey(KEY_PAY_METHOD), null)
+        if (at <= 0L || method.isNullOrBlank()) return null
+        return ActivationRecord(activatedAt = at, payMethod = method)
     }
 
     // ==================== 内部安全方法 ====================
@@ -134,8 +164,16 @@ class TrialManager private constructor(context: Context) {
         private const val KEY_ACTIVATED_3 = "a3"
         private const val KEY_CHECKSUM = "chk"
         private const val KEY_SIGNATURE_LOCK = "siglock"
+        private const val KEY_ACTIVATED_AT = "actat"
+        private const val KEY_PAY_METHOD = "paym"
         private const val CHECKSUM_SALT = "TrialManager_v2_2026"
         private const val DEFAULT_SIGNATURE_KEY = "DefaultKeyForTrialManager2026"
+
+        /** 写入激活记录的支付方式标签 */
+        const val PAY_METHOD_ALIPAY = "支付宝"
+        const val PAY_METHOD_ACCOUNT = "账号找回"
+        const val PAY_METHOD_DEV = "开发开关"
+        const val PAY_METHOD_UNRECORDED = "未记录"
 
         @Volatile
         private var _instance: TrialManager? = null

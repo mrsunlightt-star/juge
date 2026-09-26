@@ -241,10 +241,13 @@ data class WidgetStyle(
             }
         }
 
-        // 内置的 9 种极具质感的风格预设值
-        private val RAW_PRESETS = listOf(
+        // 内置风格预设
+        // 每条都带一个手写的固定 presetId（如 p_pure_round）作为身份标识：套用后随 copy() 保留，
+        // 付费判定依据身份而不是字段值（字段匹配可被"改一个字段"绕过），也不依赖列表位置。
+        val PRESETS: List<WidgetStyle> = listOf(
             // 免费默认风格：纯色圆角
             WidgetStyle(
+                presetId = "p_pure_round",
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 12f,
                 backgroundColor = Color.parseColor("#FFFFFF"),
@@ -256,6 +259,7 @@ data class WidgetStyle(
                 textAlign = "CENTER"
             ), // 0. 纯色圆角 (免费)
             WidgetStyle(
+                presetId = "p_torn_paper",
                 shape = WidgetShape.TORN_PAPER, // 拟物撕纸
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#E2EAD8"),
@@ -267,6 +271,7 @@ data class WidgetStyle(
                 authorSignature = "—— 撕纸手账"
             ), // 4. 拟物撕纸风格 (PRO)
             WidgetStyle(
+                presetId = "p_handbook_tape",
                 shape = WidgetShape.HANDBOOK_TAPE, // 手账胶带
                 cornerRadiusDp = 12f,
                 backgroundColor = Color.parseColor("#FCF6E5"),
@@ -279,6 +284,7 @@ data class WidgetStyle(
                 authorSignature = "—— 手账心情"
             ), // 5. 复古手账风格 (PRO)
             WidgetStyle(
+                presetId = "p_dream_gradient",
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 15f,
                 gradientColors = listOf(Color.parseColor("#E8C5C8"), Color.parseColor("#C4D6E0")), // 梦幻渐变
@@ -290,6 +296,7 @@ data class WidgetStyle(
                 showCardShadow = true
             ), // 6. 梦幻渐变风格 (PRO)
             WidgetStyle(
+                presetId = "p_star_sea",
                 shape = WidgetShape.ELLIPSE,
                 gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")), // 深邃星海渐变
                 gradientAngle = 45f,
@@ -301,6 +308,7 @@ data class WidgetStyle(
             ), // 7. 深邃星海风格 (PRO)
 
             WidgetStyle(
+                presetId = "p_postcard_note",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")),
@@ -311,6 +319,7 @@ data class WidgetStyle(
                 authorSignature = "—— 明信片寄语"
             ), // 10. 蓝色画报风格 (PRO)
             WidgetStyle(
+                presetId = "p_gugugaga",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -321,6 +330,7 @@ data class WidgetStyle(
                 presetImageResName = "gugugaga"
             ), // 11. 咕咕嘎嘎风格 (PRO)
             WidgetStyle(
+                presetId = "p_doro3d",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -331,6 +341,7 @@ data class WidgetStyle(
                 presetImageResName = "doro3d"
             ), // 12. doro3d风格 (PRO)
             WidgetStyle(
+                presetId = "p_dawn_sunrise",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -340,6 +351,7 @@ data class WidgetStyle(
                 presetImageResName = "bg_illustration_1"
             ), // 12. 晨曦画报风格 (PRO)
             WidgetStyle(
+                presetId = "p_healing_sunset",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -349,6 +361,7 @@ data class WidgetStyle(
                 presetImageResName = "bg_illustration_2"
             ), // 13. 治愈画报风格 (PRO)
             WidgetStyle(
+                presetId = "p_starry_forest",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -359,6 +372,7 @@ data class WidgetStyle(
             ), // 14. 星空画报风格 (PRO)
 
             WidgetStyle(
+                presetId = "p_sky_blue",
                 shape = WidgetShape.RECTANGLE,
                 backgroundColor = Color.parseColor("#1E6DD0"),
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -368,6 +382,7 @@ data class WidgetStyle(
                 presetImageResName = "rectangle_1"
             ), // 15. 天空蓝风格 (PRO)
             WidgetStyle(
+                presetId = "p_luxun_poster",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -377,6 +392,7 @@ data class WidgetStyle(
                 presetImageResName = "bg_illustration_luxun"
             ), // 16. 鲁迅画报风格 (PRO)
             WidgetStyle(
+                presetId = "p_guga_doro",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -386,6 +402,7 @@ data class WidgetStyle(
                 presetImageResName = "guga_doro"
             ), // 17. 咕嘎与doro风格 (PRO)
             WidgetStyle(
+                presetId = "p_motorcycle_53",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -395,6 +412,7 @@ data class WidgetStyle(
                 presetImageResName = "motorcycle_53"
             ), // 18. 53号机车风格 (PRO)
             WidgetStyle(
+                presetId = "p_blue_sky_clouds",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -404,6 +422,7 @@ data class WidgetStyle(
                 presetImageResName = "blue_sky_clouds"
             ), // 19. 蓝天白云风格 (PRO)
             WidgetStyle(
+                presetId = "p_tiantian_xiangshang",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -413,6 +432,7 @@ data class WidgetStyle(
                 presetImageResName = "tiantian_xiangshang"
             ), // 20. 天天向上风格 (PRO)
             WidgetStyle(
+                presetId = "p_fight_club",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -422,6 +442,7 @@ data class WidgetStyle(
                 presetImageResName = "boji_julebu"
             ), // 21. 搏击俱乐部风格 (PRO)
             WidgetStyle(
+                presetId = "p_breaking_bad",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -431,6 +452,7 @@ data class WidgetStyle(
                 presetImageResName = "breaking_bad"
             ), // 22. 绝命毒师风格 (PRO)
             WidgetStyle(
+                presetId = "p_v_for_vendetta",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -439,27 +461,10 @@ data class WidgetStyle(
                 authorSignature = "—— V字仇杀队",
                 presetImageResName = "v_for_vendetta"
             ), // 23. V字仇杀队风格 (PRO)
-            WidgetStyle(
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 不要犹豫",
-                presetImageResName = "bu_yao_you_yu"
-            ), // 不要犹豫 (PRO)
-            WidgetStyle(
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 保持专注",
-                presetImageResName = "bao_chi_zhuan_zhu"
-            ), // 保持专注 (PRO)
 
             // 新风格：经典左右分割（会员专属）
             WidgetStyle(
+                presetId = "p_cute_cat",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -470,6 +475,7 @@ data class WidgetStyle(
                 presetImageResName = "cute_cat"
             ), // 可爱猫咪 (PRO)
             WidgetStyle(
+                presetId = "p_fluffy_dog",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -479,6 +485,7 @@ data class WidgetStyle(
                 presetImageResName = "fluffy_dog"
             ), // 毛绒小狗 (PRO)
             WidgetStyle(
+                presetId = "p_happy_dog",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -489,6 +496,7 @@ data class WidgetStyle(
                 presetImageResName = "happy_dog"
             ), // 快乐小狗 (PRO)
             WidgetStyle(
+                presetId = "p_fluffy_cat",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -498,6 +506,7 @@ data class WidgetStyle(
                 presetImageResName = "fluffy_cat"
             ), // 毛绒猫咪 (PRO)
             WidgetStyle(
+                presetId = "p_happy_daily",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -507,6 +516,7 @@ data class WidgetStyle(
                 presetImageResName = "happy_daily"
             ), // 天天开心 (PRO)
             WidgetStyle(
+                presetId = "p_plum_blossom",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -518,6 +528,7 @@ data class WidgetStyle(
 
             // 免费预设：极简风格（扩大免费用户吸引力）
             WidgetStyle(
+                presetId = "p_white_black",
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 8f,
                 backgroundColor = Color.parseColor("#FFFFFF"),
@@ -531,6 +542,7 @@ data class WidgetStyle(
                 textAlign = "CENTER"
             ), // 24. 白底黑字 (免费)
             WidgetStyle(
+                presetId = "p_dark_night",
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 12f,
                 backgroundColor = Color.parseColor("#1E293B"),
@@ -544,6 +556,7 @@ data class WidgetStyle(
 
             // 磨砂玻璃预设 (PRO)
             WidgetStyle(
+                presetId = "p_frosted_glass",
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#FFFFFF"),
@@ -560,6 +573,7 @@ data class WidgetStyle(
 
             // 金属八角骑士比剑 (PRO)
             WidgetStyle(
+                presetId = "p_metal_octagon",
                 shape = WidgetShape.METAL_OCTAGON,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#EDEFF2"), // 浅灰留白文字区
@@ -575,6 +589,7 @@ data class WidgetStyle(
 
             // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
             WidgetStyle(
+                presetId = "p_feather_letter",
                 shape = WidgetShape.FEATHER_LETTER,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 信纸外透明
@@ -593,6 +608,7 @@ data class WidgetStyle(
 
             // 复古像素 (PRO)：像素风方框(红框+虚线+薄荷绿底)即卡片，文字落框内留白
             WidgetStyle(
+                presetId = "p_pixel_retro",
                 shape = WidgetShape.PIXEL_RETRO,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 框外透明
@@ -612,6 +628,7 @@ data class WidgetStyle(
 
             // 萌宠猫咪趴 (PRO)：橘猫趴在渐变卡片顶，卡片做主体，文字落卡片中下部(避开猫)
             WidgetStyle(
+                presetId = "p_pet_cat_nap",
                 shape = WidgetShape.PET_CAT_NAP,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 卡片外透明
@@ -630,6 +647,7 @@ data class WidgetStyle(
 
             // 可爱四小只 (PRO)：四个圆形萌宠头像(企鹅帽/蓝绿双马尾/黄脸/粉发双丸子)排成 2×2 网格，左图右文
             WidgetStyle(
+                presetId = "p_cute_four_kids",
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 四小只头像为透明圆形抠图，等比完整显示不被裁切
@@ -645,6 +663,7 @@ data class WidgetStyle(
 
             // 蓝色便签 (PRO)：SVG 设计稿还原 — #43A8F0 蓝底圆角 + 顶部 NOTE + 右上信息钮 + 底部米白手写签条
             WidgetStyle(
+                presetId = "p_blue_note",
                 shape = WidgetShape.BLUE_NOTE,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#43A8F0"),
@@ -660,6 +679,7 @@ data class WidgetStyle(
             ), // 32. 蓝色便签 (PRO)
             // 竹青撕纸 (PRO)：米白锯齿撕纸即卡片(外透明透桌面)，文字落纸面中部
             WidgetStyle(
+                presetId = "p_zhu_qing_si_zhi",
                 shape = WidgetShape.ZHU_QING_SI_ZHI,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT,
@@ -677,22 +697,17 @@ data class WidgetStyle(
             ) // 33. 竹青撕纸 (PRO)
         )
 
-        // 为每个预设打上稳定的身份标识（preset_下标），套用预设后随 copy() 保留，
-        // 付费判定依据身份而不是字段值，杜绝"改一个字段绕过会员校验"
-        val PRESETS: List<WidgetStyle> = RAW_PRESETS.mapIndexed { index, style ->
-            style.copy(presetId = "preset_$index")
-        }
-
-        // 免费预设索引：未激活用户可直接套用，渲染器与两个编辑页面统一读取，
-        // 避免各处用"预设列表下标 >= 1"或形状枚举做启发式判断导致的锁定错乱。
-        // 注意：在 PRESETS 中间插入新预设会使下标整体漂移，需同步维护此集合。
-        val FREE_PRESET_INDICES = setOf(0, 28, 29) // 纯色圆角 / 白底黑字 / 深夜模式
-        private val FREE_PRESET_IDS = FREE_PRESET_INDICES.map { "preset_$it" }.toSet()
+        // 免费预设：按身份 id 判定，未激活用户可直接套用。
+        // 当前规则：只有「纯色圆角」免费，其余风格一律会员专属。
+        // 字体、字号、颜色、圆角、不透明度等细节调整不在此列，全部免费。
+        private val FREE_PRESET_IDS = setOf(
+            "p_pure_round"    // 纯色圆角
+        )
 
         /**
          * 判断一个样式是否属于付费预设。
-         * 优先按 presetId 身份判定：套用预设后任意微调（字号、粗细、圆角等）仍能正确识别。
-         * 旧数据（styleJson 无 presetId）回退到关键字段匹配兜底。
+         * 主路径按 presetId 身份判定：套用预设后任意微调（字号、粗细、圆角等）仍能正确识别。
+         * 仅当 styleJson 没有 presetId（升级前的老数据）时才回退到字段匹配兜底。
          */
         fun isProPreset(style: WidgetStyle): Boolean {
             val pid = style.presetId
@@ -716,7 +731,7 @@ data class WidgetStyle(
                     it.cardBorderColor == style.cardBorderColor &&
                     it.showCardShadow == style.showCardShadow
             }
-            return index != -1 && index !in FREE_PRESET_INDICES
+            return index != -1 && PRESETS[index].presetId !in FREE_PRESET_IDS
         }
 
         // 明信片/画报风格可选插图（资源名 → 展示名）。
@@ -734,9 +749,7 @@ data class WidgetStyle(
             "tiantian_xiangshang" to "天天向上",
             "boji_julebu" to "搏击俱乐部",
             "breaking_bad" to "绝命毒师",
-            "v_for_vendetta" to "V字仇杀队",
-            "bu_yao_you_yu" to "不要犹豫",
-            "bao_chi_zhuan_zhu" to "保持专注"
+            "v_for_vendetta" to "V字仇杀队"
         )
 
         // 首页与快捷面板共用的推荐预设（按风格分类）。
