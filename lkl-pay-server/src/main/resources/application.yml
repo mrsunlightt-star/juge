@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: lkl-pay-server
+  datasource:
+    # H2 文件模式：全部数据即 data/paydb.mv.db 一个文件，备份 = 拷贝该文件
+    url: "jdbc:h2:file:./data/paydb;DB_CLOSE_DELAY=-1"
+    username: sa
+    password: ""
+  jpa:
+    # 单表小服务，交由 Hibernate 维护表结构；表变多后再考虑引入 Flyway
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  port: 8081
+
+# ── 商品目录 ──
+# 价格以服务端为准：App 只传商品 ID，避免客户端篡改金额
+pay:
+  products:
+    pro_permanent:
+      subject: "句阁 PRO 会员"
+      amount-fen: 199
+
+# ── 账号体系 ──
+# 可选登录：不登录也能完整使用，登录的唯一收益是换机/重装后找回已购 PRO
+auth:
+  # 登录态有效期，取长值避免用户隔一阵子打开就被登出
+  token-ttl-days: 365
+  # 同一用户名连续失败到该次数后锁定一个窗口期，防在线字典爆破
+  max-login-failures: 5
+  login-window-minutes: 10
+
+# ── 支付宝 App 支付（alipay.trade.app.pay）──
+# 密钥体系为「公钥模式 + RSA2」：应用私钥本地保存，支付宝公钥从开放平台获取
+alipay:
+  app-id: "2021007103686388"
+  private-key-path: "certs/alipay_app_private_key.txt"
+  alipay-public-key-path: "certs/alipay_public_key.txt"
+  gateway-url: "https://openapi.alipay.com/gateway.do"
+  # 必须公网可达，且与开放平台「应用网关」填写的一致
+  notify-url: "https://puretxt.cn/api/alipay/notify"
+  sign-type: RSA2
+  charset: UTF-8
+  format: json
+  # 订单有效期：超时后支付宝自动关闭交易
+  order-expire-minutes: 120
