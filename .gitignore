@@ -29,6 +29,10 @@ code-review-report
 backups/
 _backup_*
 
+# 签名证书与密码（绝不入库）
+keystore.properties
+/keystore/
+
 # 独立网站工程（含大体积素材，暂不纳入）
 juge-website/
 
