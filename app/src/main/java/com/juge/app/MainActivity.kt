@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
@@ -47,6 +48,9 @@ import com.juge.app.account.AccountStore
 import com.juge.app.account.AccountSync
 import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.AddColorPresetButton
+import com.juge.app.ui.ColorPickerDialog
+import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -2335,6 +2339,14 @@ class MainActivity : ComponentActivity() {
         // 折叠控制
         var isTutorialExpanded by remember { mutableStateOf(false) }
 
+        // 颜色预设：内置色 + 用户自添加色，长按均可删除
+        var fontColorPresets by remember { mutableStateOf(UserColorPresets.fontColors(this@MainActivity)) }
+        var backgroundColorPresets by remember { mutableStateOf(UserColorPresets.backgroundColors(this@MainActivity)) }
+        var showFontColorPicker by remember { mutableStateOf(false) }
+        var showBackgroundColorPicker by remember { mutableStateOf(false) }
+        var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
+        var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -2553,8 +2565,8 @@ class MainActivity : ComponentActivity() {
                         PresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属 · $sizeLabel")
 
                         // 精选卡片插画
-                        // 明信片风格固定为 4×4（竖版上下分割），不随当前组件尺寸变化
-                        Text("明信片风格 · 会员专属 · 4×4", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        // 明信片风格固定为 4×4（竖版上下分割）/ 4×3（书香书架），不随当前组件尺寸变化
+                        Text("明信片风格 · 会员专属 · 4×4 / 4×3", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2562,6 +2574,66 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // 代码绘制的大卡（书香书架 4×3）排在插图素材之前：
+                            // 它没有插图素材，按桌面 4×3 的设计尺寸渲染后再缩小显示，
+                            // 这样缩略图里的书脊与文本面板比例和桌面组件一致
+                            val codePreviewHeightDp = 80
+                            val codePreviewWidthDp = (codePreviewHeightDp * 4f / 3f).toInt()
+                            WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
+                                val isCodeSelected = selectedStyle.shape == preset.shape &&
+                                    selectedStyle.presetImageResName == null &&
+                                    selectedStyle.backgroundImagePath.isNullOrEmpty()
+                                val codeBitmap by produceState<Bitmap?>(
+                                    initialValue = null,
+                                    preset, presetName, isActivated
+                                ) {
+                                    value = withContext(Dispatchers.Default) {
+                                        try {
+                                            WidgetCanvasRenderer.render(
+                                                context = this@MainActivity,
+                                                widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
+                                                heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
+                                                content = presetName,
+                                                style = preset,
+                                                trialManager = trialManager,
+                                                isPreview = true
+                                            )
+                                        } catch (t: Throwable) {
+                                            Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
+                                        }
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .width(codePreviewWidthDp.dp)
+                                        .height(codePreviewHeightDp.dp)
+                                        .clickable {
+                                            val newPresetStyle = preset.copy(
+                                                backgroundOpacity = selectedStyle.backgroundOpacity,
+                                                cornerRadiusDp = selectedStyle.cornerRadiusDp
+                                            )
+                                            onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                                        }
+                                ) {
+                                    if (codeBitmap != null) {
+                                        Image(
+                                            bitmap = codeBitmap!!.asImageBitmap(),
+                                            contentDescription = presetName,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .border(
+                                                    width = if (isCodeSelected) 3.dp else 1.dp,
+                                                    color = if (isCodeSelected) mintBright else Color(0xFFE2E8F0),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                        )
+                                    }
+                                }
+                            }
+
                             val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
                             
                             illustrations.forEachIndexed { illusIndex, (resName, desc) ->
@@ -2873,37 +2945,42 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val presetFontColors = listOf(
-                                "#434446",
-                                "#1393cf",
-                                "#23c3c0",
-                                "#f6c250",
-                                "#56309f",
-                                "#aa6790"
-                            )
-                            presetFontColors.forEach { hex ->
-                                val parsedColor = android.graphics.Color.parseColor(hex)
-                                val isSelected = selectedStyle.fontColor == parsedColor
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(parsedColor))
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            val newStyle = selectedStyle.copy(fontColor = parsedColor)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        }
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                fontColorPresets.forEach { parsedColor ->
+                                    val isSelected = selectedStyle.fontColor == parsedColor
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(9.dp))
+                                            .background(Color(parsedColor))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                                shape = RoundedCornerShape(9.dp)
+                                            )
+                                            .combinedClickable(
+                                                onClick = {
+                                                    val newStyle = selectedStyle.copy(fontColor = parsedColor)
+                                                    onStyleStateChange(newStyle)
+                                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                                },
+                                                onLongClick = {
+                                                    pendingDeleteFontColor = parsedColor
+                                                }
+                                            )
+                                    )
+                                }
                             }
+                            AddColorPresetButton(onClick = { showFontColorPicker = true })
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
@@ -3010,55 +3087,50 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
                         HorizontalDivider(color = Color(0xFFF1F5F9))
-                        Spacer(modifier = Modifier.height(6.dp))
 
                         // 4.2. 卡片背景颜色设置
                         Text("小组件背景颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                         
                         // 预设背景色彩
-                        val presetColors = listOf(
-                            "#F5F5F5" to "极简灰",
-                            "#FFFFFF" to "纯白",
-                            "#121212" to "极简黑",
-                            "#F4ECD8" to "宣纸杏",
-                            "#FFFDE7" to "手账黄",
-                            "#FFEBEE" to "莫兰迪粉",
-                            "#F3E5F5" to "淡雅紫",
-                            "#E3F2FD" to "清新蓝",
-                            "#E8F5E9" to "极简绿",
-                            "#FFF3E0" to "暖橙橘",
-                            "#263238" to "深空灰",
-                            "#1F2436" to "漫画蓝"
-                        )
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            presetColors.forEach { (hex, name) ->
-                                val colorInt = android.graphics.Color.parseColor(hex)
-                                val isSelected = selectedStyle.backgroundColor == colorInt
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(colorInt))
-                                        .border(
-                                            width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            val newStyle = selectedStyle.copy(backgroundColor = colorInt)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        }
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                backgroundColorPresets.forEach { colorInt ->
+                                    val isSelected = selectedStyle.backgroundColor == colorInt
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(9.dp))
+                                            .background(Color(colorInt))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                                shape = RoundedCornerShape(9.dp)
+                                            )
+                                            .combinedClickable(
+                                                onClick = {
+                                                    val newStyle = selectedStyle.copy(backgroundColor = colorInt)
+                                                    onStyleStateChange(newStyle)
+                                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                                },
+                                                onLongClick = {
+                                                    pendingDeleteBackgroundColor = colorInt
+                                                }
+                                            )
+                                    )
+                                }
                             }
+                            AddColorPresetButton(onClick = { showBackgroundColorPicker = true })
                         }
 
                         // 自定义背景色调 HSV 滑块
@@ -3193,7 +3265,9 @@ class MainActivity : ComponentActivity() {
                         // 背景圆角尺寸 Slider (适用于卡片类形状)
                         // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
                         val canAdjustCorner = selectedStyle.shape != WidgetShape.ELLIPSE &&
-                                              selectedStyle.shape != WidgetShape.TORN_PAPER
+                                              selectedStyle.shape != WidgetShape.TORN_PAPER &&
+                                              // 书香书架本身就是组件、四周透明，没有外框可调圆角
+                                              selectedStyle.shape != WidgetShape.BOOKSHELF
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3257,9 +3331,7 @@ class MainActivity : ComponentActivity() {
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
                         HorizontalDivider(color = Color(0xFFF1F5F9))
-                        Spacer(modifier = Modifier.height(6.dp))
 
                         // 上传本地背景图
                         Text("自定义背景图", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
@@ -3400,6 +3472,60 @@ class MainActivity : ComponentActivity() {
                 },
                 targetWidth = cropTarget.first,
                 targetHeight = cropTarget.second
+            )
+        }
+
+        if (showFontColorPicker) {
+            ColorPickerDialog(
+                title = "添加字体颜色预设",
+                initialColor = selectedStyle.fontColor,
+                onDismiss = { showFontColorPicker = false },
+                onConfirm = { color ->
+                    showFontColorPicker = false
+                    if (fontColorPresets.contains(color)) {
+                        Toast.makeText(this@MainActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
+                    } else {
+                        fontColorPresets = UserColorPresets.addFontColor(this@MainActivity, color)
+                    }
+                }
+            )
+        }
+
+        if (showBackgroundColorPicker) {
+            ColorPickerDialog(
+                title = "添加背景颜色预设",
+                initialColor = selectedStyle.backgroundColor,
+                onDismiss = { showBackgroundColorPicker = false },
+                onConfirm = { color ->
+                    showBackgroundColorPicker = false
+                    if (backgroundColorPresets.contains(color)) {
+                        Toast.makeText(this@MainActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
+                    } else {
+                        backgroundColorPresets = UserColorPresets.addBackgroundColor(this@MainActivity, color)
+                    }
+                }
+            )
+        }
+
+        pendingDeleteFontColor?.let { color ->
+            DeleteColorPresetDialog(
+                color = color,
+                onDismiss = { pendingDeleteFontColor = null },
+                onConfirm = {
+                    fontColorPresets = UserColorPresets.deleteFontColor(this@MainActivity, color)
+                    pendingDeleteFontColor = null
+                }
+            )
+        }
+
+        pendingDeleteBackgroundColor?.let { color ->
+            DeleteColorPresetDialog(
+                color = color,
+                onDismiss = { pendingDeleteBackgroundColor = null },
+                onConfirm = {
+                    backgroundColorPresets = UserColorPresets.deleteBackgroundColor(this@MainActivity, color)
+                    pendingDeleteBackgroundColor = null
+                }
             )
         }
     }

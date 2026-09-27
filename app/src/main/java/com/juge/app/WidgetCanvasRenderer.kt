@@ -43,6 +43,28 @@ object WidgetCanvasRenderer {
     private const val TORN_BORDER_ALPHA = 220
     private const val TAPE_LINE_ALPHA = 45
 
+    // 书香书架纵向几何：书籍区（书脊 + 横板）高度固定为 dp，不随组件变高而拉伸，
+    // 组件多出来的高度全部留给下方摘录面板，因此尺寸变大时只有文本区域变大。
+    // 组件高度不足时优先压缩书籍区，保证面板至少能显示正文。
+    private const val SHELF_BOOK_BAND_HEIGHT_DP = 90f // 组件顶部到横板上沿
+    private const val SHELF_BOARD_HEIGHT_DP = 4f // 横板厚度
+    private const val SHELF_BOOK_TOP_MARGIN_DP = 6f // 书脊顶部与组件顶部的留白
+    private const val SHELF_PANEL_GAP_DP = 6f // 横板下沿到面板上沿
+    private const val SHELF_PANEL_BOTTOM_MARGIN_DP = 6f // 面板下沿到组件底部
+    private const val SHELF_PANEL_MIN_HEIGHT_DP = 54f // 面板最小高度
+    private const val SHELF_PANEL_MIN_BAND_RATIO = 0.35f // 组件过矮时书籍区的最小占比
+    private const val SHELF_PANEL_TEXT_PAD_X_DP = 14f // 面板内正文左右留白
+    private const val SHELF_PANEL_TEXT_PAD_Y_DP = 6f // 面板内正文上下留白
+    // 横向仍按比例：书架横向铺满组件宽度
+    private const val SHELF_BOARD_LEFT_RATIO = 0.035f
+    private const val SHELF_BOARD_RIGHT_RATIO = 0.965f
+    private const val SHELF_BOOKS_LEFT_RATIO = 0.07f
+    private const val SHELF_BOOKS_RIGHT_RATIO = 0.93f
+    private const val SHELF_PANEL_LEFT_RATIO = 0.055f
+    private const val SHELF_PANEL_RIGHT_RATIO = 0.945f
+    // 书脊竖排书名的行距倍数：略大于字号即可，保持字符紧凑而不铺满整条书脊
+    private const val BOOK_TITLE_LINE_STEP_RATIO = 1.06f
+
     fun render(
         context: Context,
         widthDp: Int,
@@ -65,7 +87,7 @@ object WidgetCanvasRenderer {
         // 1. 绘制背景区域与形状裁切路径
         val path = Path()
         // 只对"纯圆角矩形"这一族的形状做内缩：它们的内容完全按 rectF/outerRect 布局，内缩不会溢出；
-        // 其余形状（撕纸/八角/信纸/萌宠/像素等）有各自按整幅位图绘制的装饰，保持满幅以免错位
+        // 其余形状（撕纸/八角/信纸/萌宠/像素/书架等）有各自按整幅位图绘制的装饰，保持满幅以免错位
         val usesInsetCard = style.shape == WidgetShape.RECTANGLE ||
             style.shape == WidgetShape.HANDBOOK_TAPE ||
             style.shape == WidgetShape.SPLIT_CARD ||
@@ -75,7 +97,7 @@ object WidgetCanvasRenderer {
         val rectF = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
         
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI -> {
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF -> {
                 val rx = style.cornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
@@ -86,10 +108,6 @@ object WidgetCanvasRenderer {
             WidgetShape.TORN_PAPER -> {
                 val tornPath = generateTornPath(targetWidth.toFloat(), targetHeight.toFloat(), densityScale)
                 path.set(tornPath)
-            }
-            WidgetShape.METAL_OCTAGON -> {
-                // 金属八角形：4 个角切角，构造 8 顶点外框剪裁
-                drawOctagonPath(path, targetWidth.toFloat(), targetHeight.toFloat(), densityScale)
             }
             WidgetShape.FEATHER_LETTER -> {
                 // 羽毛信纸：居中撕纸信纸矩形，四周留出卡片边距
@@ -107,15 +125,12 @@ object WidgetCanvasRenderer {
             // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
             WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
-            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI ->
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF ->
                 style.cornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
         val outerRect = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
-        if (style.shape == WidgetShape.METAL_OCTAGON) {
-            // 金属八角：外框同样用八角形剪裁，保证四角不外露
-            drawOctagonPath(outerPath, targetWidth.toFloat(), targetHeight.toFloat(), densityScale)
-        } else if (outerRx <= 0f) {
+        if (outerRx <= 0f) {
             outerPath.addRect(outerRect, Path.Direction.CW)
         } else {
             outerPath.addRoundRect(outerRect, outerRx, outerRx, Path.Direction.CW)
@@ -268,9 +283,9 @@ object WidgetCanvasRenderer {
             drawBlueNoteChrome(canvas, targetWidth.toFloat(), targetHeight.toFloat(), outerRect, outerPath, densityScale, style, context)
         }
 
-        // 金属八角骑士比剑：用 Canvas 绘制八角金属边框 + 顶部双骑士 + 浅灰留白文字区
-        if (style.shape == WidgetShape.METAL_OCTAGON) {
-            drawMetalOctagonFrame(canvas, path, targetWidth.toFloat(), targetHeight.toFloat(), densityScale, style, context)
+        // 书香书架：顶部彩色书脊立在横板上，底部米色摘录面板
+        if (style.shape == WidgetShape.BOOKSHELF) {
+            drawBookshelfChrome(canvas, outerRect, densityScale, style, context)
         }
 
         // 羽毛信纸：使用透自信纸抠图作背景（走上方背景图绘制逻辑），透明区透底色
@@ -375,14 +390,6 @@ object WidgetCanvasRenderer {
                 textWidth = paddingRight - paddingLeft
                 cardTop = targetHeight * SPLIT_CARD_RATIO + 12f * densityScale
                 cardHeight = targetHeight - cardTop - 12f * densityScale
-            } else if (style.shape == WidgetShape.METAL_OCTAGON) {
-                // 文字落在浅灰留白区：避开顶部双骑士与四周金属边框
-                val lateral = targetWidth * 0.12f
-                paddingLeft = lateral
-                paddingRight = targetWidth - lateral
-                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                cardTop = targetHeight * 0.22f // 顶部让出骑士与上边框
-                cardHeight = targetHeight - cardTop - targetHeight * 0.14f // 底部让出下边框
             } else if (style.shape == WidgetShape.FEATHER_LETTER) {
                 // 羽毛信纸：文字落在信纸留白区（扩大区域，右侧多留避羽毛笔，顶部避开尖角）
                 val verticalInset = targetHeight * 0.16f
@@ -421,8 +428,8 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = headerH
                 cardHeight = targetHeight - cardTop - footerH - 8f * densityScale
-            } else if (style.shape == WidgetShape.ZHU_QING_SI_ZHI) {
-                // 竹青撕纸：米白锯齿纸即主体，文字居中留白避开锯齿边与右下阴影
+            } else if (style.shape == WidgetShape.ZHU_QING_SI_ZHI || style.shape == WidgetShape.NIUPI_SHOUZHANG) {
+                // 竹青撕纸 / 撕边牛皮手账：纸即主体，文字居中留白避开撕边与右下阴影
                 val verticalInset = targetHeight * 0.11f
                 val lateral = targetWidth * 0.11f
                 paddingLeft = lateral
@@ -430,6 +437,25 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = verticalInset
                 cardHeight = targetHeight - cardTop - verticalInset
+            } else if (style.shape == WidgetShape.CLASSROOM_BLACKBOARD) {
+                // 教室黑板：文字写在绿色板面上，四周避开木框，底部让出粉笔槽
+                val lateral = targetWidth * 0.09f
+                paddingLeft = lateral
+                paddingRight = targetWidth - lateral
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = targetHeight * 0.12f
+                cardHeight = targetHeight * 0.70f
+            } else if (style.shape == WidgetShape.BOOKSHELF) {
+                // 书香书架：正文落在底部米色摘录面板内。书籍区高度固定，面板吃掉组件多出来的高度，
+                // 因此组件变高时只有文本区域变大（面板与正文区域用同一个面板矩形，保证文字不越界）
+                val panel = bookshelfPanelRect(outerRect, densityScale)
+                val textPadX = SHELF_PANEL_TEXT_PAD_X_DP * densityScale
+                val textPadY = SHELF_PANEL_TEXT_PAD_Y_DP * densityScale
+                paddingLeft = panel.left + textPadX
+                paddingRight = panel.right - textPadX
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = panel.top + textPadY
+                cardHeight = (panel.bottom - textPadY - cardTop).coerceAtLeast(1f)
             } else {
                 paddingLeft = 16f * densityScale
                 paddingRight = targetWidth - 16f * densityScale
@@ -572,128 +598,160 @@ object WidgetCanvasRenderer {
         canvas.restore()
     }
 
-    // 构造金属八角形路径：4 个角切角，8 个顶点
-    private fun drawOctagonPath(path: Path, width: Float, height: Float, densityScale: Float) {
-        path.reset()
-        val cut = minOf(width, height) * 0.08f
-        // 顺时针：从左上切角开始
-        path.moveTo(cut, 0f)
-        path.lineTo(width - cut, 0f)
-        path.lineTo(width, cut)
-        path.lineTo(width, height - cut)
-        path.lineTo(width - cut, height)
-        path.lineTo(cut, height)
-        path.lineTo(0f, height - cut)
-        path.lineTo(0f, cut)
-        path.close()
+    // 书架上的一本书：书名、书脊配色、相对最高书脊的高度比例
+    private data class ShelfBook(
+        val title: String,
+        val color: Int,
+        val heightFactor: Float,
+        val highlighted: Boolean = false
+    )
+
+    private val SHELF_BOOKS: List<ShelfBook> = listOf(
+        ShelfBook("活着", 0xFF3F3F3F.toInt(), 0.86f),
+        ShelfBook("围城", 0xFF2B4A6B.toInt(), 0.77f),
+        ShelfBook("百年孤独", 0xFF2F5D3A.toInt(), 0.92f),
+        ShelfBook("小王子", 0xFFF0A81E.toInt(), 0.76f, highlighted = true),
+        ShelfBook("人间失格", 0xFF8E2B2B.toInt(), 0.82f),
+        ShelfBook("月亮与六便士", 0xFF8FB8D8.toInt(), 0.80f),
+        ShelfBook("平凡的世界", 0xFFA83232.toInt(), 0.92f),
+        ShelfBook("三体", 0xFF1F3D6E.toInt(), 0.87f),
+        ShelfBook("解忧杂货店", 0xFFE0642E.toInt(), 0.80f),
+        ShelfBook("追风筝的人", 0xFF2E9E6B.toInt(), 0.91f),
+        ShelfBook("城南旧事", 0xFFF0A8C0.toInt(), 0.72f),
+        ShelfBook("瓦尔登湖", 0xFF4E8C3A.toInt(), 0.92f),
+        ShelfBook("红楼梦", 0xFF5B3E9E.toInt(), 0.93f)
+    )
+
+    // 书脊底色偏亮时改用深色书名，保证竖排书名始终清晰
+    private fun isLightSpine(color: Int): Boolean {
+        val luminance = 0.299f * Color.red(color) / 255f +
+            0.587f * Color.green(color) / 255f +
+            0.114f * Color.blue(color) / 255f
+        return luminance > 0.62f
     }
 
-    // 绘制金属八角边框 + 顶部双骑士 + 浅灰留白文字区
-    private fun drawMetalOctagonFrame(
+    // 书香书架：书架本身就是组件，四周保持透明（不画底色/描边/投影、不做形状裁切），
+    // 只有横板与底部米色摘录面板是可着色区域，两者都按位图比例绘制，随组件尺寸一起缩放
+    private fun drawBookshelfChrome(
         canvas: Canvas,
-        octagonPath: Path,
-        width: Float,
-        height: Float,
+        outerRect: RectF,
         densityScale: Float,
         style: WidgetStyle,
         context: Context
     ) {
-        // 1. 金属拉丝渐变（亮银 → 中灰 → 暗银），模拟金属质感的立体感
-        val metalGradient = LinearGradient(
-            0f, 0f, width, height,
-            intArrayOf(
-                Color.parseColor("#F2F4F6"),
-                Color.parseColor("#B8BFC7"),
-                Color.parseColor("#88929B"),
-                Color.parseColor("#C8CFD6")
-            ),
-            null,
-            Shader.TileMode.CLAMP
-        )
+        val fx = outerRect.left
+        val fy = outerRect.top
+        val fw = outerRect.width()
+        val fh = outerRect.height()
 
-        canvas.save()
+        // 1. 书架横板：纵向位置固定，比书脊两侧略宽，下沿压一条深色细线做出板厚
+        val shelfTop = bookshelfShelfTop(fy, fh, densityScale)
+        val shelfHeight = bookshelfBoardHeight(densityScale)
+        val shelfLeft = fx + fw * SHELF_BOARD_LEFT_RATIO
+        val shelfRight = fx + fw * SHELF_BOARD_RIGHT_RATIO
+        canvas.drawRect(shelfLeft, shelfTop, shelfRight, shelfTop + shelfHeight, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#D9D4CB")
+        })
+        canvas.drawRect(shelfLeft, shelfTop + shelfHeight * 0.6f, shelfRight, shelfTop + shelfHeight, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#C2BBB0")
+        })
 
-        // 2. 八角形外框整体剪裁，保证金属边框不溢出
-        val clip = Path()
-        drawOctagonPath(clip, width, height, densityScale)
-        canvas.clipPath(clip)
-
-        // 3. 填充整块金属底色（外框区域）
-        val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = metalGradient }
-        canvas.drawRect(0f, 0f, width, height, basePaint)
-
-        // 4. 绘制外层金属高光描边（八角轮廓亮边）
-        val edgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.style = Paint.Style.STROKE
-            strokeWidth = 2f * densityScale
-            color = Color.parseColor("#F5F7F9")
+        // 2. 书脊：13 本书按不同高度比例铺满书架宽度，其中「小王子」作为重点书目带浅色描边。
+        // 最高一本由固定的书籍区高度决定，因此组件变高时书脊尺寸保持不变
+        val booksLeft = fx + fw * SHELF_BOOKS_LEFT_RATIO
+        val booksRight = fx + fw * SHELF_BOOKS_RIGHT_RATIO
+        val slot = (booksRight - booksLeft) / SHELF_BOOKS.size
+        val bookWidth = slot * 0.94f
+        val maxBookHeight = (shelfTop - fy - SHELF_BOOK_TOP_MARGIN_DP * densityScale)
+            .coerceAtLeast(4f * densityScale)
+        val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = style.font.getTypeface(context)
+            textAlign = Paint.Align.CENTER
         }
-        canvas.drawPath(clip, edgePaint)
 
-        // 5. 内圈八角凹槽：留出金属边框厚度后，内部填充浅灰留白文字区
-        val innerCut = minOf(width, height) * 0.08f + (minOf(width, height) * 0.09f)
-        val inset = minOf(width, height) * 0.10f // 边框厚度
-        val innerPath = Path()
-        innerPath.moveTo(innerCut, inset)
-        innerPath.lineTo(width - inset - innerCut + inset, inset) // 上边
-        innerPath.lineTo(width - inset, innerCut)
-        innerPath.lineTo(width - inset, height - inset - innerCut + inset) // 右边
-        innerPath.lineTo(width - inset - innerCut + inset, height - inset)
-        innerPath.lineTo(innerCut, height - inset)
-        innerPath.lineTo(inset, height - inset - innerCut + inset) // 左边
-        innerPath.lineTo(inset, innerCut)
-        innerPath.close()
+        SHELF_BOOKS.forEachIndexed { index, book ->
+            val bookHeight = maxBookHeight * book.heightFactor
+            val left = booksLeft + slot * index + (slot - bookWidth) / 2f
+            val right = left + bookWidth
+            val top = shelfTop - bookHeight
+            val radius = bookWidth * 0.06f
 
-        // 内圈凹槽：先填深灰（金属内圈阴影），形成边框厚度感
-        val innerShadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#6B737C")
-        }
-        canvas.drawPath(innerPath, innerShadowPaint)
+            canvas.drawRoundRect(RectF(left, top, right, shelfTop), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = book.color
+            })
 
-        // 6. 填充浅灰留白文字区（比内圈凹槽再往内收缩，留出金属边框宽度）
-        val padding = minOf(width, height) * 0.06f
-        val textBgRect = RectF(
-            inset + padding,
-            inset + padding,
-            width - inset - padding,
-            height - inset - padding
-        )
-        val textBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = style.backgroundColor.takeIf { it != 0 } ?: Color.parseColor("#EDEFF2")
-        }
-        // 留白区用圆角矩形，贴合参考图内部圆角留白
-        val textBgRadius = minOf(width, height) * 0.03f
-        canvas.drawRoundRect(textBgRect, textBgRadius, textBgRadius, textBgPaint)
-
-        // 7. 绘制顶部中央双骑士比剑
-        try {
-            val knights = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.metal_knights)
-            if (knights != null) {
-                val knightsW = width * 0.42f
-                val knightsH = height * 0.22f
-                val knightsLeft = (width - knightsW) / 2f
-                val knightsTop = height * 0.015f
-                knights.setBounds(
-                    knightsLeft.toInt(),
-                    knightsTop.toInt(),
-                    (knightsLeft + knightsW).toInt(),
-                    (knightsTop + knightsH).toInt()
+            if (book.highlighted) {
+                val inset = 1.8f * densityScale
+                canvas.drawRoundRect(
+                    RectF(left + inset, top + inset, right - inset, shelfTop - inset),
+                    radius,
+                    radius,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.style = Paint.Style.STROKE
+                        strokeWidth = 1.6f * densityScale
+                        color = Color.parseColor("#FFF3D0")
+                    }
                 )
-                knights.draw(canvas)
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to draw metal knights")
+
+            // 3. 竖排书名：字符之间只留紧凑行距，自书脊顶部向下排布，
+            // 而不是把字符按书脊高度等距铺满；书名过长时整体缩小以容纳在书脊内
+            val title = book.title
+            val topPadding = (bookHeight * 0.07f).coerceAtLeast(2f * densityScale)
+            val availableHeight = (bookHeight - topPadding * 2f).coerceAtLeast(1f)
+            val textSize = minOf(bookWidth * 0.60f, availableHeight / (title.length * BOOK_TITLE_LINE_STEP_RATIO))
+                .coerceAtLeast(5f * densityScale)
+            titlePaint.textSize = textSize
+            titlePaint.color = if (isLightSpine(book.color)) Color.parseColor("#2B2B2B") else Color.WHITE
+            val centerX = (left + right) / 2f
+            val lineStep = textSize * BOOK_TITLE_LINE_STEP_RATIO
+            var baseline = top + topPadding + lineStep * 0.5f + textSize * 0.36f
+            for (i in title.indices) {
+                canvas.drawText(title[i].toString(), centerX, baseline, titlePaint)
+                baseline += lineStep
+            }
         }
 
-        // 8. 绘制内圈金属边框的亮色高光（增强立体感）
-        val innerEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.style = Paint.Style.STROKE
-            strokeWidth = 1.5f * densityScale
-            color = Color.parseColor("#DCE1E6")
-        }
-        canvas.drawPath(innerPath, innerEdgePaint)
+        // 4. 底部米色摘录面板：正文由通用排版逻辑绘制在这块面板内，两者共用同一个面板矩形，
+        // 面板高度随组件高度增长，正文可显示的行数随之增加
+        val panel = bookshelfPanelRect(outerRect, densityScale)
+        val panelRadius = minOf(panel.width(), panel.height()) * 0.12f
+        canvas.drawRoundRect(
+            panel,
+            panelRadius,
+            panelRadius,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#F7F3EC") }
+        )
+    }
 
-        canvas.restore()
+    // 书香书架横板上沿的纵向位置：书籍区高度固定为 SHELF_BOOK_BAND_HEIGHT_DP，
+    // 组件不够高时压缩书籍区，优先保证摘录面板的最小高度
+    private fun bookshelfShelfTop(fy: Float, fh: Float, densityScale: Float): Float {
+        val reserved = (SHELF_PANEL_MIN_HEIGHT_DP + SHELF_PANEL_GAP_DP + SHELF_PANEL_BOTTOM_MARGIN_DP + SHELF_BOARD_HEIGHT_DP) * densityScale
+        val maxBand = (fh - reserved).coerceAtLeast(fh * SHELF_PANEL_MIN_BAND_RATIO)
+        return fy + (SHELF_BOOK_BAND_HEIGHT_DP * densityScale).coerceAtMost(maxBand)
+    }
+
+    private fun bookshelfBoardHeight(densityScale: Float): Float =
+        (SHELF_BOARD_HEIGHT_DP * densityScale).coerceAtLeast(2f * densityScale)
+
+    // 摘录面板矩形：上沿紧跟横板，下沿留出底部留白，中间全部属于文本显示区域
+    private fun bookshelfPanelRect(outerRect: RectF, densityScale: Float): RectF {
+        val fx = outerRect.left
+        val fy = outerRect.top
+        val fw = outerRect.width()
+        val fh = outerRect.height()
+        val panelTop = bookshelfShelfTop(fy, fh, densityScale) +
+            bookshelfBoardHeight(densityScale) +
+            SHELF_PANEL_GAP_DP * densityScale
+        val panelBottom = (fy + fh - SHELF_PANEL_BOTTOM_MARGIN_DP * densityScale)
+            .coerceAtLeast(panelTop + 1f)
+        return RectF(
+            fx + fw * SHELF_PANEL_LEFT_RATIO,
+            panelTop,
+            fx + fw * SHELF_PANEL_RIGHT_RATIO,
+            panelBottom
+        )
     }
 
     // 蓝色便签贴纸：在圆角蓝底上绘制顶部 NOTE 行、右上信息钮、底部米色签条与手写签名

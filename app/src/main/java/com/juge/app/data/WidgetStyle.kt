@@ -45,12 +45,14 @@ enum class WidgetShape(val displayName: String) {
     TORN_PAPER("撕裂纸片"),
     SPLIT_CARD("图文明信片"),
     SPLIT_CARD_HORIZONTAL("左右分割明信片"),
-    METAL_OCTAGON("金属八角骑士"),
     FEATHER_LETTER("羽毛信纸"),
     PIXEL_RETRO("复古像素"),
     PET_CAT_NAP("萌宠猫咪趴"),
     BLUE_NOTE("蓝色便签"),
-    ZHU_QING_SI_ZHI("竹青撕纸")
+    ZHU_QING_SI_ZHI("竹青撕纸"),
+    NIUPI_SHOUZHANG("撕边牛皮手账"),
+    CLASSROOM_BLACKBOARD("教室黑板"),
+    BOOKSHELF("书香书架")
 }
 
 // 图片缩放模式
@@ -307,30 +309,6 @@ data class WidgetStyle(
                 authorSignature = "—— 手账心情"
             ), // 5. 复古手账风格 (PRO)
             WidgetStyle(
-                presetId = "p_dream_gradient",
-                shape = WidgetShape.RECTANGLE,
-                cornerRadiusDp = 15f,
-                gradientColors = listOf(Color.parseColor("#E8C5C8"), Color.parseColor("#C4D6E0")), // 梦幻渐变
-                gradientAngle = 135f,
-                fontColor = Color.parseColor("#3C4A5A"),
-                font = WidgetFont.DEFAULT,
-                fontBold = true,
-                showQuoteMark = true,
-                showCardShadow = true
-            ), // 6. 梦幻渐变风格 (PRO)
-            WidgetStyle(
-                presetId = "p_star_sea",
-                shape = WidgetShape.ELLIPSE,
-                gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")), // 深邃星海渐变
-                gradientAngle = 45f,
-                fontColor = Color.parseColor("#FFFFFF"),
-                font = WidgetFont.SOURCE_HAN_SERIF,
-                fontItalic = true,
-                showQuoteMark = true,
-                authorSignature = "—— 星辰大海"
-            ), // 7. 深邃星海风格 (PRO)
-
-            WidgetStyle(
                 presetId = "p_postcard_note",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
@@ -538,16 +516,6 @@ data class WidgetStyle(
                 authorSignature = "—— 天天开心",
                 presetImageResName = "happy_daily"
             ), // 天天开心 (PRO)
-            WidgetStyle(
-                presetId = "p_plum_blossom",
-                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 梅花相见",
-                presetImageResName = "plum_blossom"
-            ), // 梅花相见 (PRO)
 
             // 免费预设：极简风格（扩大免费用户吸引力）
             WidgetStyle(
@@ -593,22 +561,6 @@ data class WidgetStyle(
                 cardBorderColor = Color.parseColor("#A0C4FF"),
                 authorSignature = "—— 磨砂玻璃"
             ), // 27. 磨砂玻璃 (PRO)
-
-            // 金属八角骑士比剑 (PRO)
-            WidgetStyle(
-                presetId = "p_metal_octagon",
-                shape = WidgetShape.METAL_OCTAGON,
-                cornerRadiusDp = 16f,
-                backgroundColor = Color.parseColor("#EDEFF2"), // 浅灰留白文字区
-                fontColor = Color.parseColor("#374151"), // 深灰文字
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 19f,
-                fontBold = false,
-                showCardShadow = true,
-                cardBorderWidthDp = 0f,
-                textAlign = "CENTER",
-                authorSignature = "—— 骑士之誓"
-            ), // 28. 金属八角骑士 (PRO)
 
             // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
             WidgetStyle(
@@ -717,7 +669,73 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 presetImageResName = "zhu_qing_si_zhi",
                 authorSignature = "—— 竹青撕纸"
-            ) // 33. 竹青撕纸 (PRO)
+            ), // 33. 竹青撕纸 (PRO)
+            // 撕边牛皮手账 (PRO)：牛皮纸撕边即卡片(外透明透桌面)，文字落纸面中部
+            WidgetStyle(
+                presetId = "p_niupi_shouzhang",
+                shape = WidgetShape.NIUPI_SHOUZHANG,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 20f,
+                fontColor = Color.parseColor("#5C4632"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "niupi_shouzhang",
+                authorSignature = "—— 撕边牛皮手账"
+            ), // 34. 撕边牛皮手账 (PRO)
+            // 得意doro (PRO)：实景照片左图右文，保留人物与草地背景
+            WidgetStyle(
+                presetId = "p_deyi_doro",
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                backgroundColor = Color.WHITE,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP, // 整幅实景照片铺满左栏，无透明抠图
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 得意doro",
+                presetImageResName = "deyi_doro"
+            ), // 35. 得意doro (PRO)
+            // 教室黑板 (PRO)：黑板即卡片，粉笔白字写在绿色板面上
+            WidgetStyle(
+                presetId = "p_classroom_blackboard",
+                shape = WidgetShape.CLASSROOM_BLACKBOARD,
+                cornerRadiusDp = 8f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 20f,
+                fontColor = Color.parseColor("#F2F4EE"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "classroom_blackboard",
+                authorSignature = "—— 教室黑板"
+            ), // 36. 教室黑板 (PRO)
+            // 书香书架 (PRO)：书架本身就是组件——顶部一排彩色书脊立在横板上，底部米色摘录面板承载正文。
+            // 四周保持透明（无底色/描边/投影），摘录面板与文字区域一起随组件尺寸缩放
+            WidgetStyle(
+                presetId = "p_bookshelf",
+                shape = WidgetShape.BOOKSHELF,
+                cornerRadiusDp = 0f,
+                backgroundColor = Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#2B2B2B"),
+                textAlign = "LEFT",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                authorSignature = "—— 书香书架"
+            ) // 37. 书香书架 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -781,21 +799,31 @@ data class WidgetStyle(
             "纯色圆角" to PRESETS[0],
             "拟物撕纸" to PRESETS[1],
             "复古手账" to PRESETS[2],
-            "梦幻渐变" to PRESETS[3],
-            "深邃星海" to PRESETS[4],
             "天天开心" to (PRESETS.firstOrNull { it.presetImageResName == "happy_daily" } ?: PRESETS[0]),
-            "梅花相见" to (PRESETS.firstOrNull { it.presetImageResName == "plum_blossom" } ?: PRESETS[0]),
-            "金属八角骑士" to (PRESETS.firstOrNull { it.shape == WidgetShape.METAL_OCTAGON } ?: PRESETS[0]),
             "羽毛信纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.FEATHER_LETTER } ?: PRESETS[0]),
             "复古像素" to (PRESETS.firstOrNull { it.shape == WidgetShape.PIXEL_RETRO } ?: PRESETS[0]),
             "蓝色便签" to (PRESETS.firstOrNull { it.shape == WidgetShape.BLUE_NOTE } ?: PRESETS[0]),
-            "竹青撕纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.ZHU_QING_SI_ZHI } ?: PRESETS[0])
+            "竹青撕纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.ZHU_QING_SI_ZHI } ?: PRESETS[0]),
+            "撕边牛皮手账" to (PRESETS.firstOrNull { it.shape == WidgetShape.NIUPI_SHOUZHANG } ?: PRESETS[0]),
+            "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0])
         )
+
+        // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
+        // 按桌面 4×3 规格以 4:3 比例预览。与插图素材项同排展示，排在插图之前。
+        val POSTCARD_CODE_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "书香书架" to (PRESETS.firstOrNull { it.shape == WidgetShape.BOOKSHELF } ?: PRESETS[0])
+        )
+
+        // 代码绘制预设的缩略图渲染尺寸：按桌面 4×3 的设计尺寸渲染后再缩小显示，
+        // 使缩略图里的书脊/文本面板比例与桌面组件一致
+        const val POSTCARD_CODE_RENDER_WIDTH_DP = 240
+        const val POSTCARD_CODE_RENDER_HEIGHT_DP = 180
 
         // 萌宠风格：动物/角色类卡通插画（咕咕嘎嘎、doro3d 靠前展示）
         val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "咕咕嘎嘎" to (PRESETS.firstOrNull { it.presetImageResName == "gugugaga" } ?: PRESETS[0]),
             "经典doro3d" to (PRESETS.firstOrNull { it.presetImageResName == "doro3d" } ?: PRESETS[0]),
+            "得意doro" to (PRESETS.firstOrNull { it.presetImageResName == "deyi_doro" } ?: PRESETS[0]),
             "可爱猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "cute_cat" } ?: PRESETS[0]),
             "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
             "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),

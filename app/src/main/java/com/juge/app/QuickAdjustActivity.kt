@@ -11,10 +11,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +44,9 @@ import com.juge.app.account.AccountStore
 import com.juge.app.account.AccountSync
 import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.AddColorPresetButton
+import com.juge.app.ui.ColorPickerDialog
+import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +56,6 @@ import androidx.lifecycle.lifecycleScope
 private val panelBg = androidx.compose.ui.graphics.Color(0xFFEEF2F7) // 面板底色（冷调浅灰蓝）：让面板内的纯白卡片分离出来
 private val cardBg = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
 private val accentBlue = androidx.compose.ui.graphics.Color(0xFF0F766E)
-private val accentLightBlue = androidx.compose.ui.graphics.Color(0xFF0284C7)
 private val borderBlue = androidx.compose.ui.graphics.Color(0xFFE2E8F0)
 private val textWhite = androidx.compose.ui.graphics.Color(0xFF0F172A)
 private val textGray = androidx.compose.ui.graphics.Color(0xFF64748B)
@@ -134,6 +136,14 @@ class QuickAdjustActivity : ComponentActivity() {
                 var isActivated by remember { mutableStateOf(trialManager.isActivated()) }
                 var showAccountDialog by remember { mutableStateOf(false) }
                 var accountName by remember { mutableStateOf(AccountStore.snapshot(this@QuickAdjustActivity)?.displayName) }
+
+                // 颜色预设：内置色 + 用户自添加色，长按均可删除
+                var fontColorPresets by remember { mutableStateOf(UserColorPresets.fontColors(this@QuickAdjustActivity)) }
+                var backgroundColorPresets by remember { mutableStateOf(UserColorPresets.backgroundColors(this@QuickAdjustActivity)) }
+                var showFontColorPicker by remember { mutableStateOf(false) }
+                var showBackgroundColorPicker by remember { mutableStateOf(false) }
+                var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
+                var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
 
                 // 组件面板可从桌面直接拉起，所以这里也要做一次账号对账：
                 // 已登录时用服务端结论回灌本地 PRO，换机后这是唯一的找回入口
@@ -367,7 +377,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 Spacer(modifier = Modifier.height(4.dp))
 
                                                 // 精选卡片插画
-                                                Text("明信片风格 · 会员专属", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
+                                                Text("明信片风格 · 会员专属 · 4×4 / 4×3", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Row(
                                                     modifier = Modifier
@@ -376,6 +386,63 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
+                                                    // 代码绘制的大卡（书香书架 4×3）排在插图素材之前：
+                                                    // 没有插图素材，按桌面 4×3 的设计尺寸渲染后再缩小显示
+                                                    val codePreviewHeightDp = 72
+                                                    val codePreviewWidthDp = (codePreviewHeightDp * 4f / 3f).toInt()
+                                                    WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
+                                                        val isCodeSelected = currentStyle.shape == preset.shape &&
+                                                            currentStyle.presetImageResName == null &&
+                                                            currentStyle.backgroundImagePath.isNullOrEmpty()
+                                                        val codeBitmap by produceState<Bitmap?>(
+                                                            initialValue = null,
+                                                            preset, presetName, isActivated
+                                                        ) {
+                                                            value = withContext(Dispatchers.Default) {
+                                                                try {
+                                                                    WidgetCanvasRenderer.render(
+                                                                        context = this@QuickAdjustActivity,
+                                                                        widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
+                                                                        heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
+                                                                        content = presetName,
+                                                                        style = preset,
+                                                                        trialManager = trialManager,
+                                                                        isPreview = true
+                                                                    )
+                                                                } catch (t: Throwable) {
+                                                                    Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(codePreviewWidthDp.dp)
+                                                                .height(codePreviewHeightDp.dp)
+                                                                .clip(RoundedCornerShape(8.dp))
+                                                                .border(
+                                                                    width = if (isCodeSelected) 3.dp else 1.dp,
+                                                                    color = if (isCodeSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                )
+                                                                .clickable {
+                                                                    currentStyle = preset.copy(
+                                                                        backgroundOpacity = currentStyle.backgroundOpacity,
+                                                                        cornerRadiusDp = currentStyle.cornerRadiusDp
+                                                                    )
+                                                                }
+                                                        ) {
+                                                            if (codeBitmap != null) {
+                                                                Image(
+                                                                    bitmap = codeBitmap!!.asImageBitmap(),
+                                                                    contentDescription = presetName,
+                                                                    modifier = Modifier.fillMaxSize(),
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
                                                     val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
                                                     
                                                     illustrations.forEachIndexed { illusIndex, (resName, desc) ->
@@ -674,35 +741,46 @@ class QuickAdjustActivity : ComponentActivity() {
                                                  Spacer(modifier = Modifier.height(4.dp))
                                                  Row(
                                                      modifier = Modifier.fillMaxWidth(),
-                                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                      verticalAlignment = Alignment.CenterVertically
                                                  ) {
-                                                     val presetFontColors = listOf(
-                                                         "#434446",
-                                                         "#1393cf",
-                                                         "#23c3c0",
-                                                         "#f6c250",
-                                                         "#56309f",
-                                                         "#aa6790"
-                                                     )
-                                                     presetFontColors.forEach { hex ->
-                                                         val parsedColor = android.graphics.Color.parseColor(hex)
-                                                         val isSelected = currentStyle.fontColor == parsedColor
-                                                         Box(
-                                                             modifier = Modifier
-                                                                 .size(24.dp)
-                                                                 .clip(CircleShape)
-                                                                 .background(androidx.compose.ui.graphics.Color(parsedColor))
-                                                                 .border(
-                                                                     width = if (isSelected) 2.dp else 1.dp,
-                                                                     color = if (isSelected) accentLightBlue else borderBlue,
-                                                                     shape = CircleShape
-                                                                 )
-                                                                 .clickable {
-                                                                     currentStyle = currentStyle.copy(fontColor = parsedColor)
-                                                                 }
-                                                         )
+                                                     Row(
+                                                         modifier = Modifier
+                                                             .weight(1f)
+                                                             .horizontalScroll(rememberScrollState()),
+                                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                         verticalAlignment = Alignment.CenterVertically
+                                                     ) {
+                                                         fontColorPresets.forEach { parsedColor ->
+                                                             val isSelected = currentStyle.fontColor == parsedColor
+                                                             Box(
+                                                                 modifier = Modifier
+                                                                     .size(32.dp)
+                                                                     .clip(RoundedCornerShape(8.dp))
+                                                                     .background(androidx.compose.ui.graphics.Color(parsedColor))
+                                                                     .border(
+                                                                         width = if (isSelected) 3.dp else 1.dp,
+                                                                         color = if (isSelected) mintBright else borderBlue,
+                                                                         shape = RoundedCornerShape(8.dp)
+                                                                     )
+                                                                     .combinedClickable(
+                                                                         onClick = {
+                                                                             currentStyle = currentStyle.copy(fontColor = parsedColor)
+                                                                         },
+                                                                         onLongClick = {
+                                                                             pendingDeleteFontColor = parsedColor
+                                                                         }
+                                                                     )
+                                                             )
+                                                         }
                                                      }
+                                                     AddColorPresetButton(
+                                                         onClick = { showFontColorPicker = true },
+                                                         size = 32.dp,
+                                                         corner = 8.dp,
+                                                         borderColor = borderBlue,
+                                                         contentColor = textGray
+                                                     )
                                                  }
                                                  Spacer(modifier = Modifier.height(4.dp))
                                                 Row(
@@ -815,45 +893,48 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
 
                                                 Text("背景预设", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                val presetColors = listOf(
-                                                    "#F5F5F5" to "极简灰",
-                                                    "#FFFFFF" to "纯白",
-                                                    "#121212" to "极简黑",
-                                                    "#F4ECD8" to "宣纸杏",
-                                                    "#FFFDE7" to "手账黄",
-                                                    "#FFEBEE" to "莫兰迪粉",
-                                                    "#F3E5F5" to "淡雅紫",
-                                                    "#E3F2FD" to "清新蓝",
-                                                    "#E8F5E9" to "极简绿",
-                                                    "#FFF3E0" to "暖橙橘",
-                                                    "#263238" to "深空灰",
-                                                    "#1F2436" to "漫画蓝"
-                                                )
                                                 Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .horizontalScroll(rememberScrollState()),
+                                                    modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    presetColors.forEach { (hex, name) ->
-                                                        val colorInt = android.graphics.Color.parseColor(hex)
-                                                        val isSelected = currentStyle.backgroundColor == colorInt
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(32.dp)
-                                                                .clip(CircleShape)
-                                                                .background(androidx.compose.ui.graphics.Color(colorInt))
-                                                                .border(
-                                                                    width = if (isSelected) 3.dp else 1.dp,
-                                                                    color = if (isSelected) mintBright else borderBlue,
-                                                                    shape = CircleShape
-                                                                )
-                                                                .clickable {
-                                                                    currentStyle = currentStyle.copy(backgroundColor = colorInt)
-                                                                }
-                                                        )
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .horizontalScroll(rememberScrollState()),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        backgroundColorPresets.forEach { colorInt ->
+                                                            val isSelected = currentStyle.backgroundColor == colorInt
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(RoundedCornerShape(8.dp))
+                                                                    .background(androidx.compose.ui.graphics.Color(colorInt))
+                                                                    .border(
+                                                                        width = if (isSelected) 3.dp else 1.dp,
+                                                                        color = if (isSelected) mintBright else borderBlue,
+                                                                        shape = RoundedCornerShape(8.dp)
+                                                                    )
+                                                                    .combinedClickable(
+                                                                        onClick = {
+                                                                            currentStyle = currentStyle.copy(backgroundColor = colorInt)
+                                                                        },
+                                                                        onLongClick = {
+                                                                            pendingDeleteBackgroundColor = colorInt
+                                                                        }
+                                                                    )
+                                                            )
+                                                        }
                                                     }
+                                                    AddColorPresetButton(
+                                                        onClick = { showBackgroundColorPicker = true },
+                                                        size = 32.dp,
+                                                        corner = 8.dp,
+                                                        borderColor = borderBlue,
+                                                        contentColor = textGray
+                                                    )
                                                 }
 
                                                 Row(
@@ -981,7 +1062,9 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 Text("🖼 背景与物理外框", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
 
                                                 val canAdjustCorner = currentStyle.shape != WidgetShape.ELLIPSE &&
-                                                                      currentStyle.shape != WidgetShape.TORN_PAPER
+                                                                      currentStyle.shape != WidgetShape.TORN_PAPER &&
+                                                                      // 书香书架本身就是组件、四周透明，没有外框可调圆角
+                                                                      currentStyle.shape != WidgetShape.BOOKSHELF
 
                                                 // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
                                                 Text(
@@ -1303,6 +1386,60 @@ class QuickAdjustActivity : ComponentActivity() {
                                 onDismiss = {
                                     showAccountDialog = false
                                     accountName = AccountStore.snapshot(this@QuickAdjustActivity)?.displayName
+                                }
+                            )
+                        }
+
+                        if (showFontColorPicker) {
+                            ColorPickerDialog(
+                                title = "添加字体颜色预设",
+                                initialColor = currentStyle.fontColor,
+                                onDismiss = { showFontColorPicker = false },
+                                onConfirm = { color ->
+                                    showFontColorPicker = false
+                                    if (fontColorPresets.contains(color)) {
+                                        Toast.makeText(this@QuickAdjustActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        fontColorPresets = UserColorPresets.addFontColor(this@QuickAdjustActivity, color)
+                                    }
+                                }
+                            )
+                        }
+
+                        if (showBackgroundColorPicker) {
+                            ColorPickerDialog(
+                                title = "添加背景颜色预设",
+                                initialColor = currentStyle.backgroundColor,
+                                onDismiss = { showBackgroundColorPicker = false },
+                                onConfirm = { color ->
+                                    showBackgroundColorPicker = false
+                                    if (backgroundColorPresets.contains(color)) {
+                                        Toast.makeText(this@QuickAdjustActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        backgroundColorPresets = UserColorPresets.addBackgroundColor(this@QuickAdjustActivity, color)
+                                    }
+                                }
+                            )
+                        }
+
+                        pendingDeleteFontColor?.let { color ->
+                            DeleteColorPresetDialog(
+                                color = color,
+                                onDismiss = { pendingDeleteFontColor = null },
+                                onConfirm = {
+                                    fontColorPresets = UserColorPresets.deleteFontColor(this@QuickAdjustActivity, color)
+                                    pendingDeleteFontColor = null
+                                }
+                            )
+                        }
+
+                        pendingDeleteBackgroundColor?.let { color ->
+                            DeleteColorPresetDialog(
+                                color = color,
+                                onDismiss = { pendingDeleteBackgroundColor = null },
+                                onConfirm = {
+                                    backgroundColorPresets = UserColorPresets.deleteBackgroundColor(this@QuickAdjustActivity, color)
+                                    pendingDeleteBackgroundColor = null
                                 }
                             )
                         }
