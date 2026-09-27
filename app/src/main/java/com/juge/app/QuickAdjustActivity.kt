@@ -1000,7 +1000,10 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     colors = SliderDefaults.colors(
                                                         thumbColor = mintBright,
                                                         activeTrackColor = mintBright,
+                                                        // steps 会触发 M3 绘制刻度点，默认刻度色偏深，看起来像一排黑点；置透明与其他滑条保持一致
+                                                        activeTickColor = androidx.compose.ui.graphics.Color.Transparent,
                                                         inactiveTrackColor = borderBlue,
+                                                        inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent,
                                                         disabledThumbColor = borderBlue,
                                                         disabledInactiveTrackColor = borderBlue
                                                     )

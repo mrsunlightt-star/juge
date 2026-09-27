@@ -173,7 +173,7 @@ data class WidgetStyle(
             if (jsonStr.isNullOrEmpty()) return WidgetStyle()
             return try {
                 val json = JSONObject(jsonStr)
-                WidgetStyle(
+                val parsed = WidgetStyle(
                     shape = safeEnum(json.optString("shape", WidgetShape.RECTANGLE.name), WidgetShape.RECTANGLE),
                     presetId = if (json.has("presetId") && !json.isNull("presetId")) {
                         json.optString("presetId").takeIf { it.isNotEmpty() }
@@ -236,9 +236,29 @@ data class WidgetStyle(
                     lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat().coerceIn(0.5f, 3.0f),
                     letterSpacing = json.optDouble("letterSpacing", 0.0).toFloat().coerceIn(0f, 20f)
                 )
+                parsed.upgradedForFreeStyle()
             } catch (e: Exception) {
                 WidgetStyle()
             }
+        }
+
+        /**
+         * 老数据补丁：免费风格的浅阴影 + 细描边是后来才加入的视觉定义，
+         * 早期落库/落组件的样式副本里这两项仍是关闭状态。
+         * 读取时统一补齐，让已经放到桌面的旧组件不必重新套用预设也能立刻获得立体感。
+         */
+        private fun WidgetStyle.upgradedForFreeStyle(): WidgetStyle {
+            if (presetId == null || presetId !in FREE_PRESET_IDS) return this
+            if (showCardShadow && cardBorderWidthDp > 0f) return this
+            return copy(
+                showCardShadow = true,
+                cardBorderWidthDp = if (cardBorderWidthDp > 0f) cardBorderWidthDp else 1f,
+                cardBorderColor = if (cardBorderColor != Color.TRANSPARENT) {
+                    cardBorderColor
+                } else {
+                    Color.parseColor("#140F172A")
+                }
+            )
         }
 
         // 内置风格预设
@@ -255,7 +275,10 @@ data class WidgetStyle(
                 font = WidgetFont.DEFAULT,
                 fontSizeSp = 19f,
                 fontBold = false,
-                showCardShadow = false,
+                // 免费默认风格补上浅阴影 + 细描边：桌面组件不再是一张"贴平"的白纸
+                showCardShadow = true,
+                cardBorderWidthDp = 1f,
+                cardBorderColor = Color.parseColor("#140F172A"),
                 textAlign = "CENTER"
             ), // 0. 纯色圆角 (免费)
             WidgetStyle(

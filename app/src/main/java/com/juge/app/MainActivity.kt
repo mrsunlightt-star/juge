@@ -3224,7 +3224,10 @@ class MainActivity : ComponentActivity() {
                             colors = SliderDefaults.colors(
                                 thumbColor = mintBright,
                                 activeTrackColor = mintBright,
+                                // steps 会触发 M3 绘制刻度点，默认刻度色偏深，看起来像一排黑点；置透明与其他滑条保持一致
+                                activeTickColor = Color.Transparent,
                                 inactiveTrackColor = Color(0xFFE2E8F0),
+                                inactiveTickColor = Color.Transparent,
                                 disabledThumbColor = Color(0xFFCBD5E1),
                                 disabledInactiveTrackColor = Color(0xFFE2E8F0)
                             )

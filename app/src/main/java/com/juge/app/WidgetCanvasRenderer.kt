@@ -36,6 +36,9 @@ object WidgetCanvasRenderer {
     private const val FONT_SIZE_SCALE = 1.2f
     private const val QUOTE_MARK_FONT_SIZE_SCALE = 3.5f
     private const val DEFAULT_OUTER_CORNER_RADIUS_DP = 16f
+    // 卡片四周留出的内边距：让卡片不铺满整幅组件位图，从而给投影留出可见空间。
+    // 阴影绘制在位图内部，若卡片满幅则阴影会被位图边界裁掉，组件看起来就是"贴平"的。
+    private const val CARD_INSET_DP = 4f
     private const val QUOTE_ALPHA = 25
     private const val TORN_BORDER_ALPHA = 220
     private const val TAPE_LINE_ALPHA = 45
@@ -61,8 +64,15 @@ object WidgetCanvasRenderer {
 
         // 1. 绘制背景区域与形状裁切路径
         val path = Path()
-        val offsetY = 0f
-        val rectF = RectF(0f, offsetY, targetWidth.toFloat(), targetHeight.toFloat())
+        // 只对"纯圆角矩形"这一族的形状做内缩：它们的内容完全按 rectF/outerRect 布局，内缩不会溢出；
+        // 其余形状（撕纸/八角/信纸/萌宠/像素等）有各自按整幅位图绘制的装饰，保持满幅以免错位
+        val usesInsetCard = style.shape == WidgetShape.RECTANGLE ||
+            style.shape == WidgetShape.HANDBOOK_TAPE ||
+            style.shape == WidgetShape.SPLIT_CARD ||
+            style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL
+        val cardInset = if (usesInsetCard) CARD_INSET_DP * densityScale else 0f
+        val offsetY = cardInset
+        val rectF = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
         
         when (style.shape) {
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI -> {
@@ -92,14 +102,16 @@ object WidgetCanvasRenderer {
 
         // 1.5 绘制全局卡片大背景（防止气泡等非铺满形状在外部露出黑色透明像素）
         val outerPath = Path()
-        // 对于矩形形状，外框圆角跟随用户设置，其余形状使用默认 DEFAULT_OUTER_CORNER_RADIUS_DP
         val outerRx = when (style.shape) {
+            // 与上方形状路径保持同一份名单：这些形状的外框圆角都跟随用户的圆角设置，
+            // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
-            WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE ->
+            WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI ->
                 style.cornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
-        val outerRect = RectF(0f, offsetY, targetWidth.toFloat(), targetHeight.toFloat())
+        val outerRect = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
         if (style.shape == WidgetShape.METAL_OCTAGON) {
             // 金属八角：外框同样用八角形剪裁，保证四角不外露
             drawOctagonPath(outerPath, targetWidth.toFloat(), targetHeight.toFloat(), densityScale)
@@ -422,8 +434,9 @@ object WidgetCanvasRenderer {
                 paddingLeft = 16f * densityScale
                 paddingRight = targetWidth - 16f * densityScale
                 textWidth = paddingRight - paddingLeft
-                cardTop = 0f
-                cardHeight = targetHeight.toFloat()
+                // 卡片内缩后文字区域同步内缩，避免长文本越过卡片下沿
+                cardTop = cardInset
+                cardHeight = targetHeight - 2f * cardInset
             }
 
             // 构建 StaticLayout 处理文本自动折行。
