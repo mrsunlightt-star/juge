@@ -105,10 +105,10 @@ class WidgetStyleJsonTest {
 
     @Test
     fun `free presets are not pro`() {
-        for (index in WidgetStyle.FREE_PRESET_INDICES) {
-            val preset = WidgetStyle.PRESETS[index]
-            assertFalse("预设 $index 应为免费", WidgetStyle.isProPreset(preset))
-        }
+        // 当前规则：只有「纯色圆角」免费，其余风格一律会员专属
+        val freePresets = WidgetStyle.PRESETS.filterNot { WidgetStyle.isProPreset(it) }
+        assertEquals("当前规则下应仅有「纯色圆角」免费", 1, freePresets.size)
+        assertEquals("p_pure_round", freePresets.first().presetId)
     }
 
     @Test
