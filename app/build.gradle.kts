@@ -54,6 +54,8 @@ android {
         // WidgetStyle 默认值与 PRESETS 使用 android.graphics.Color.parseColor，
         // 本地单元测试的 mockable android.jar 需要返回默认值而不是抛 "not mocked"
         unitTests.isReturnDefaultValues = true
+        // Robolectric 渲染预览图时要能读到 res/ 下的 drawable 与 assets/ 下的字体
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -75,6 +77,8 @@ dependencies {
     testImplementation(libs.junit)
     // WidgetStyle 的 JSON 序列化在单元测试中依赖 org.json；Android 运行时自带，测试运行时需要显式引入
     testImplementation("org.json:json:20240303")
+    // 在 JVM 上以真实图形栈渲染组件预览图（无需连接真机/模拟器）
+    testImplementation(libs.robolectric)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
