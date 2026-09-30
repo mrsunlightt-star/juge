@@ -106,6 +106,32 @@ fun DeleteColorPresetDialog(
     )
 }
 
+/** 主体四周透明的形状（信纸/撕纸/牛皮/猫咪趴/书架）无法设置背景色时的说明弹窗 */
+@Composable
+fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("此组件无法设置背景颜色", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+        },
+        text = {
+            Text(
+                "当前风格的主体四周是透明的（如信纸、撕纸、牛皮手账、猫咪趴、书架），" +
+                    "设置背景色会在主体外围露出一圈卡片背景，因此该风格不提供背景色调整。\n" +
+                    "如需更换底色，可切换到其他组件风格。",
+                fontSize = 13.sp,
+                color = Color(0xFF64748B),
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("我知道了", color = Color(0xFF0F766E), fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
 /** 取色弹窗：色相 / 饱和度 / 明度三档调节，确认后把颜色交给调用方保存 */
 @Composable
 fun ColorPickerDialog(

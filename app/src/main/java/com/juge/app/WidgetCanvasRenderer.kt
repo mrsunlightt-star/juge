@@ -65,6 +65,17 @@ object WidgetCanvasRenderer {
     // 书脊竖排书名的行距倍数：略大于字号即可，保持字符紧凑而不铺满整条书脊
     private const val BOOK_TITLE_LINE_STEP_RATIO = 1.06f
 
+    // 小霸王游戏机：subor_console.png 的宽高比，以及机身屏幕（文本区）在素材中的相对位置，
+    // 均由出图/合成时测得。素材换成新图后需同步更新这几个比例。
+    // 素材四周预留了透明留白，避免 4×2 这类偏宽组件里机身/手柄贴住组件上下边缘
+    private const val SUBOR_IMAGE_ASPECT = 1.6043f
+    private const val SUBOR_SCREEN_LEFT_RATIO = 0.2907f
+    private const val SUBOR_SCREEN_RIGHT_RATIO = 0.7143f
+    private const val SUBOR_SCREEN_TOP_RATIO = 0.1260f
+    private const val SUBOR_SCREEN_BOTTOM_RATIO = 0.5887f
+    private const val SUBOR_SCREEN_TEXT_PAD_X_DP = 6f
+    private const val SUBOR_SCREEN_TEXT_PAD_Y_DP = 4f
+
     fun render(
         context: Context,
         widthDp: Int,
@@ -95,10 +106,17 @@ object WidgetCanvasRenderer {
         val cardInset = if (usesInsetCard) CARD_INSET_DP * densityScale else 0f
         val offsetY = cardInset
         val rectF = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
-        
+
+        // 巨剑/毛绒森林/小霸王游戏机是整幅插画（剑身横贯、毛绒小树在顶部、实物模型铺满），
+        // 圆角裁剪会把主体切掉。预设套用时会继承上一个风格的圆角值，
+        // 这里统一强制按直角渲染，避免旧数据/跨风格套用后画面被裁。
+        val effectiveCornerRadiusDp =
+            if (style.shape == WidgetShape.GIANT_SWORD || style.shape == WidgetShape.PLUSH_FOREST || style.shape == WidgetShape.SUBOR_CONSOLE) 0f
+            else style.cornerRadiusDp
+
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF -> {
-                val rx = style.cornerRadiusDp * densityScale
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.CAT_CARD, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE -> {
+                val rx = effectiveCornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
                 } else {
@@ -125,8 +143,8 @@ object WidgetCanvasRenderer {
             // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
             WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
-            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF ->
-                style.cornerRadiusDp * densityScale
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.CAT_CARD, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE ->
+                effectiveCornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
         val outerRect = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
@@ -136,12 +154,20 @@ object WidgetCanvasRenderer {
             outerPath.addRoundRect(outerRect, outerRx, outerRx, Path.Direction.CW)
         }
         
+        // 主体四周透明的形状不支持背景色：渲染时强制按透明处理，
+        // 让已经落库/落到桌面的旧组件不必重新保存也不会露出包裹卡片
+        val effectiveBgColor = if (WidgetStyle.supportsBackgroundColor(style.shape)) {
+            style.backgroundColor
+        } else {
+            Color.TRANSPARENT
+        }
+
         // 绘制卡片软阴影（移至 clip 外部以防被气泡边界截断）
         if (style.showCardShadow) {
             val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = style.backgroundColor
-                if (Color.alpha(style.backgroundColor) < 255) {
-                    color = style.backgroundColor or 0xFF000000.toInt()
+                color = effectiveBgColor
+                if (Color.alpha(effectiveBgColor) < 255) {
+                    color = effectiveBgColor or 0xFF000000.toInt()
                 }
                 setShadowLayer(
                     6f * densityScale,
@@ -156,7 +182,9 @@ object WidgetCanvasRenderer {
         // 填充全局大底色（颜色与透明度）
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         val alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
-        if (style.gradientColors != null && style.gradientColors.size >= 2) {
+        if (style.gradientColors != null && style.gradientColors.size >= 2 &&
+            WidgetStyle.supportsBackgroundColor(style.shape)
+        ) {
             val w = rectF.width()
             val h = rectF.height()
             val r = Math.sqrt((w * w + h * h).toDouble()) / 2.0
@@ -173,11 +201,11 @@ object WidgetCanvasRenderer {
             val colors = style.gradientColors.toIntArray()
             bgPaint.shader = LinearGradient(x0, y0, x1, y1, colors, null, Shader.TileMode.CLAMP)
         } else {
-            bgPaint.color = style.backgroundColor
+            bgPaint.color = effectiveBgColor
         }
         bgPaint.alpha = alpha
         // 背景色为透明时不填充，避免 alpha 被强制为 255 后把透明底画成黑色
-        if (Color.alpha(style.backgroundColor) > 0) {
+        if (Color.alpha(effectiveBgColor) > 0) {
             canvas.drawPath(if (style.shape == WidgetShape.TORN_PAPER) path else outerPath, bgPaint)
         }
 
@@ -286,6 +314,11 @@ object WidgetCanvasRenderer {
         // 书香书架：顶部彩色书脊立在横板上，底部米色摘录面板
         if (style.shape == WidgetShape.BOOKSHELF) {
             drawBookshelfChrome(canvas, outerRect, densityScale, style, context)
+        }
+
+        // 猫咪卡片：奶白卡上补一层浅粉内描边，并在顶部画出猫头头像
+        if (style.shape == WidgetShape.CAT_CARD) {
+            drawCatCardChrome(canvas, outerRect, outerPath, densityScale, style)
         }
 
         // 羽毛信纸：使用透自信纸抠图作背景（走上方背景图绘制逻辑），透明区透底色
@@ -456,6 +489,41 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = panel.top + textPadY
                 cardHeight = (panel.bottom - textPadY - cardTop).coerceAtLeast(1f)
+            } else if (style.shape == WidgetShape.CAT_CARD) {
+                // 猫咪卡片：顶部让出猫头头像，正文落在头像下方的奶白留白区
+                val lateral = targetWidth * 0.11f
+                paddingLeft = lateral
+                paddingRight = targetWidth - lateral
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = targetHeight * 0.50f
+                cardHeight = targetHeight - cardTop - targetHeight * 0.10f
+            } else if (style.shape == WidgetShape.GIANT_SWORD) {
+                // 巨剑：左侧是扛剑武士，正文只压在右侧剑身金属面上，避开剑柄/护手与上下剑棱。
+                // 剑身纵向只占画面约 1/3，这里把可用高度吃满，保证 4×2 规格下也能排出两行
+                paddingLeft = targetWidth * 0.33f
+                paddingRight = targetWidth * 0.93f
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = targetHeight * 0.39f
+                cardHeight = targetHeight * 0.33f
+            } else if (style.shape == WidgetShape.PLUSH_FOREST) {
+                // 毛绒森林：顶部毛绒小树/蘑菇与粉色花边不可压，正文落在奶油色毛绒面板内
+                paddingLeft = targetWidth * 0.115f
+                paddingRight = targetWidth * 0.885f
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = targetHeight * 0.40f
+                cardHeight = targetHeight * 0.47f
+            } else if (style.shape == WidgetShape.SUBOR_CONSOLE) {
+                // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
+                // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上
+                val model = centerFitRect(outerRect, SUBOR_IMAGE_ASPECT)
+                val textPadX = SUBOR_SCREEN_TEXT_PAD_X_DP * densityScale
+                val textPadY = SUBOR_SCREEN_TEXT_PAD_Y_DP * densityScale
+                paddingLeft = model.left + model.width() * SUBOR_SCREEN_LEFT_RATIO + textPadX
+                paddingRight = model.left + model.width() * SUBOR_SCREEN_RIGHT_RATIO - textPadX
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = model.top + model.height() * SUBOR_SCREEN_TOP_RATIO + textPadY
+                cardHeight = (model.top + model.height() * SUBOR_SCREEN_BOTTOM_RATIO - textPadY - cardTop)
+                    .coerceAtLeast(1f)
             } else {
                 paddingLeft = 16f * densityScale
                 paddingRight = targetWidth - 16f * densityScale
@@ -869,6 +937,162 @@ object WidgetCanvasRenderer {
         canvas.restore()
     }
 
+    // 猫咪卡片：奶白卡上补一层浅粉内描边，并在顶部居中画出猫头头像
+    private fun drawCatCardChrome(
+        canvas: Canvas,
+        outerRect: RectF,
+        outerPath: Path,
+        densityScale: Float,
+        style: WidgetStyle
+    ) {
+        canvas.save()
+        canvas.clipPath(outerPath)
+
+        // 内层浅粉细线：与外层粉色粗描边一起构成双层边
+        val inset = 5f * densityScale
+        val innerRect = RectF(
+            outerRect.left + inset,
+            outerRect.top + inset,
+            outerRect.right - inset,
+            outerRect.bottom - inset
+        )
+        val innerRx = (style.cornerRadiusDp * densityScale - inset).coerceAtLeast(0f)
+        val innerPath = Path().apply {
+            if (innerRx <= 0f) addRect(innerRect, Path.Direction.CW)
+            else addRoundRect(innerRect, innerRx, innerRx, Path.Direction.CW)
+        }
+        val innerLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.style = Paint.Style.STROKE
+            strokeWidth = 1.2f * densityScale
+            color = Color.parseColor("#FBDDE9")
+        }
+        canvas.drawPath(innerPath, innerLinePaint)
+
+        // 猫头头像：顶部居中。尺寸同时受卡宽与卡高约束，避免窄卡/矮卡里比例失调。
+        // cy 取 0.85 倍头高，保证耳尖（cy - 1.4r）落在卡片上沿内侧，不会被圆角裁切
+        val headSize = minOf(outerRect.width() * 0.24f, outerRect.height() * 0.30f)
+        if (headSize > 10f * densityScale) {
+            val cx = outerRect.centerX()
+            val cy = outerRect.top + inset + headSize * 0.85f
+            drawCatHead(canvas, cx, cy, headSize, densityScale)
+        }
+
+        canvas.restore()
+    }
+
+    // 手绘猫头：白脸 + 粉色内耳 + 棕色眼鼻 + 粉腮红 + 胡须
+    private fun drawCatHead(canvas: Canvas, cx: Float, cy: Float, size: Float, densityScale: Float) {
+        val furWhite = Color.parseColor("#FAF5F0")
+        val furPink = Color.parseColor("#F5A8C0")
+        val furPinkLight = Color.parseColor("#FBDDE9")
+        val inkBrown = Color.parseColor("#4A2C2A")
+
+        val r = size / 2f
+        val fill: (Int) -> Paint = { c ->
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = c
+                style = Paint.Style.FILL
+            }
+        }
+        val stroke: (Int, Float) -> Paint = { c, w ->
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = c
+                style = Paint.Style.STROKE
+                strokeWidth = w
+                strokeCap = Paint.Cap.ROUND
+            }
+        }
+
+        // 双耳：外白内粉的三角，坐在头圆上方
+        val earTipY = cy - r * 1.40f
+        val earBaseY = cy - r * 0.40f
+        canvas.drawPath(
+            Path().apply {
+                moveTo(cx - r * 0.92f, earBaseY)
+                lineTo(cx - r * 0.60f, earTipY)
+                lineTo(cx - r * 0.10f, earBaseY)
+                close()
+            },
+            fill(furWhite)
+        )
+        canvas.drawPath(
+            Path().apply {
+                moveTo(cx + r * 0.92f, earBaseY)
+                lineTo(cx + r * 0.60f, earTipY)
+                lineTo(cx + r * 0.10f, earBaseY)
+                close()
+            },
+            fill(furWhite)
+        )
+        canvas.drawPath(
+            Path().apply {
+                moveTo(cx - r * 0.72f, earBaseY - r * 0.05f)
+                lineTo(cx - r * 0.58f, earTipY + r * 0.24f)
+                lineTo(cx - r * 0.32f, earBaseY - r * 0.05f)
+                close()
+            },
+            fill(furPink)
+        )
+        canvas.drawPath(
+            Path().apply {
+                moveTo(cx + r * 0.72f, earBaseY - r * 0.05f)
+                lineTo(cx + r * 0.58f, earTipY + r * 0.24f)
+                lineTo(cx + r * 0.32f, earBaseY - r * 0.05f)
+                close()
+            },
+            fill(furPink)
+        )
+
+        // 脸
+        canvas.drawCircle(cx, cy, r, fill(furWhite))
+        canvas.drawCircle(cx, cy, r, stroke(furPink, 1.6f * densityScale))
+
+        // 眼睛 + 高光
+        val eyeDx = r * 0.42f
+        val eyeY = cy - r * 0.10f
+        val eyeRx = r * 0.15f
+        val eyeRy = r * 0.20f
+        canvas.drawOval(RectF(cx - eyeDx - eyeRx, eyeY - eyeRy, cx - eyeDx + eyeRx, eyeY + eyeRy), fill(inkBrown))
+        canvas.drawOval(RectF(cx + eyeDx - eyeRx, eyeY - eyeRy, cx + eyeDx + eyeRx, eyeY + eyeRy), fill(inkBrown))
+        val hlR = r * 0.055f
+        canvas.drawCircle(cx - eyeDx - eyeRx * 0.35f, eyeY - eyeRy * 0.35f, hlR, fill(Color.WHITE))
+        canvas.drawCircle(cx + eyeDx - eyeRx * 0.35f, eyeY - eyeRy * 0.35f, hlR, fill(Color.WHITE))
+
+        // 腮红
+        val blushR = r * 0.20f
+        val blushY = cy + r * 0.30f
+        canvas.drawCircle(cx - r * 0.62f, blushY, blushR, fill(furPinkLight))
+        canvas.drawCircle(cx + r * 0.62f, blushY, blushR, fill(furPinkLight))
+
+        // 鼻子
+        canvas.drawPath(
+            Path().apply {
+                moveTo(cx - r * 0.11f, cy + r * 0.20f)
+                lineTo(cx + r * 0.11f, cy + r * 0.20f)
+                lineTo(cx, cy + r * 0.36f)
+                close()
+            },
+            fill(furPink)
+        )
+
+        // 嘴：两段下弧拼成 w 形
+        val mouthPaint = stroke(inkBrown, 1.4f * densityScale)
+        val mouthW = r * 0.34f
+        val mouthH = r * 0.26f
+        val mouthTop = cy + r * 0.30f
+        canvas.drawArc(RectF(cx - mouthW, mouthTop, cx, mouthTop + mouthH), 0f, 180f, false, mouthPaint)
+        canvas.drawArc(RectF(cx, mouthTop, cx + mouthW, mouthTop + mouthH), 0f, 180f, false, mouthPaint)
+
+        // 胡须
+        val whiskerPaint = stroke(inkBrown, 1.1f * densityScale).apply { alpha = 150 }
+        val whiskerY = cy + r * 0.24f
+        for (i in 0 until 2) {
+            val dy = i * r * 0.16f
+            canvas.drawLine(cx - r * 1.00f, whiskerY + dy, cx - r * 0.52f, whiskerY + dy - r * 0.06f, whiskerPaint)
+            canvas.drawLine(cx + r * 1.00f, whiskerY + dy, cx + r * 0.52f, whiskerY + dy - r * 0.06f, whiskerPaint)
+        }
+    }
+
     // 构造居中撕纸信纸矩形路径（四周留出卡片边距，撕纸边缘带轻微锯齿）
     private fun drawFeatherLetterPath(path: Path, width: Float, height: Float, densityScale: Float) {
         val marginX = width * 0.06f
@@ -955,6 +1179,25 @@ object WidgetCanvasRenderer {
     }
 
     // 绘制背景图片缩放模式
+    /**
+     * CENTER_FIT 模式下整幅图等比完整显示后落在画布上的目标矩形（超出的方向留透明）。
+     * 与 drawBgImage 的 CENTER_FIT 分支保持同一套算法，供需要贴合素材内固定位置（如机身屏幕）的形状复用。
+     */
+    private fun centerFitRect(rectF: RectF, imageAspect: Float): RectF {
+        val targetRatio = rectF.width() / rectF.height()
+        return if (imageAspect > targetRatio) {
+            // 图更宽：以宽为准，上下留透明
+            val dstH = rectF.width() / imageAspect
+            val top = rectF.centerY() - dstH / 2f
+            RectF(rectF.left, top, rectF.right, top + dstH)
+        } else {
+            // 图更高：以高为准，左右留透明
+            val dstW = rectF.height() * imageAspect
+            val left = rectF.centerX() - dstW / 2f
+            RectF(left, rectF.top, left + dstW, rectF.bottom)
+        }
+    }
+
     private fun drawBgImage(canvas: Canvas, bitmap: Bitmap, rectF: RectF, style: WidgetStyle) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
@@ -1007,23 +1250,11 @@ object WidgetCanvasRenderer {
             }
             ImageScaleMode.CENTER_FIT -> {
                 // 等比完整显示整幅图，超出的空白保留透明，避免主体被裁切或压扁
-                val w = processedBitmap.width
-                val h = processedBitmap.height
-                val srcRatio = w.toFloat() / h.toFloat()
-                val targetRatio = rectF.width() / rectF.height()
-                val srcRect = android.graphics.Rect(0, 0, w, h)
-                val dstRect: RectF
-                if (srcRatio > targetRatio) {
-                    // 图更宽：以宽为准，上下留透明
-                    val dstH = rectF.width() / srcRatio
-                    val top = rectF.centerY() - dstH / 2f
-                    dstRect = RectF(rectF.left, top, rectF.right, top + dstH)
-                } else {
-                    // 图更高：以高为准，左右留透明
-                    val dstW = rectF.height() * srcRatio
-                    val left = rectF.centerX() - dstW / 2f
-                    dstRect = RectF(left, rectF.top, left + dstW, rectF.bottom)
-                }
+                val srcRect = android.graphics.Rect(0, 0, processedBitmap.width, processedBitmap.height)
+                val dstRect = centerFitRect(
+                    rectF,
+                    processedBitmap.width.toFloat() / processedBitmap.height.toFloat()
+                )
                 canvas.drawBitmap(processedBitmap, srcRect, dstRect, paint)
             }
             ImageScaleMode.CENTER_CROP_TOP -> {

@@ -33,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -49,6 +50,7 @@ import com.juge.app.account.AccountSync
 import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AddColorPresetButton
+import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.theme.MyApplicationTheme
@@ -777,18 +779,20 @@ class MainActivity : ComponentActivity() {
         // 新付费规则：预览任意风格、默认组件免费、仅在"同步到桌面"时拦截。
         // 未激活时切到付费风格仍允许在 App 内预览，但点保存同步到桌面时弹激活。
         val onStyleChange: (Int, Long, String, WidgetStyle) -> Unit = onStyleChange@{ widgetId, configId, newContent, newStyle ->
+            // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
+            val style = newStyle.withoutUnsupportedBackgroundColor()
             val isSyncToDesktop = widgetId != -1
             // 付费点只有两个：会员专属风格、自定义背景图。
             // 字体、字号、颜色、圆角、不透明度等细节调整全部免费，不再参与判定。
             val needPay = isSyncToDesktop && !trialManager.isActivated() && (
-                WidgetStyle.isProPreset(newStyle) || !newStyle.backgroundImagePath.isNullOrEmpty()
+                WidgetStyle.isProPreset(style) || !style.backgroundImagePath.isNullOrEmpty()
                 )
             if (needPay) {
                 showProDialog = true
                 return@onStyleChange
             }
             if (widgetId != -1) {
-                ReminderWidgetProvider.saveWidgetStyle(this@MainActivity, widgetId, newStyle)
+                ReminderWidgetProvider.saveWidgetStyle(this@MainActivity, widgetId, style)
             }
             val target = widgetConfigs.find { it.id == configId }
             if (target != null) {
@@ -800,7 +804,7 @@ class MainActivity : ComponentActivity() {
                         dbHelper.updateWidgetConfig(
                             target.copy(
                                 content = newContent,
-                                styleJson = newStyle.toJsonString()
+                                styleJson = style.toJsonString()
                             )
                         )
                         val updatedConfigs = dbHelper.getAllWidgetConfigs()
@@ -2346,6 +2350,7 @@ class MainActivity : ComponentActivity() {
         var showBackgroundColorPicker by remember { mutableStateOf(false) }
         var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
         var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
+        var showBackgroundColorBlockedTip by remember { mutableStateOf(false) }
 
         LazyColumn(
             modifier = Modifier
@@ -3090,7 +3095,20 @@ class MainActivity : ComponentActivity() {
                         HorizontalDivider(color = Color(0xFFF1F5F9))
 
                         // 4.2. 卡片背景颜色设置
-                        Text("小组件背景颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
+                        // （与"外框圆角（此形状无需调整）"保持同一套处理方式）
+                        val canSetBackgroundColor = WidgetStyle.supportsBackgroundColor(selectedStyle.shape)
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.alpha(if (canSetBackgroundColor) 1f else 0.45f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                        Text(
+                            text = if (canSetBackgroundColor) "小组件背景颜色" else "小组件背景颜色（此形状无法设置）",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canSetBackgroundColor) Color(0xFF64748B) else Color(0xFF94A3B8)
+                        )
                         
                         // 预设背景色彩
                         Row(
@@ -3237,6 +3255,15 @@ class MainActivity : ComponentActivity() {
                                     .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
                             )
                         }
+                        }
+                        if (!canSetBackgroundColor) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { showBackgroundColorBlockedTip = true }
+                            )
+                        }
+                        }
                     }
                 }
             }
@@ -3267,7 +3294,11 @@ class MainActivity : ComponentActivity() {
                         val canAdjustCorner = selectedStyle.shape != WidgetShape.ELLIPSE &&
                                               selectedStyle.shape != WidgetShape.TORN_PAPER &&
                                               // 书香书架本身就是组件、四周透明，没有外框可调圆角
-                                              selectedStyle.shape != WidgetShape.BOOKSHELF
+                                              selectedStyle.shape != WidgetShape.BOOKSHELF &&
+                                              // 巨剑/毛绒森林/小霸王游戏机是整幅插画，裁剪圆角会切掉剑身、毛绒小树与实物模型
+                                              selectedStyle.shape != WidgetShape.GIANT_SWORD &&
+                                              selectedStyle.shape != WidgetShape.PLUSH_FOREST &&
+                                              selectedStyle.shape != WidgetShape.SUBOR_CONSOLE
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3489,6 +3520,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             )
+        }
+
+        if (showBackgroundColorBlockedTip) {
+            BackgroundColorBlockedDialog(onDismiss = { showBackgroundColorBlockedTip = false })
         }
 
         if (showBackgroundColorPicker) {

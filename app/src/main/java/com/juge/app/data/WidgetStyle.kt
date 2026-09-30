@@ -52,7 +52,11 @@ enum class WidgetShape(val displayName: String) {
     ZHU_QING_SI_ZHI("竹青撕纸"),
     NIUPI_SHOUZHANG("撕边牛皮手账"),
     CLASSROOM_BLACKBOARD("教室黑板"),
-    BOOKSHELF("书香书架")
+    BOOKSHELF("书香书架"),
+    CAT_CARD("猫咪卡片"),
+    GIANT_SWORD("巨剑"),
+    PLUSH_FOREST("毛绒森林"),
+    SUBOR_CONSOLE("小霸王游戏机")
 }
 
 // 图片缩放模式
@@ -127,6 +131,13 @@ data class WidgetStyle(
     // 用于精确判定样式是否源自 PRO 预设（字段匹配可被微调绕过）
     val presetId: String? = null
 ) {
+    /**
+     * 主体四周透明的形状（信纸/撕纸/牛皮/猫咪趴/书架）不支持背景色：
+     * 统一清空为透明，否则背景色会在主体外围露出一圈包裹卡片。
+     */
+    fun withoutUnsupportedBackgroundColor(): WidgetStyle =
+        if (supportsBackgroundColor(shape)) this else copy(backgroundColor = Color.TRANSPARENT)
+
     fun toJsonString(): String {
         return JSONObject().apply {
             put("shape", shape.name)
@@ -319,28 +330,6 @@ data class WidgetStyle(
                 showQuoteMark = true,
                 authorSignature = "—— 明信片寄语"
             ), // 10. 蓝色画报风格 (PRO)
-            WidgetStyle(
-                presetId = "p_gugugaga",
-                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
-                backgroundColor = Color.WHITE,
-                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#4A3B32"),
-                showQuoteMark = true,
-                authorSignature = "—— 咕咕嘎嘎",
-                presetImageResName = "gugugaga"
-            ), // 11. 咕咕嘎嘎风格 (PRO)
-            WidgetStyle(
-                presetId = "p_doro3d",
-                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
-                backgroundColor = Color.WHITE,
-                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— doro3d",
-                presetImageResName = "doro3d"
-            ), // 12. doro3d风格 (PRO)
             WidgetStyle(
                 presetId = "p_dawn_sunrise",
                 shape = WidgetShape.SPLIT_CARD,
@@ -735,7 +724,96 @@ data class WidgetStyle(
                 showCardShadow = false,
                 cardBorderWidthDp = 0f,
                 authorSignature = "—— 书香书架"
-            ) // 37. 书香书架 (PRO)
+            ), // 37. 书香书架 (PRO)
+            // 猫咪卡片 (PRO)：奶白圆角卡 + 粉色双层描边，顶部一只猫头头像，正文落在头像下方的留白区
+            WidgetStyle(
+                presetId = "p_cat_card",
+                shape = WidgetShape.CAT_CARD,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#FFF8F5"),
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 19f,
+                fontColor = Color.parseColor("#4A2C2A"),
+                textAlign = "CENTER",
+                showCardShadow = true,
+                cardBorderWidthDp = 2f,
+                cardBorderColor = Color.parseColor("#F5A8C0"),
+                authorSignature = "—— 猫咪卡片"
+            ), // 38. 猫咪卡片 (PRO)
+            // 巨剑 (PRO)：武士扛巨剑横贯画面，正文压在剑身金属面上（左侧人物留白，文字区只取剑身）
+            WidgetStyle(
+                presetId = "p_giant_sword",
+                shape = WidgetShape.GIANT_SWORD,
+                cornerRadiusDp = 0f,
+                backgroundColor = Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#EFEDE6"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "giant_sword",
+                // 剑身是深灰金属面，浅色文字加一层暗描边保证可读性
+                shadow = TextShadow(
+                    enabled = true,
+                    color = Color.parseColor("#8A000000"),
+                    radius = 3f,
+                    dx = 0f,
+                    dy = 1f
+                ),
+                authorSignature = "—— 巨剑"
+            ), // 39. 巨剑 (PRO)
+            // 毛绒森林 (PRO)：毛绒粉边卡片 + 顶部小树蘑菇，正文落在奶油色毛绒面板内
+            WidgetStyle(
+                presetId = "p_plush_forest",
+                shape = WidgetShape.PLUSH_FOREST,
+                cornerRadiusDp = 0f,
+                backgroundColor = Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#6B4A34"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "plush_forest",
+                authorSignature = "—— 毛绒森林"
+            ), // 40. 毛绒森林 (PRO)
+            // 小霸王游戏机 (PRO)：3D 渲染的实物模型——机身居中、左右各一只手柄，正文落在机身屏幕上
+            WidgetStyle(
+                presetId = "p_subor_console",
+                shape = WidgetShape.SUBOR_CONSOLE,
+                cornerRadiusDp = 0f,
+                backgroundColor = Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                // 整幅实物模型等比完整显示：组件是 4×3 还是 4×4 都不会被拉伸或裁切
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#F2F6EC"), // 屏幕是深色玻璃，用浅色字
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "subor_console",
+                // 屏幕为深色显像管，给文字叠一层冷绿荧光晕，模拟屏幕发光
+                shadow = TextShadow(
+                    enabled = true,
+                    color = Color.parseColor("#6639D98A"),
+                    radius = 4f,
+                    dx = 0f,
+                    dy = 0f
+                ),
+                authorSignature = "—— 小霸王游戏机"
+            ) // 41. 小霸王游戏机 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -744,6 +822,24 @@ data class WidgetStyle(
         private val FREE_PRESET_IDS = setOf(
             "p_pure_round"    // 纯色圆角
         )
+
+        // 主体四周透明的形状：这些形状的插画/装饰并不铺满整个组件位图，背景色只会在主体外围
+        // 露出一圈圆角卡片（信纸/撕纸/牛皮/猫咪趴/书架），因此不支持设置背景色。
+        // 与「外框圆角」的禁用名单不同（撕裂纸片圆角不可调，但背景色就是它的纸面颜色，仍可用）。
+        private val SHAPES_WITHOUT_BACKGROUND_COLOR = setOf(
+            WidgetShape.FEATHER_LETTER,
+            WidgetShape.PET_CAT_NAP,
+            WidgetShape.ZHU_QING_SI_ZHI,
+            WidgetShape.NIUPI_SHOUZHANG,
+            WidgetShape.BOOKSHELF,
+            WidgetShape.GIANT_SWORD,
+            WidgetShape.PLUSH_FOREST,
+            WidgetShape.SUBOR_CONSOLE
+        )
+
+        /** 该形状是否支持设置背景色 */
+        fun supportsBackgroundColor(shape: WidgetShape): Boolean =
+            shape !in SHAPES_WITHOUT_BACKGROUND_COLOR
 
         /**
          * 判断一个样式是否属于付费预设。
@@ -805,7 +901,10 @@ data class WidgetStyle(
             "蓝色便签" to (PRESETS.firstOrNull { it.shape == WidgetShape.BLUE_NOTE } ?: PRESETS[0]),
             "竹青撕纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.ZHU_QING_SI_ZHI } ?: PRESETS[0]),
             "撕边牛皮手账" to (PRESETS.firstOrNull { it.shape == WidgetShape.NIUPI_SHOUZHANG } ?: PRESETS[0]),
-            "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0])
+            "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0]),
+            "猫咪卡片" to (PRESETS.firstOrNull { it.shape == WidgetShape.CAT_CARD } ?: PRESETS[0]),
+            "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
+            "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0])
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
@@ -819,17 +918,16 @@ data class WidgetStyle(
         const val POSTCARD_CODE_RENDER_WIDTH_DP = 240
         const val POSTCARD_CODE_RENDER_HEIGHT_DP = 180
 
-        // 萌宠风格：动物/角色类卡通插画（咕咕嘎嘎、doro3d 靠前展示）
+        // 萌宠风格：动物/角色类卡通插画
         val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
-            "咕咕嘎嘎" to (PRESETS.firstOrNull { it.presetImageResName == "gugugaga" } ?: PRESETS[0]),
-            "经典doro3d" to (PRESETS.firstOrNull { it.presetImageResName == "doro3d" } ?: PRESETS[0]),
             "得意doro" to (PRESETS.firstOrNull { it.presetImageResName == "deyi_doro" } ?: PRESETS[0]),
             "可爱猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "cute_cat" } ?: PRESETS[0]),
             "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
             "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),
             "毛绒猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_cat" } ?: PRESETS[0]),
             "萌宠猫咪趴" to (PRESETS.firstOrNull { it.shape == WidgetShape.PET_CAT_NAP } ?: PRESETS[0]),
-            "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0])
+            "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0]),
+            "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0])
         )
     }
 }

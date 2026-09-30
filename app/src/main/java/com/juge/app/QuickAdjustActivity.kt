@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
@@ -45,6 +46,7 @@ import com.juge.app.account.AccountSync
 import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AddColorPresetButton
+import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.theme.MyApplicationTheme
@@ -144,6 +146,7 @@ class QuickAdjustActivity : ComponentActivity() {
                 var showBackgroundColorPicker by remember { mutableStateOf(false) }
                 var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
                 var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
+                var showBackgroundColorBlockedTip by remember { mutableStateOf(false) }
 
                 // 组件面板可从桌面直接拉起，所以这里也要做一次账号对账：
                 // 已登录时用服务端结论回灌本地 PRO，换机后这是唯一的找回入口
@@ -892,7 +895,20 @@ class QuickAdjustActivity : ComponentActivity() {
 
                                                 HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
 
-                                                Text("背景预设", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
+                                                // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
+                                                // （与"外框圆角（此形状无需调整）"保持同一套处理方式）
+                                                val canSetBackgroundColor = WidgetStyle.supportsBackgroundColor(currentStyle.shape)
+                                                Box(modifier = Modifier.fillMaxWidth()) {
+                                                Column(
+                                                    modifier = Modifier.alpha(if (canSetBackgroundColor) 1f else 0.45f),
+                                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                Text(
+                                                    text = if (canSetBackgroundColor) "背景预设" else "背景预设（此形状无法设置）",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (canSetBackgroundColor) textGray else textGray
+                                                )
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1043,6 +1059,15 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             .border(1.dp, borderBlue, RoundedCornerShape(8.dp))
                                                     )
                                                 }
+                                                }
+                                                if (!canSetBackgroundColor) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .matchParentSize()
+                                                            .clickable { showBackgroundColorBlockedTip = true }
+                                                    )
+                                                }
+                                                }
                                             }
                                         }
                                     }
@@ -1064,7 +1089,11 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 val canAdjustCorner = currentStyle.shape != WidgetShape.ELLIPSE &&
                                                                       currentStyle.shape != WidgetShape.TORN_PAPER &&
                                                                       // 书香书架本身就是组件、四周透明，没有外框可调圆角
-                                                                      currentStyle.shape != WidgetShape.BOOKSHELF
+                                                                      currentStyle.shape != WidgetShape.BOOKSHELF &&
+                                                                      // 巨剑/毛绒森林/小霸王游戏机是整幅插画，裁剪圆角会切掉剑身、毛绒小树与实物模型
+                                                                      currentStyle.shape != WidgetShape.GIANT_SWORD &&
+                                                                      currentStyle.shape != WidgetShape.PLUSH_FOREST &&
+                                                                      currentStyle.shape != WidgetShape.SUBOR_CONSOLE
 
                                                 // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
                                                 Text(
@@ -1233,7 +1262,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                             isSaving = true
                                             val appContext = applicationContext
                                             val contentToSave = textContent
-                                            val styleToSave = currentStyle
+                                            // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
+                                            val styleToSave = currentStyle.withoutUnsupportedBackgroundColor()
                                             // 写库与位图渲染都是耗时操作，移出主线程避免卡顿
                                             lifecycleScope.launch(Dispatchers.IO) {
                                                 try {
@@ -1404,6 +1434,10 @@ class QuickAdjustActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                        }
+
+                        if (showBackgroundColorBlockedTip) {
+                            BackgroundColorBlockedDialog(onDismiss = { showBackgroundColorBlockedTip = false })
                         }
 
                         if (showBackgroundColorPicker) {
