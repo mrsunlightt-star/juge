@@ -799,15 +799,15 @@ data class WidgetStyle(
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT,
                 font = WidgetFont.DEFAULT,
                 fontSizeSp = 16f,
-                fontColor = Color.parseColor("#F2F6EC"), // 屏幕是深色玻璃，用浅色字
+                fontColor = Color.parseColor("#A8FF9A"), // 绿色荧光：模拟单色显像管通电显示
                 textAlign = "CENTER",
                 showCardShadow = false,
                 cardBorderWidthDp = 0f,
                 presetImageResName = "subor_console",
-                // 屏幕为深色显像管，给文字叠一层冷绿荧光晕，模拟屏幕发光
+                // 屏幕为通电的绿色荧光屏，给文字叠一层绿色荧光晕（半径由渲染器按密度放大）
                 shadow = TextShadow(
                     enabled = true,
-                    color = Color.parseColor("#6639D98A"),
+                    color = Color.parseColor("#9970FF6E"),
                     radius = 4f,
                     dx = 0f,
                     dy = 0f
