@@ -27,6 +27,7 @@ code-review-report
 
 # 贴纸工具链的中间产物（可重建）
 tools/sticker/build/
+__pycache__/
 
 # 本地存档（大改前快照，仅保留在磁盘）
 backups/
