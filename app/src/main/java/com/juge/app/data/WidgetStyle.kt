@@ -56,7 +56,8 @@ enum class WidgetShape(val displayName: String) {
     CAT_CARD("猫咪卡片"),
     GIANT_SWORD("巨剑"),
     PLUSH_FOREST("毛绒森林"),
-    SUBOR_CONSOLE("小霸王游戏机")
+    SUBOR_CONSOLE("小霸王游戏机"),
+    STICKER_SCENE("贴纸夜景")
 }
 
 // 图片缩放模式
@@ -451,6 +452,16 @@ data class WidgetStyle(
                 authorSignature = "—— V字仇杀队",
                 presetImageResName = "v_for_vendetta"
             ), // 23. V字仇杀队风格 (PRO)
+            WidgetStyle(
+                presetId = "p_la_la_land",
+                shape = WidgetShape.SPLIT_CARD,
+                backgroundColor = Color.WHITE,
+                font = WidgetFont.LXGW_WENKAI,
+                fontColor = Color.parseColor("#374151"),
+                showQuoteMark = true,
+                authorSignature = "—— 爱乐之城",
+                presetImageResName = "aile_zhi_cheng"
+            ), // 24. 爱乐之城风格 (PRO)
 
             // 新风格：经典左右分割（会员专属）
             WidgetStyle(
@@ -813,7 +824,26 @@ data class WidgetStyle(
                     dy = 0f
                 ),
                 authorSignature = "—— 小霸王游戏机"
-            ) // 41. 小霸王游戏机 (PRO)
+            ), // 41. 小霸王游戏机 (PRO)
+            // 贴纸夜景 (PRO)：人物与路灯做成带白边的贴纸，站在一层路面上，路面之下是文本框
+            WidgetStyle(
+                presetId = "p_sticker_lalaland",
+                shape = WidgetShape.STICKER_SCENE,
+                cornerRadiusDp = 18f,
+                backgroundColor = Color.WHITE, // 文本框底色，可随「小组件背景颜色」自定义
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                // 贴纸按等比完整显示：4×2 / 4×4 都不会被拉伸或裁切
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.DEFAULT,
+                fontSizeSp = 17f,
+                fontColor = Color.parseColor("#2F3542"),
+                textAlign = "CENTER",
+                showCardShadow = true,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "sticker_lalaland",
+                authorSignature = "—— 贴纸夜景"
+            ) // 42. 贴纸夜景 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -886,7 +916,8 @@ data class WidgetStyle(
             "tiantian_xiangshang" to "天天向上",
             "boji_julebu" to "搏击俱乐部",
             "breaking_bad" to "绝命毒师",
-            "v_for_vendetta" to "V字仇杀队"
+            "v_for_vendetta" to "V字仇杀队",
+            "aile_zhi_cheng" to "爱乐之城"
         )
 
         // 首页与快捷面板共用的推荐预设（按风格分类）。
@@ -904,12 +935,14 @@ data class WidgetStyle(
             "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0]),
             "猫咪卡片" to (PRESETS.firstOrNull { it.shape == WidgetShape.CAT_CARD } ?: PRESETS[0]),
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
-            "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0])
+            "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
+            "贴纸夜景" to (PRESETS.firstOrNull { it.shape == WidgetShape.STICKER_SCENE } ?: PRESETS[0])
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
         // 按桌面 4×3 规格以 4:3 比例预览。与插图素材项同排展示，排在插图之前。
         val POSTCARD_CODE_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "蓝色画报" to (PRESETS.firstOrNull { it.presetId == "p_postcard_note" } ?: PRESETS[0]),
             "书香书架" to (PRESETS.firstOrNull { it.shape == WidgetShape.BOOKSHELF } ?: PRESETS[0])
         )
 
@@ -921,6 +954,7 @@ data class WidgetStyle(
         // 萌宠风格：动物/角色类卡通插画
         val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "得意doro" to (PRESETS.firstOrNull { it.presetImageResName == "deyi_doro" } ?: PRESETS[0]),
+            "咕嘎与doro" to (PRESETS.firstOrNull { it.presetImageResName == "guga_doro" } ?: PRESETS[0]),
             "可爱猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "cute_cat" } ?: PRESETS[0]),
             "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
             "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),
