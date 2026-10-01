@@ -35,9 +35,12 @@ class UserService(
     data class Session(val token: String, val user: UserAccount)
 
     @Transactional
-    fun register(rawUsername: String, rawPassword: String, rawNickname: String?): Session {
+    fun register(rawUsername: String, rawPassword: String, rawNickname: String?, clientIp: String? = null): Session {
+        // 注册无「失败」概念，按来源 IP 限速，挡住批量注册与用户名枚举
+        throttle.checkIpOrThrow(clientIp)
         val username = normalizeUsername(rawUsername)
         validatePassword(rawPassword)
+        throttle.recordIpAttempt(clientIp)
         if (users.existsByUsername(username)) {
             throw AuthException(AuthException.USERNAME_TAKEN, "该用户名已被占用，换一个试试")
         }
@@ -56,15 +59,15 @@ class UserService(
     }
 
     @Transactional
-    fun login(rawUsername: String, rawPassword: String): Session {
+    fun login(rawUsername: String, rawPassword: String, clientIp: String? = null): Session {
         val username = normalizeUsername(rawUsername)
-        throttle.checkOrThrow(username)
+        throttle.checkOrThrow(username, clientIp)
 
         val user = users.findByUsername(username)
         // 账号不存在时也走一次哈希校验：否则响应快慢会泄露「该用户名是否已注册」
         val matched = PasswordHasher.verify(rawPassword, user?.passwordHash ?: DUMMY_HASH)
         if (user == null || !matched) {
-            throttle.recordFailure(username)
+            throttle.recordFailure(username, clientIp)
             // 不区分「用户名不存在」与「口令错误」，避免被用来枚举用户名
             throw AuthException(AuthException.BAD_CREDENTIALS, "用户名或密码不正确")
         }
@@ -80,14 +83,22 @@ class UserService(
     fun authenticate(token: String?): UserAccount = authenticateInternal(token)
 
     /**
-     * 下单等场景使用：带着令牌就归属到账号，没带或令牌失效则按游客处理。
-     * 这里刻意不抛异常——令牌过期不该让用户付不了款。
+     * 下单场景使用：带着有效令牌就把订单归属到账号，没带令牌按游客处理。
+     *
+     * 关键点：**令牌存在却已失效时不静默降级为游客**。若降级，用户以为买到了账号上，
+     * 实际只落在本机，换机后找不回，只能靠人工凭交易记录处理。这里直接抛 UNAUTHORIZED，
+     * 让客户端提示重新登录后再下单。
      */
     @Transactional
-    fun resolveOptionalUserId(token: String?): Long? {
+    fun resolvePurchaseUserId(token: String?): Long? {
         if (token.isNullOrBlank()) return null
-        return runCatching { authenticateInternal(token).id }.getOrNull()
+        return authenticateInternal(token).id
     }
+
+    /** 清理已过期令牌，避免表随登录次数无限增长。返回清理条数。 */
+    @Transactional
+    fun purgeExpiredTokens(now: Long = System.currentTimeMillis()): Long =
+        tokens.deleteByExpiresAtLessThan(now)
 
     @Transactional
     fun logout(token: String?) {

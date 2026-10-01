@@ -1,6 +1,7 @@
 package com.juge.lklpay
 
 import com.juge.lklpay.domain.PayOrder
+import com.juge.lklpay.repository.AuthTokenRepository
 import com.juge.lklpay.repository.UserAccountRepository
 import com.juge.lklpay.service.AuthException
 import com.juge.lklpay.service.PayOrderService
@@ -31,6 +32,9 @@ class UserAccountFlowTest {
 
     @Autowired
     private lateinit var users: UserAccountRepository
+
+    @Autowired
+    private lateinit var tokens: AuthTokenRepository
 
     @Test
     fun `口令以哈希形式落库且可正常登录`() {
@@ -135,10 +139,42 @@ class UserAccountFlowTest {
     }
 
     @Test
-    fun `令牌缺失或失效不阻断下单`() {
-        // 令牌过期不该让用户付不了款，因此这里返回 null 而不是抛异常
-        assertNull(userService.resolveOptionalUserId(null))
-        assertNull(userService.resolveOptionalUserId(""))
-        assertNull(userService.resolveOptionalUserId("not-a-real-token"))
+    fun `游客下单不带令牌按游客处理`() {
+        // 没带令牌是正常游客购买，PRO 只落在本机
+        assertNull(userService.resolvePurchaseUserId(null))
+        assertNull(userService.resolvePurchaseUserId(""))
+    }
+
+    @Test
+    fun `令牌失效时下单不静默降级为游客`() {
+        // 静默降级会让用户以为买到了账号上、实际只落在本机，换机后找不回，
+        // 因此令牌存在却无效时必须抛 UNAUTHORIZED，让客户端提示重新登录
+        val e = assertFailsWith<AuthException> { userService.resolvePurchaseUserId("not-a-real-token") }
+        assertEquals(AuthException.UNAUTHORIZED, e.code)
+
+        // 登出后令牌同样失效，也不得降级
+        val session = userService.register("ivan", "s3cret-pass", null)
+        userService.logout(session.token)
+        assertFailsWith<AuthException> { userService.resolvePurchaseUserId(session.token) }
+    }
+
+    @Test
+    fun `有效令牌下单归属到账号`() {
+        val session = userService.register("judy", "s3cret-pass", null)
+        assertEquals(session.user.id, userService.resolvePurchaseUserId(session.token))
+    }
+
+    @Test
+    fun `过期令牌会被清理`() {
+        val session = userService.register("karl", "s3cret-pass", null)
+        // 令牌 TTL 为 365 天，正常不会过期；把它拨到过去，模拟自然过期
+        val stored = tokens.findAll().first { it.userId == session.user.id }
+        stored.expiresAt = System.currentTimeMillis() - 1_000
+        tokens.save(stored)
+
+        val removed = userService.purgeExpiredTokens()
+
+        assertEquals(1L, removed, "过期令牌应被清理")
+        assertFailsWith<AuthException> { userService.authenticate(session.token) }
     }
 }

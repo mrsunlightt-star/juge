@@ -2,8 +2,10 @@ spring:
   application:
     name: lkl-pay-server
   datasource:
-    # H2 文件模式：全部数据即 data/paydb.mv.db 一个文件，备份 = 拷贝该文件
-    url: "jdbc:h2:file:./data/paydb;DB_CLOSE_DELAY=-1"
+    # H2 文件模式：全部数据即 <PAY_DB_PATH>.mv.db 一个文件，备份 = 拷贝该文件。
+    # 路径必须通过 PAY_DB_PATH 固定为绝对路径（如 /opt/juge/data/paydb）：
+    # 相对路径会随进程工作目录变化，systemd 重启后可能连到另一个空库。
+    url: "jdbc:h2:file:${PAY_DB_PATH:./data/paydb};DB_CLOSE_DELAY=-1"
     username: sa
     password: ""
   jpa:
@@ -30,6 +32,8 @@ auth:
   token-ttl-days: 365
   # 同一用户名连续失败到该次数后锁定一个窗口期，防在线字典爆破
   max-login-failures: 5
+  # 同一来源 IP 在窗口期内的失败/注册尝试上限。取较大值：NAT 下大量正常用户共用出口 IP
+  max-ip-failures: 40
   login-window-minutes: 10
 
 # ── 支付宝 App 支付（alipay.trade.app.pay）──

@@ -3,6 +3,7 @@ package com.juge.lklpay.web
 import com.juge.lklpay.domain.UserAccount
 import com.juge.lklpay.service.AuthException
 import com.juge.lklpay.service.UserService
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -37,12 +38,12 @@ class AuthController(private val userService: UserService) {
     )
 
     @PostMapping("/register")
-    fun register(@RequestBody req: RegisterRequest): ResponseEntity<*> =
-        respond { sessionBody(userService.register(req.username, req.password, req.nickname)) }
+    fun register(@RequestBody req: RegisterRequest, request: HttpServletRequest): ResponseEntity<*> =
+        respond { sessionBody(userService.register(req.username, req.password, req.nickname, clientIp(request))) }
 
     @PostMapping("/login")
-    fun login(@RequestBody req: LoginRequest): ResponseEntity<*> =
-        respond { sessionBody(userService.login(req.username, req.password)) }
+    fun login(@RequestBody req: LoginRequest, request: HttpServletRequest): ResponseEntity<*> =
+        respond { sessionBody(userService.login(req.username, req.password, clientIp(request))) }
 
     /** 登出：作废当前令牌。重复调用无副作用 */
     @PostMapping("/logout")
@@ -110,5 +111,20 @@ class AuthController(private val userService: UserService) {
         val raw = authorization?.trim().orEmpty()
         if (raw.isEmpty()) return null
         return raw.removePrefix("Bearer ").removePrefix("bearer ").trim().ifEmpty { null }
+    }
+
+    /**
+     * 取来源 IP。服务在 Nginx 之后，`remoteAddr` 恒为反代地址，
+     * 因此优先读 `X-Forwarded-For`（取最左侧的真实客户端），再退到 `X-Real-IP`。
+     */
+    private fun clientIp(request: HttpServletRequest): String? {
+        request.getHeader("X-Forwarded-For")
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return it }
+        return request.getHeader("X-Real-IP")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: request.remoteAddr?.takeIf { it.isNotEmpty() }
     }
 }

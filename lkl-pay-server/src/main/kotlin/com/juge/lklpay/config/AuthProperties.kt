@@ -14,6 +14,12 @@ data class AuthProperties(
     var tokenTtlDays: Long = 365,
     /** 同一用户名在窗口期内允许的连续登录失败次数，超过即暂时锁定 */
     var maxLoginFailures: Int = 5,
+    /**
+     * 同一来源 IP 在窗口期内允许的失败/尝试次数，超过即暂时锁定。
+     * 取较大值：移动网络与公司 NAT 下大量正常用户会共用出口 IP，
+     * 阈值过低会误伤无关用户。
+     */
+    var maxIpFailures: Int = 40,
     /** 登录失败的统计窗口与锁定时长（分钟） */
     var loginWindowMinutes: Long = 10,
 )
