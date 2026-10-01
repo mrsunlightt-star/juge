@@ -39,6 +39,9 @@ _backup_*
 keystore.properties
 /keystore/
 
+# 密钥与商户信息总览（含 APPID、渠道商号、个人信息，仅保留在本地，不同步到远程）
+docs/密钥总览.md
+
 # 独立网站工程（含大体积素材，暂不纳入）
 juge-website/
 juge-website-puretxt.zip
