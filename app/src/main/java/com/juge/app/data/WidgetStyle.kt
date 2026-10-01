@@ -10,13 +10,11 @@ import org.json.JSONObject
 enum class WidgetFont(val fontPath: String?, val displayName: String) {
     DEFAULT(null, "系统默认"),
     SOURCE_HAN_SANS("fonts/SourceHanSansCN-Regular.otf", "思源黑体"),
-    SOURCE_HAN_SERIF("fonts/SourceHanSerifCN-Regular.ttf", "思源宋体"),
+    SOURCE_HAN_SERIF("fonts/SourceHanSerifCN-Regular.otf", "思源宋体"),
     LXGW_NEO_ZHISONG("fonts/LXGWNeoZhiSong.ttf", "霞鹜新致宋"),
     LXGW_NEO_XIHEI_SCREEN("fonts/LXGWNeoXiHeiScreen.ttf", "霞鹜新晰黑 Screen"),
     // 枚举名保持 LXGW_WENKAI 不变：旧存档按 name 序列化，改名会让老用户字体选择回退为默认
-    LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷 Lite"),
-    AOYAGI_GYOUSHO("fonts/MasaFont-Regular.ttf", "青柳行书"),
-    KOUZAN_SOUSHO("fonts/KouzanBrushFontSousyo.ttf", "衡山草书"),
+    LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷"),
     MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书");
 
     fun getTypeface(context: Context): Typeface {

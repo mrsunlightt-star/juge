@@ -171,33 +171,23 @@ object LegalDocs {
 版权：© 2017-2024 Adobe (http://www.adobe.com/)，保留字体名 'Source'
 授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
-3. 霞鹜文楷 Lite LXGW WenKai Lite
-版权：Copyright 2021-2024 LXGW (https://github.com/lxgw/LxgwWenKai)；Copyright 2020 The Klee Project Authors
+3. 霞鹜文楷 LXGW WenKai GB
+版权：Copyright 2022-2026 LXGW (https://github.com/lxgw/LxgwWenkaiGB)；Copyright 2020 The Klee Project Authors
 授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
-4. 青柳行书 MasaFont
-版权：Copyright (c) 2020, Chun yu Yao，保留字体名 'KouzanBrushFontGyousyo'
-授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
-
-5. 毛笔楷书 Ma Shan Zheng
+4. 毛笔楷书 Ma Shan Zheng
 版权：Copyright 2018 The MaShanZheng Project Authors (https://github.com/googlefonts/mashanzheng)
 授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
 （二）IPA Font License 1.0 授权
 
-6. 霞鹜新致宋 LXGW Neo ZhiSong
+5. 霞鹜新致宋 LXGW Neo ZhiSong
 版权：Copyright(c) 2023-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
 
-7. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
+6. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
 版权：Copyright(c) 2021-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
-
-（三）未声明授权
-
-8. 衡山草书 KouzanBrushFontSousyo
-版权：KouzanAoyagi
-该字体内未声明授权条款，如有疑问请与开发者联系。
 
 二、SIL Open Font License 1.1 全文
 
