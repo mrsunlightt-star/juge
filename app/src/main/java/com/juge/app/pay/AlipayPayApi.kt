@@ -14,6 +14,9 @@ import org.json.JSONObject
  */
 object AlipayPayApi {
 
+    /** 服务端明确返回的业务失败，message 为可直接展示给用户的中文提示 */
+    class ApiException(message: String) : Exception(message)
+
     /**
      * 下单：拿到 orderStr 后交给 [AlipayPay.pay] 拉起收银台。
      *
@@ -32,7 +35,7 @@ object AlipayPayApi {
                 }
                 val resp = ServerClient.post("/api/alipay/create", body)
                 if (!resp.optBoolean("success")) {
-                    error(resp.optString("message").ifBlank { "下单失败" })
+                    throw ApiException(resp.optString("message").ifBlank { "下单失败" })
                 }
                 val data = resp.getJSONObject("data")
                 OrderCreated(
@@ -42,13 +45,22 @@ object AlipayPayApi {
             }
         }
 
-    /** 查单：trade_status 为 TRADE_SUCCESS / TRADE_FINISHED 才算真正支付成功 */
-    suspend fun queryOrder(outTradeNo: String): Result<OrderStatus> =
+    /**
+     * 查单：trade_status 为 TRADE_SUCCESS / TRADE_FINISHED 才算真正支付成功。
+     *
+     * [token] 为当前登录令牌：订单归属账号时服务端会校验查询者身份，
+     * 未登录（游客订单）传 null 即可。
+     */
+    suspend fun queryOrder(outTradeNo: String, token: String? = null): Result<OrderStatus> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val resp = ServerClient.get("/api/alipay/query", params = mapOf("outTradeNo" to outTradeNo))
+                val resp = ServerClient.get(
+                    "/api/alipay/query",
+                    token = token,
+                    params = mapOf("outTradeNo" to outTradeNo),
+                )
                 if (!resp.optBoolean("success")) {
-                    error(resp.optString("message").ifBlank { "查单失败" })
+                    throw ApiException(resp.optString("message").ifBlank { "查单失败" })
                 }
                 val data = resp.getJSONObject("data")
                 OrderStatus(

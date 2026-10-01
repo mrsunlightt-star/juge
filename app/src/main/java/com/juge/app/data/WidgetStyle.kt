@@ -9,13 +9,15 @@ import org.json.JSONObject
 // 预定义字体枚举
 enum class WidgetFont(val fontPath: String?, val displayName: String) {
     DEFAULT(null, "系统默认"),
+    SOURCE_HAN_SANS("fonts/SourceHanSansCN-Regular.otf", "思源黑体"),
     SOURCE_HAN_SERIF("fonts/SourceHanSerifCN-Regular.ttf", "思源宋体"),
-    LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷"),
+    LXGW_NEO_ZHISONG("fonts/LXGWNeoZhiSong.ttf", "霞鹜新致宋"),
+    LXGW_NEO_XIHEI_SCREEN("fonts/LXGWNeoXiHeiScreen.ttf", "霞鹜新晰黑 Screen"),
+    // 枚举名保持 LXGW_WENKAI 不变：旧存档按 name 序列化，改名会让老用户字体选择回退为默认
+    LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷 Lite"),
     AOYAGI_GYOUSHO("fonts/MasaFont-Regular.ttf", "青柳行书"),
     KOUZAN_SOUSHO("fonts/KouzanBrushFontSousyo.ttf", "衡山草书"),
-    PANGMEN_CUSHUTI("fonts/PangMenZhengDao-CuShuTi.ttf", "粗书体"),
-    MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书"),
-    PANGMEN_XINQINGNIAN("fonts/PangMenZhengDaoBiaoTiTi.ttf", "新青年体");
+    MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书");
 
     fun getTypeface(context: Context): Typeface {
         if (fontPath != null) {
@@ -203,8 +205,8 @@ data class WidgetStyle(
                         val fontStr = json.optString("font", WidgetFont.DEFAULT.name)
                         val mappedFontStr = when (fontStr) {
                             "SERIF" -> "SOURCE_HAN_SERIF"
-                            // 旧版本曾使用的 "SANS_SERIF" 对应系统默认字体；枚举中不存在 SOURCE_HAN_SANS，
-                            // 若映射到不存在的枚举会在 valueOf 抛异常后整体回退，这里显式映射到 DEFAULT。
+                            // 旧版本曾用 "SANS_SERIF" 表示系统默认字体，并非思源黑体
+                            // （思源黑体的枚举名为 SOURCE_HAN_SANS），这里保持映射到 DEFAULT。
                             "SANS_SERIF" -> "DEFAULT"
                             else -> fontStr
                         }
@@ -829,7 +831,8 @@ data class WidgetStyle(
             WidgetStyle(
                 presetId = "p_sticker_lalaland",
                 shape = WidgetShape.STICKER_SCENE,
-                cornerRadiusDp = 18f,
+                // 文本框圆角：0 = 四角斜切一刀的剪纸直角；调大后四角改圆弧（见 paperCutBoxPath）
+                cornerRadiusDp = 0f,
                 backgroundColor = Color.WHITE, // 文本框底色，可随「小组件背景颜色」自定义
                 backgroundOpacity = 1f,
                 backgroundImagePath = null,

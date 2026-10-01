@@ -1,6 +1,6 @@
 # 贴纸素材工具链（贴纸夜景 / sticker_lalaland）
 
-把一张《爱乐之城》剧照做成 App 里「贴纸夜景」组件风格用的贴纸素材：
+把一张人物参考原图做成 App 里「贴纸夜景」组件风格用的贴纸素材：
 男女主 + 路灯抠成扁平插画、叠白描边、透明底，落到
 `app/src/main/res/drawable/sticker_lalaland.webp`。
 
@@ -51,7 +51,7 @@ python3 05_build_sticker.py  # 直接写回 res/drawable/
 
 `assets/` 里是随仓库提交的输入素材：
 
-- `source.png` —— 剧照原图，分割与取色的唯一来源。
+- `source.png` —— 参考原图，分割与取色的唯一来源。
 - `clean_mask.npy` —— 03 的产物，跳过 01~03 时用。
 - `lamp_mask.npy` / `lamp_rgb.png` —— 提前抠好的路灯（抠图脚本没有留存，
   重新抠需自行准备）。

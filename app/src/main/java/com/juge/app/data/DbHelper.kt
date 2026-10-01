@@ -381,8 +381,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     }
 
     fun migrateLegacyDataIfNeeded() {
-        val prefs = appContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_LEGACY_MIGRATION_DONE, false)) return
+        if (AppPrefs.isLegacyMigrationDone(appContext)) return
 
         val db = writableDatabase
         // 1. 查询 widget_config 记录数
@@ -435,13 +434,12 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         }
 
         // 迁移只执行一次：用户有意清空全部配置后，不应在下次组件刷新时被重新"恢复"出来
-        prefs.edit().putBoolean(KEY_LEGACY_MIGRATION_DONE, true).apply()
+        AppPrefs.setLegacyMigrationDone(appContext)
     }
 
     companion object {
         private const val DATABASE_NAME = "reminders.db"
         private const val DATABASE_VERSION = 6
-        private const val KEY_LEGACY_MIGRATION_DONE = "legacy_migration_done"
 
         @Volatile
         private var instance: DbHelper? = null

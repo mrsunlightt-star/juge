@@ -281,7 +281,7 @@ class QuickAdjustActivity : ComponentActivity() {
 
                                                             val presetBitmap by produceState<Bitmap?>(
                                                                 initialValue = null,
-                                                                preset, presetText, isActivated
+                                                                preset, presetText
                                                             ) {
                                                                 value = withContext(Dispatchers.Default) {
                                                                     try {
@@ -290,9 +290,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                             widthDp = 120,
                                                                             heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
                                                                             content = presetText,
-                                                                            style = preset,
-                                                                            trialManager = trialManager,
-                                                                            isPreview = true
+                                                                            style = preset
                                                                         )
                                                                     } catch (t: Throwable) {
                                                                         Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
@@ -399,7 +397,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             currentStyle.backgroundImagePath.isNullOrEmpty()
                                                         val codeBitmap by produceState<Bitmap?>(
                                                             initialValue = null,
-                                                            preset, presetName, isActivated
+                                                            preset, presetName
                                                         ) {
                                                             value = withContext(Dispatchers.Default) {
                                                                 try {
@@ -408,9 +406,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                         widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
                                                                         heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
                                                                         content = presetName,
-                                                                        style = preset,
-                                                                        trialManager = trialManager,
-                                                                        isPreview = true
+                                                                        style = preset
                                                                     )
                                                                 } catch (t: Throwable) {
                                                                     Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
@@ -1263,9 +1259,15 @@ class QuickAdjustActivity : ComponentActivity() {
                                             val appContext = applicationContext
                                             val contentToSave = textContent
                                             // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
-                                            val styleToSave = currentStyle.withoutUnsupportedBackgroundColor()
+                                            val styleBeforeCommit = currentStyle.withoutUnsupportedBackgroundColor()
+                                            // 编辑期背景图先落在 bg_tmp，走到这里说明确实在保存，提交为正式资源
+                                            val committedPath = CropImageHelper.commitBackground(appContext, styleBeforeCommit.backgroundImagePath)
+                                            val styleToSave = if (committedPath != styleBeforeCommit.backgroundImagePath) {
+                                                styleBeforeCommit.copy(backgroundImagePath = committedPath)
+                                            } else styleBeforeCommit
                                             // 写库与位图渲染都是耗时操作，移出主线程避免卡顿
                                             lifecycleScope.launch(Dispatchers.IO) {
+                                                var saved = false
                                                 try {
                                                     // 保存前确保组件与当前编辑的配置绑定一致，防止渲染层读到别的配置
                                                     ReminderWidgetProvider.bindConfigToWidget(appContext, appWidgetId, currentConfig.id)
@@ -1287,12 +1289,19 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     }
                                                     // 与主界面保存路径保持一致：全量刷新，避免多组件场景下桌面状态不一致
                                                     ReminderWidgetProvider.triggerUpdateAllWidgets(appContext)
+                                                    saved = true
                                                 } catch (e: Exception) {
                                                     timber.log.Timber.e(e, "save widget config failed")
                                                 } finally {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(appContext, "同步刷新成功", Toast.LENGTH_SHORT).show()
-                                                        finish()
+                                                        // 只有真正落库成功才提示成功并关闭页面；失败则留在页面让用户重试
+                                                        if (saved) {
+                                                            Toast.makeText(appContext, "同步刷新成功", Toast.LENGTH_SHORT).show()
+                                                            finish()
+                                                        } else {
+                                                            Toast.makeText(appContext, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                                                            isSaving = false
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1320,9 +1329,8 @@ class QuickAdjustActivity : ComponentActivity() {
                         }
                         
                         if (pendingCropUri != null) {
-                            val cropTarget = CropImageHelper.cropTargetForWidget(
-                                ReminderWidgetProvider.getWidgetSizeString(this@QuickAdjustActivity, appWidgetId)
-                            )
+                            val (widgetWidthDp, widgetHeightDp) = ReminderWidgetProvider.getWidgetSizeDp(this@QuickAdjustActivity, appWidgetId)
+                            val cropTarget = CropImageHelper.cropTargetForWidget(widgetWidthDp, widgetHeightDp)
                             CropImageHelper.ImageCropDialog(
                                 uri = pendingCropUri!!,
                                 onDismiss = { pendingCropUri = null },

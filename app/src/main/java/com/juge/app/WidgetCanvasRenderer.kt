@@ -19,7 +19,6 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import com.juge.app.data.ImageScaleMode
-import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
@@ -141,9 +140,7 @@ object WidgetCanvasRenderer {
         widthDp: Int,
         heightDp: Int,
         content: String,
-        style: WidgetStyle,
-        trialManager: TrialManager,
-        isPreview: Boolean = false
+        style: WidgetStyle
     ): Bitmap {
         // 将 dp 尺寸转为像素，增加 RENDER_DENSITY_SCALE 倍分辨率防止桌面模糊
         val scale = context.resources.displayMetrics.density
@@ -170,8 +167,9 @@ object WidgetCanvasRenderer {
         // 巨剑/毛绒森林/小霸王游戏机是整幅插画（剑身横贯、毛绒小树在顶部、实物模型铺满），
         // 圆角裁剪会把主体切掉。预设套用时会继承上一个风格的圆角值，
         // 这里统一强制按直角渲染，避免旧数据/跨风格套用后画面被裁。
+        // 贴纸夜景整幅透明、不画外框，它的圆角滑条作用在文本框上（见 paperCutBoxPath），不在此列。
         val effectiveCornerRadiusDp =
-            if (style.shape == WidgetShape.GIANT_SWORD || style.shape == WidgetShape.PLUSH_FOREST || style.shape == WidgetShape.SUBOR_CONSOLE || style.shape == WidgetShape.STICKER_SCENE) 0f
+            if (style.shape == WidgetShape.GIANT_SWORD || style.shape == WidgetShape.PLUSH_FOREST || style.shape == WidgetShape.SUBOR_CONSOLE) 0f
             else style.cornerRadiusDp
 
         when (style.shape) {
@@ -376,9 +374,9 @@ object WidgetCanvasRenderer {
             drawStickerLightBeam(canvas, outerRect, artRect, densityScale, alpha)
 
             val textBox = stickerTextBoxRect(outerRect)
-            // 纸张剪纸：四角剪掉一小块，边缘仍是直的，只是像被剪刀"咔嚓"了一下
+            // 纸张剪纸：默认四角剪掉一小块；圆角滑条调大后四角改为圆弧（半径见 paperCutBoxPath）
             val snip = STICKER_TEXT_SNIP_DP * densityScale
-            val borderPath = paperCutBoxPath(textBox, snip)
+            val borderPath = paperCutBoxPath(textBox, snip, style.cornerRadiusDp * densityScale)
             if (style.showCardShadow) {
                 val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = style.backgroundColor
@@ -476,10 +474,8 @@ object WidgetCanvasRenderer {
             canvas.drawPath(path, borderPaint)
         }
 
-        // 4. 准备绘制文字（新付费规则：预览任意风格、桌面默认免费、仅在“同步到桌面”时弹付费，渲染层不再拦截或显示付费蒙层）
+        // 4. 准备绘制文字（新付费规则：预览任意风格、桌面默认免费、仅在“同步到桌面”时弹付费，渲染层不感知会员状态）
         val renderStyle = style
-        @Suppress("UNUSED_VARIABLE")
-        val isActivated = trialManager.isActivated()
 
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = style.fontColor
@@ -787,21 +783,29 @@ object WidgetCanvasRenderer {
     }
 
     /**
-     * 贴纸夜景：纸张剪纸的纸片轮廓——四角各剪掉一块，边还是直的，
-     * 只是像被剪刀咔嚓了一下，不是一刀切出来的规整矩形。
+     * 贴纸夜景：文本框的纸片轮廓。
+     *
+     * 圆角滑条（cornerRadiusDp）作用于文本框四角：>0 时四角走圆弧，半径 = 剪纸口的收角幅度 + 滑条值，
+     * 这样滑条从 0 到 30 全程都在生效；=0 时保持直角，只留四角那一刀斜切。
      */
-    private fun paperCutBoxPath(rect: RectF, snip: Float): Path {
-        val s = snip.coerceAtMost(minOf(rect.width(), rect.height()) * 0.25f)
+    private fun paperCutBoxPath(rect: RectF, snip: Float, cornerRadius: Float): Path {
+        val minSide = minOf(rect.width(), rect.height())
         return Path().apply {
-            moveTo(rect.left + s, rect.top)
-            lineTo(rect.right - s, rect.top)
-            lineTo(rect.right, rect.top + s)
-            lineTo(rect.right, rect.bottom - s)
-            lineTo(rect.right - s, rect.bottom)
-            lineTo(rect.left + s, rect.bottom)
-            lineTo(rect.left, rect.bottom - s)
-            lineTo(rect.left, rect.top + s)
-            close()
+            if (cornerRadius > 0f) {
+                val r = (snip + cornerRadius).coerceAtMost(minSide * 0.5f)
+                addRoundRect(rect, r, r, Path.Direction.CW)
+            } else {
+                val s = snip.coerceAtMost(minSide * 0.25f)
+                moveTo(rect.left + s, rect.top)
+                lineTo(rect.right - s, rect.top)
+                lineTo(rect.right, rect.top + s)
+                lineTo(rect.right, rect.bottom - s)
+                lineTo(rect.right - s, rect.bottom)
+                lineTo(rect.left + s, rect.bottom)
+                lineTo(rect.left, rect.bottom - s)
+                lineTo(rect.left, rect.top + s)
+                close()
+            }
         }
     }
 

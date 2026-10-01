@@ -40,19 +40,59 @@ object CropImageHelper {
     private const val DEFAULT_CROP_HEIGHT = 270
     private const val MAX_CROP_OUTPUT_DIMENSION = 4096
 
+    // 编辑期产生的背景图先落在临时目录，只有用户真正保存并同步到桌面时才提交为正式资源，
+    // 避免「裁完就取消/被付费墙拦下」留下永远没人删的孤儿文件。
+    private const val TMP_DIR = "bg_tmp"
+    private const val OFFICIAL_DIR = "bg_images"
+    private const val PX_PER_DP = 3.36f
+    private const val TMP_MAX_AGE_MS = 24 * 60 * 60 * 1000L
+
     /**
-     * 根据桌面组件的网格尺寸字符串（如 "4*2"、"4*4"）估算裁剪输出分辨率。
-     * 组件越大输出像素越高，避免 4×2 裁剪图被拖大到 4×4 后发虚。
-     * 基准：4×2 → 840×270，与裁切视窗比例一致。
+     * 根据组件实际尺寸（dp）计算裁剪输出分辨率。
+     * 输出宽高比与组件真实宽高比一致，保证「裁剪框里看到什么，桌面上就显示什么」；
+     * 像素密度约 3.36 px/dp，避免组件放大后发虚。
      */
-    fun cropTargetForWidget(sizeString: String): Pair<Int, Int> {
-        val parts = sizeString.split("*")
-        val spanX = parts.getOrNull(0)?.toIntOrNull() ?: 4
-        val spanY = parts.getOrNull(1)?.toIntOrNull() ?: 2
-        val scale = maxOf(spanX / 4f, spanY / 2f)
-        val w = (DEFAULT_CROP_WIDTH * scale).toInt().coerceIn(DEFAULT_CROP_WIDTH, MAX_CROP_OUTPUT_DIMENSION)
-        val h = (DEFAULT_CROP_HEIGHT * scale).toInt().coerceIn(DEFAULT_CROP_HEIGHT, MAX_CROP_OUTPUT_DIMENSION)
+    fun cropTargetForWidget(widthDp: Int, heightDp: Int): Pair<Int, Int> {
+        val wDp = if (widthDp > 0) widthDp else 250
+        val hDp = if (heightDp > 0) heightDp else 110
+        val w = (wDp * PX_PER_DP).toInt().coerceIn(1, MAX_CROP_OUTPUT_DIMENSION)
+        val h = (hDp * PX_PER_DP).toInt().coerceIn(1, MAX_CROP_OUTPUT_DIMENSION)
         return w to h
+    }
+
+    /**
+     * 把编辑期产生的临时背景图提交为正式资源（bg_tmp → bg_images）。
+     * 已是正式文件或文件不存在时原样返回，可重复调用。
+     */
+    fun commitBackground(context: Context, path: String?): String? {
+        if (path.isNullOrBlank()) return path
+        val src = File(path)
+        if (!src.exists()) return path
+        val officialDir = File(context.filesDir, OFFICIAL_DIR)
+        val tmpDir = File(context.filesDir, TMP_DIR)
+        if (src.parentFile?.absolutePath != tmpDir.absolutePath) return path
+        if (!officialDir.exists()) officialDir.mkdirs()
+        val dst = File(officialDir, src.name)
+        return try {
+            if (src.renameTo(dst)) dst.absolutePath else path
+        } catch (e: Exception) {
+            Timber.w(e, "commit background failed")
+            path
+        }
+    }
+
+    /** 清理超过 [maxAgeMs] 仍未提交的临时背景图（编辑中途退出、被付费墙拦下等）。 */
+    fun cleanupTempBackgrounds(context: Context, maxAgeMs: Long = TMP_MAX_AGE_MS) {
+        try {
+            val dir = File(context.filesDir, TMP_DIR)
+            if (!dir.exists()) return
+            val cutoff = System.currentTimeMillis() - maxAgeMs
+            dir.listFiles()?.forEach { f ->
+                if (f.isFile && f.lastModified() < cutoff) f.delete()
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "cleanup temp backgrounds failed")
+        }
     }
 
     // 从 Uri 加载图片，支持防 OOM 的 downsample 与 EXIF 方向矫正
@@ -126,7 +166,8 @@ object CropImageHelper {
         offset: Offset,
         targetWidth: Int = DEFAULT_CROP_WIDTH,
         targetHeight: Int = DEFAULT_CROP_HEIGHT
-    ): String? {        return try {
+    ): String? {
+        return try {
             val viewAspectRatio = viewWidthPx / viewHeightPx
             val imageAspectRatio = bitmap.width.toFloat() / bitmap.height
             val initScale = if (imageAspectRatio > viewAspectRatio) {
@@ -153,7 +194,8 @@ object CropImageHelper {
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
             canvas.drawBitmap(bitmap, matrix, paint)
 
-            val dir = File(context.filesDir, "bg_images")
+            // 先落到临时目录，用户真正保存并同步到桌面时才提交为正式资源
+            val dir = File(context.filesDir, TMP_DIR)
             if (!dir.exists()) dir.mkdirs()
             // 带透明通道的图片必须存 PNG，JPEG 会把透明区域压成黑色
             val hasAlpha = bitmap.hasAlpha()
@@ -178,7 +220,7 @@ object CropImageHelper {
         uri: Uri,
         onDismiss: () -> Unit,
         onCropSuccess: (String) -> Unit,
-        // 裁剪输出的物理分辨率（像素），默认 840×270；组件越大传入越大的目标，避免被放大后发虚
+        // 裁剪输出的物理分辨率（像素）。宽高比应等于组件真实宽高比，用 CropImageHelper.cropTargetForWidget 计算
         targetWidth: Int = DEFAULT_CROP_WIDTH,
         targetHeight: Int = DEFAULT_CROP_HEIGHT
     ) {
@@ -201,8 +243,14 @@ object CropImageHelper {
             var offset by remember { mutableStateOf(Offset.Zero) }
 
             val density = LocalDensity.current
-            val cropWidthDp = 311.dp
-            val cropHeightDp = 100.dp
+            // 裁剪视窗的宽高比与组件真实宽高比一致，用户框选的区域就是桌面上显示的区域
+            val viewAspect = targetWidth.toFloat() / targetHeight.toFloat()
+            val maxBoxW = 300f
+            val maxBoxH = 220f
+            val boxW = minOf(maxBoxW, maxBoxH * viewAspect)
+            val boxH = boxW / viewAspect
+            val cropWidthDp = boxW.dp
+            val cropHeightDp = boxH.dp
             val viewWidthPx = with(density) { cropWidthDp.toPx() }
             val viewHeightPx = with(density) { cropHeightDp.toPx() }
 

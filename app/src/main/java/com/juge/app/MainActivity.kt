@@ -78,6 +78,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 
+/** 保存反馈结果：区分「已落库」与「被付费墙拦下」，避免向用户误报成功。 */
+enum class SaveOutcome { SAVED, REQUIRES_PRO }
+
 private val darkBg = Color(0xFFEEF2F7) // 页面底色（冷调浅灰蓝）：比纯白卡片深一档，让白卡片能"浮"起来，同时保持清爽
 private val cardBg = Color(0xFFFFFFFF) // 纯净白卡片
 private val accentBlue = Color(0xFF0F766E) // 网站薄荷青翠主色 (Fresh Mint Teal)
@@ -105,6 +108,8 @@ class MainActivity : ComponentActivity() {
             _dbHelper = DbHelper.getInstance(this)
             _trialManager = TrialManager.getInstance(this)
         }
+        // 清理上次编辑残留的临时背景图（超 24h 未提交的），避免孤儿文件长期堆积
+        lifecycleScope.launch(Dispatchers.IO) { CropImageHelper.cleanupTempBackgrounds(this@MainActivity) }
 
         val goToActivate = intent.getBooleanExtra("go_to_activate", false)
         val editConfigId = intent.getLongExtra("config_id", -1L)
@@ -112,19 +117,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 var isPrivacyAccepted by remember {
-                    mutableStateOf(
-                        getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                            .getBoolean("privacy_accepted", false)
-                    )
+                    mutableStateOf(AppPrefs.isPrivacyAccepted(this@MainActivity))
                 }
 
                 if (!isPrivacyAccepted) {
                     PrivacyPolicyDialog(
                         onAgree = {
-                            getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                                .edit()
-                                .putBoolean("privacy_accepted", true)
-                                .apply()
+                            AppPrefs.setPrivacyAccepted(this@MainActivity)
                             isPrivacyAccepted = true
                             // 刷新桌面小组件以恢复正常内容
                             ReminderWidgetProvider.triggerUpdateAllWidgets(this)
@@ -235,15 +234,15 @@ class MainActivity : ComponentActivity() {
 
         openDoc?.let { doc ->
             LegalDocDialog(
-                title = if (doc == "user") "《用户协议》" else "《隐私政策》",
-                body = if (doc == "user") LegalDocs.USER_AGREEMENT else LegalDocs.PRIVACY_POLICY,
+                title = LegalDocs.titleOf(doc),
+                body = LegalDocs.bodyOf(doc),
                 onDismiss = { openDoc = null }
             )
         }
     }
 
     /**
-     * 《用户协议》/《隐私政策》全文查看器。
+     * 《用户协议》/《隐私政策》/《开源许可》全文查看器。
      * 合规要求：条款必须能在应用内完整查阅，且可随时关闭返回。
      */
     @Composable
@@ -370,7 +369,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 「跃然纸上」「个性定制」两页底部共用的协议与备案页脚。
+     * 「跃然纸上」「个性定制」两页底部共用的协议、许可与备案页脚。
      * 备案号需在 App 内可见，点击跳转工信部备案查询系统。
      */
     @Composable
@@ -394,6 +393,12 @@ class MainActivity : ComponentActivity() {
                     fontSize = 11.sp,
                     color = accentLightBlue,
                     modifier = Modifier.clickable { onOpenDoc("privacy") }
+                )
+                Text(
+                    text = "《开源许可》",
+                    fontSize = 11.sp,
+                    color = accentLightBlue,
+                    modifier = Modifier.clickable { onOpenDoc("license") }
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -517,6 +522,16 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpenDoc("privacy") }
+                        .padding(vertical = 8.dp)
+                )
+                Text(
+                    text = "《开源许可》",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentLightBlue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenDoc("license") }
                         .padding(vertical = 8.dp)
                 )
             }
@@ -778,7 +793,7 @@ class MainActivity : ComponentActivity() {
         // 样式保存与更新回调。
         // 新付费规则：预览任意风格、默认组件免费、仅在"同步到桌面"时拦截。
         // 未激活时切到付费风格仍允许在 App 内预览，但点保存同步到桌面时弹激活。
-        val onStyleChange: (Int, Long, String, WidgetStyle) -> Unit = onStyleChange@{ widgetId, configId, newContent, newStyle ->
+        val onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome = onStyleChange@{ widgetId, configId, newContent, newStyle ->
             // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
             val style = newStyle.withoutUnsupportedBackgroundColor()
             val isSyncToDesktop = widgetId != -1
@@ -789,10 +804,19 @@ class MainActivity : ComponentActivity() {
                 )
             if (needPay) {
                 showProDialog = true
-                return@onStyleChange
+                return@onStyleChange SaveOutcome.REQUIRES_PRO
+            }
+            // 编辑期背景图先落在 bg_tmp；走到这里说明用户确实在保存，提交为正式资源（可重复调用）
+            val committedPath = CropImageHelper.commitBackground(this@MainActivity, style.backgroundImagePath)
+            val finalStyle = if (committedPath != style.backgroundImagePath) {
+                style.copy(backgroundImagePath = committedPath)
+            } else style
+            if (committedPath != style.backgroundImagePath && widgetId == selectedWidgetId) {
+                // 路径已变更，同步内存态，避免预览继续引用已被移走的临时文件
+                currentStyle = finalStyle
             }
             if (widgetId != -1) {
-                ReminderWidgetProvider.saveWidgetStyle(this@MainActivity, widgetId, style)
+                ReminderWidgetProvider.saveWidgetStyle(this@MainActivity, widgetId, finalStyle)
             }
             val target = widgetConfigs.find { it.id == configId }
             if (target != null) {
@@ -800,21 +824,36 @@ class MainActivity : ComponentActivity() {
                 // 用 lifecycleScope 而非组合作用域：页面销毁时未到期的防抖写入仍能完成，避免丢失最后 400ms 的编辑
                 persistJob = lifecycleScope.launch {
                     kotlinx.coroutines.delay(400)
-                    withContext(Dispatchers.IO) {
-                        dbHelper.updateWidgetConfig(
-                            target.copy(
-                                content = newContent,
-                                styleJson = style.toJsonString()
+                    try {
+                        withContext(Dispatchers.IO) {
+                            dbHelper.updateWidgetConfig(
+                                target.copy(
+                                    content = newContent,
+                                    styleJson = finalStyle.toJsonString()
+                                )
                             )
-                        )
-                        val updatedConfigs = dbHelper.getAllWidgetConfigs()
+                            val updatedConfigs = dbHelper.getAllWidgetConfigs()
+                            withContext(Dispatchers.Main) {
+                                widgetConfigs = updatedConfigs
+                            }
+                        }
+                        // 新背景已落库，才删除被替换掉的旧背景文件，避免长期堆积孤儿图
+                        val oldBgPath = runCatching {
+                            WidgetStyle.fromJsonString(target.styleJson).backgroundImagePath
+                        }.getOrNull()
+                        if (!oldBgPath.isNullOrEmpty() && oldBgPath != finalStyle.backgroundImagePath) {
+                            runCatching { File(oldBgPath).delete() }
+                        }
+                        ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                    } catch (e: Exception) {
+                        Timber.e(e, "persist widget style failed")
                         withContext(Dispatchers.Main) {
-                            widgetConfigs = updatedConfigs
+                            Toast.makeText(this@MainActivity, "保存失败，请重试", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
                 }
             }
+            SaveOutcome.SAVED
         }
 
         if (showProDialog) {
@@ -870,8 +909,8 @@ class MainActivity : ComponentActivity() {
 
         showLegalDoc?.let { doc ->
             LegalDocDialog(
-                title = if (doc == "user") "《用户协议》" else "《隐私政策》",
-                body = if (doc == "user") LegalDocs.USER_AGREEMENT else LegalDocs.PRIVACY_POLICY,
+                title = LegalDocs.titleOf(doc),
+                body = LegalDocs.bodyOf(doc),
                 onDismiss = { showLegalDoc = null }
             )
         }
@@ -1078,7 +1117,7 @@ class MainActivity : ComponentActivity() {
                                 android.util.Log.d("JugeH", "shape=${pageStyle.shape} h=$previewHeightDp sizeType=${pageConfig?.sizeType}")
                                 val pageBitmap by produceState<Bitmap?>(
                                     initialValue = null,
-                                    pageContent, pageStyle, isActivatedState, previewHeightDp
+                                    pageContent, pageStyle, previewHeightDp
                                 ) {
                                     value = withContext(Dispatchers.Default) {
                                         try {
@@ -1087,9 +1126,7 @@ class MainActivity : ComponentActivity() {
                                                 widthDp = 360,
                                                 heightDp = previewHeightDp,
                                                 content = pageContent,
-                                                style = pageStyle,
-                                                trialManager = trialManager,
-                                                isPreview = true
+                                                style = pageStyle
                                             )
                                         } catch (t: Throwable) {
                                             // 极端情况下（如 OOM）返回一个空白位图
@@ -2322,7 +2359,7 @@ class MainActivity : ComponentActivity() {
         onStyleStateChange: (WidgetStyle) -> Unit,
         onContentStateChange: (String) -> Unit,
         onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
-        onStyleChange: (Int, Long, String, WidgetStyle) -> Unit,
+        onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
         onOpenDoc: (String) -> Unit
     ) {
         val scope = rememberCoroutineScope()
@@ -2498,7 +2535,7 @@ class MainActivity : ComponentActivity() {
 
                                     val presetBitmap by produceState<Bitmap?>(
                                         initialValue = null,
-                                        preset, presetName, isActivated
+                                        preset, presetName
                                     ) {
                                         value = withContext(Dispatchers.Default) {
                                             try {
@@ -2507,9 +2544,7 @@ class MainActivity : ComponentActivity() {
                                                     widthDp = 150,
                                                     heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
                                                     content = presetName,
-                                                    style = preset,
-                                                    trialManager = trialManager,
-                                                    isPreview = true
+                                                    style = preset
                                                 )
                                             } catch (t: Throwable) {
                                                 Bitmap.createBitmap(150, 80, Bitmap.Config.ARGB_8888)
@@ -2590,7 +2625,7 @@ class MainActivity : ComponentActivity() {
                                     selectedStyle.backgroundImagePath.isNullOrEmpty()
                                 val codeBitmap by produceState<Bitmap?>(
                                     initialValue = null,
-                                    preset, presetName, isActivated
+                                    preset, presetName
                                 ) {
                                     value = withContext(Dispatchers.Default) {
                                         try {
@@ -2599,9 +2634,7 @@ class MainActivity : ComponentActivity() {
                                                 widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
                                                 heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
                                                 content = presetName,
-                                                style = preset,
-                                                trialManager = trialManager,
-                                                isPreview = true
+                                                style = preset
                                             )
                                         } catch (t: Throwable) {
                                             Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
@@ -3468,8 +3501,10 @@ class MainActivity : ComponentActivity() {
                         .clip(RoundedCornerShape(12.dp))
                         .background(Brush.horizontalGradient(listOf(mintBright, mintSky)))
                         .clickable {
-                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
-                            Toast.makeText(this@MainActivity, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
+                            val outcome = onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
+                            if (outcome == SaveOutcome.SAVED) {
+                                Toast.makeText(this@MainActivity, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -3487,16 +3522,13 @@ class MainActivity : ComponentActivity() {
         }
 
         if (pendingCropUri != null) {
-            val cropTarget = CropImageHelper.cropTargetForWidget(
-                ReminderWidgetProvider.getWidgetSizeString(this@MainActivity, selectedWidgetId)
-            )
+            val (widgetWidthDp, widgetHeightDp) = ReminderWidgetProvider.getWidgetSizeDp(this@MainActivity, selectedWidgetId)
+            val cropTarget = CropImageHelper.cropTargetForWidget(widgetWidthDp, widgetHeightDp)
             CropImageHelper.ImageCropDialog(
                 uri = pendingCropUri!!,
                 onDismiss = { pendingCropUri = null },
                 onCropSuccess = { path ->
-                    try {
-                        selectedStyle.backgroundImagePath?.let { File(it).delete() }
-                    } catch (e: Exception) {}
+                    // 旧背景图不在这里删：延后到新图真正落库时再删，避免用户中途取消后原图已丢
                     val newStyle = selectedStyle.copy(backgroundImagePath = path)
                     onStyleStateChange(newStyle)
                     onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)

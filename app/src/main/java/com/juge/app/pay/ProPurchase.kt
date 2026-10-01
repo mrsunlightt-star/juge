@@ -56,7 +56,9 @@ object ProPurchase {
         val token = AccountStore.token(activity)
         val created = AlipayPayApi.createOrder(PRODUCT_ID, token).getOrElse { e ->
             Timber.e(e, "ProPurchase: 下单失败")
-            return Outcome.Failed("下单失败，请检查网络后重试")
+            // 服务端明确告知的业务失败（如令牌失效需重新登录）直接透传文案，网络异常才给通用提示
+            val serverMessage = (e as? AlipayPayApi.ApiException)?.message?.takeIf { it.isNotBlank() }
+            return Outcome.Failed(serverMessage ?: "下单失败，请检查网络后重试")
         }
         // 先落盘订单号：支付途中 App 被杀也能在下次启动时找回
         savePendingOrder(activity, created.outTradeNo)
@@ -67,14 +69,14 @@ object ProPurchase {
 
         val outcome = when (resultStatus) {
             AlipayPay.STATUS_SUCCESS ->
-                if (confirmPaid(created.outTradeNo, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS)) {
+                if (confirmPaid(created.outTradeNo, token, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS)) {
                     Outcome.Paid
                 } else {
                     Outcome.Unpaid("支付已提交，到账确认中，稍后重新打开应用会自动找回")
                 }
 
             AlipayPay.STATUS_PROCESSING, AlipayPay.STATUS_UNKNOWN ->
-                if (confirmPaid(created.outTradeNo, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS)) {
+                if (confirmPaid(created.outTradeNo, token, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS)) {
                     Outcome.Paid
                 } else {
                     Outcome.Unpaid("支付处理中，稍后重新打开应用会自动找回")
@@ -97,7 +99,9 @@ object ProPurchase {
      */
     suspend fun recoverPending(context: Context): Outcome {
         val outTradeNo = pendingOrderNo(context) ?: return Outcome.Unpaid("")
-        val status = AlipayPayApi.queryOrder(outTradeNo).getOrNull() ?: return Outcome.Unpaid("")
+        // 带上下单时的登录令牌：订单若归属账号，服务端只允许本人查询
+        val status = AlipayPayApi.queryOrder(outTradeNo, AccountStore.token(context)).getOrNull()
+            ?: return Outcome.Unpaid("")
         return when {
             status.isPaid -> {
                 clearPendingOrder(context)
@@ -113,9 +117,14 @@ object ProPurchase {
     }
 
     /** 轮询查单直到确认到账，用于抹平「支付成功但异步通知尚未落库」的时间差 */
-    private suspend fun confirmPaid(outTradeNo: String, attempts: Int, intervalMs: Long): Boolean {
+    private suspend fun confirmPaid(
+        outTradeNo: String,
+        token: String?,
+        attempts: Int,
+        intervalMs: Long,
+    ): Boolean {
         repeat(attempts) { index ->
-            if (AlipayPayApi.queryOrder(outTradeNo).getOrNull()?.isPaid == true) return true
+            if (AlipayPayApi.queryOrder(outTradeNo, token).getOrNull()?.isPaid == true) return true
             if (index < attempts - 1) delay(intervalMs)
         }
         return false

@@ -152,6 +152,36 @@ class WidgetStyleJsonTest {
     }
 
     @Test
+    fun `every preset id survives json round trip`() {
+        // presetId 是免费/付费判定的身份依据，落库再读出后必须原样保留，
+        // 否则用户下次打开组件时风格会被误判为会员专属或被降级。
+        WidgetStyle.PRESETS.forEachIndexed { index, preset ->
+            val restored = WidgetStyle.fromJsonString(preset.toJsonString())
+            assertEquals("预设 $index 的 presetId 在 JSON 往返后丢失", preset.presetId, restored.presetId)
+            assertEquals(
+                "预设 $index 往返后付费判定发生变化",
+                WidgetStyle.isProPreset(preset),
+                WidgetStyle.isProPreset(restored),
+            )
+        }
+    }
+
+    @Test
+    fun `pro identity survives json round trip after tweaks`() {
+        // 改字段后再经 JSON 往返，presetId 身份仍应保留，付费判定不得被绕过
+        val proPreset = WidgetStyle.PRESETS[2] // 复古手账 (PRO)
+        val tweaked = proPreset.copy(backgroundColor = 0xFF123456.toInt(), fontSizeSp = 33f)
+        val restoredPro = WidgetStyle.fromJsonString(tweaked.toJsonString())
+        assertEquals(proPreset.presetId, restoredPro.presetId)
+        assertTrue("改字段并往返后仍应识别为 PRO", WidgetStyle.isProPreset(restoredPro))
+
+        val freePreset = WidgetStyle.PRESETS[0] // 纯色圆角 (免费)
+        val restoredFree = WidgetStyle.fromJsonString(freePreset.copy(cornerRadiusDp = 0f).toJsonString())
+        assertEquals(freePreset.presetId, restoredFree.presetId)
+        assertFalse("免费预设往返后仍应为免费", WidgetStyle.isProPreset(restoredFree))
+    }
+
+    @Test
     fun `recommended presets lists are consistent`() {
         val allListed = WidgetStyle.CLASSIC_PRESETS + WidgetStyle.PET_PRESETS
         assertFalse(allListed.isEmpty())

@@ -1,4 +1,4 @@
-"""第一步：用 torchvision 预训练 DeepLabV3(COCO) 把人从剧照里粗分出来。
+"""第一步：用 torchvision 预训练 DeepLabV3(COCO) 把人从原图里粗分出来。
 
 输出的是概率图，不是最终掩码 —— 它会把抬起的左手整只漏掉、也会把两人之间
 的镂空糊上。下一步的 GrabCut 才负责按颜色把边界修细。

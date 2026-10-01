@@ -29,7 +29,6 @@ object ColorPresets {
  * 两类颜色都允许长按删除：内置色删除后记入隐藏列表，用户自添加色直接从列表移除。
  */
 object UserColorPresets {
-    private const val PREFS = "app_settings"
     private const val KEY_FONT = "user_font_color_presets"
     private const val KEY_BACKGROUND = "user_background_color_presets"
     private const val KEY_FONT_HIDDEN = "hidden_font_color_presets"
@@ -94,6 +93,8 @@ object UserColorPresets {
         prefs(context).edit().putString(key, updated.joinToString(",")).apply()
     }
 
-    private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private fun prefs(context: Context): android.content.SharedPreferences {
+        AppPrefs.migrateLegacyIfNeeded(context)
+        return AppPrefs.user(context)
+    }
 }

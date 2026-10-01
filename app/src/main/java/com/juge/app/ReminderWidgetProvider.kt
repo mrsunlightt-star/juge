@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.RemoteViews
 import com.juge.app.data.DbHelper
-import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetStyle
 import com.juge.app.data.WidgetConfig
 import timber.log.Timber
@@ -129,6 +128,22 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        /**
+         * 组件当前的实际尺寸（dp）。用于让裁剪框比例与组件真实宽高比一致，
+         * 避免用户在固定比例框里裁图、桌面上却显示成另一种比例。
+         */
+        fun getWidgetSizeDp(context: Context, appWidgetId: Int): Pair<Int, Int> {
+            if (appWidgetId == -1) return 250 to 110
+            return try {
+                val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(appWidgetId)
+                val w = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+                val h = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+                if (w <= 0 || h <= 0) 250 to 110 else w to h
+            } catch (e: Exception) {
+                250 to 110
+            }
+        }
+
         // 绑定组件对应的微件配置 ID
         fun bindConfigToWidget(context: Context, appWidgetId: Int, configId: Long) {
             context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
@@ -206,11 +221,8 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
          * 主线程请使用 [updateAppWidgetAsync]。
          */
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-            val trialManager = TrialManager.getInstance(context)
-
-            // 检查隐私政策是否已同意
-            val isPrivacyAccepted = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                .getBoolean("privacy_accepted", false)
+            // 检查隐私政策是否已同意（consent_prefs，不参与系统备份）
+            val isPrivacyAccepted = com.juge.app.data.AppPrefs.isPrivacyAccepted(context)
 
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
@@ -226,8 +238,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                     widthDp = minWidthDp,
                     heightDp = minHeightDp,
                     content = "请先打开应用同意《隐私政策》与《用户协议》",
-                    style = WidgetStyle(), // 默认极简风格
-                    trialManager = trialManager
+                    style = WidgetStyle() // 默认极简风格
                 )
             } else {
                 val dbHelper = DbHelper.getInstance(context)
@@ -272,8 +283,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                     widthDp = minWidthDp,
                     heightDp = minHeightDp,
                     content = config.content,
-                    style = style,
-                    trialManager = trialManager
+                    style = style
                 )
             }
 
