@@ -13,8 +13,13 @@ import java.net.URLEncoder
  */
 object ServerClient {
 
-    /** 正式环境走备案域名；本地联调改为 http://10.0.2.2:8081（模拟器）或局域网 IP */
-    var baseUrl: String = "https://puretxt.cn"
+    /**
+     * 正式环境走备案域名；本地联调改为 http://10.0.2.2:8081（模拟器）或局域网 IP 后重新编译。
+     * 刻意声明为 val：运行期不可被反射/Xposed 轻易改写指向攻击者服务器。
+     * 注意：联调改成 http 时会被 networkSecurityConfig 拦截，需同步在
+     * res/xml/network_security_config.xml 的 debug-overrides 中临时放行。
+     */
+    val baseUrl: String = "https://puretxt.cn"
 
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 20_000

@@ -131,4 +131,19 @@ App 端拿到 `order_str` 后交给 `PayTask.payV2(orderStr, true)` 拉起支付
 - 通知处理必须幂等（同一订单会收到多次通知）
 - 服务端私钥不得下发到 App 端；App 端只持有服务端返回的 `order_str`
 - 令牌表只存 SHA-256 摘要，数据库被拖走也无法反推出可用令牌
-- 口令比对使用恒定时间比较；账号不存在时也走一次哈希校验，避免用响应时间枚举用户名
+- 口令比对使用恒定时间比较；账号不存在时也走一次哈希校验，避免用响应时间枚举用户名- 下单金额只取服务端商品目录；回调金额缺失或与订单不符一律拒绝置为已支付（`AmountMissing`/`AmountMismatch`）
+- 下单/查单接口已按来源 IP 限流（`PayApiThrottle`：下单 20 次/分钟，查单 60 次/分钟）
+
+## 部署安全基线（2026-10-02 审查后新增）
+
+以下两项代码无法兜底，部署时必须人工确认：
+
+1. **腾讯云安全组只放行 80/443**：应用层 8081 为明文 HTTP，若安全组放行 8081，
+   Bearer 令牌可绕过 TLS 直达应用被中间人截获。8081 应仅本机回环可达。
+2. **Nginx 必须覆写（而非透传）X-Forwarded-For**：
+   `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`
+   否则客户端可伪造该头绕过登录节流与支付接口限流。
+3. 建议：服务器上私钥移出应用目录（如 `/etc/juge/`）、`chmod 600`、属主为运行账户，
+   并用启动参数 `--alipay.private-key-path=/etc/juge/alipay_app_private_key.txt` 指定。
+4. 建议：为 `OrderMissing`/`AmountMismatch`/`AmountMissing` 的 ERROR 日志配置告警
+   （日志关键字 webhook 即可），这两类是真实攻击信号，没有人看等于没有防线。

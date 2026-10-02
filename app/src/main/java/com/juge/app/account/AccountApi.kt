@@ -72,6 +72,17 @@ object AccountApi {
         }
     }
 
+    /**
+     * 注销账号：删除服务端账号、全部令牌与订单绑定（订单本体服务端留档对账）。
+     * 成功后才由调用方清理本地登录态；失败时本地保持登录，用户可重试。
+     */
+    suspend fun deleteAccount(token: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                ensureSuccess(ServerClient.post("/api/auth/delete-account", JSONObject(), token))
+            }
+        }
+
     private fun parseSession(resp: JSONObject): Session {
         ensureSuccess(resp)
         val data = resp.getJSONObject("data")

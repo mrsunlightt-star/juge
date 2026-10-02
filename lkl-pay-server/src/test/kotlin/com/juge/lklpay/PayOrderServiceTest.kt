@@ -46,6 +46,26 @@ class PayOrderServiceTest {
     }
 
     @Test
+    fun `金额缺失或不可解析时同样拒绝置为已支付`() {
+        // 防改价是最后一道闸：拿不到金额时绝不能「跳过核对直接放行」
+        val noNull = "T_AMOUNT_NULL"
+        val noBad = "T_AMOUNT_BAD"
+        service.recordCreated(noNull, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(noBad, "pro_permanent", "句阁 PRO 会员", 199)
+
+        assertEquals(
+            PayOrderService.MarkPaidOutcome.AmountMissing,
+            service.markPaid(noNull, "TRADE_5", "BUYER_5", null, null),
+        )
+        assertEquals(
+            PayOrderService.MarkPaidOutcome.AmountMissing,
+            service.markPaid(noBad, "TRADE_6", "BUYER_6", null, "not-a-number"),
+        )
+        assertEquals(PayOrder.STATUS_CREATED, service.find(noNull)!!.status)
+        assertEquals(PayOrder.STATUS_CREATED, service.find(noBad)!!.status)
+    }
+
+    @Test
     fun `订单不存在时不抛异常`() {
         assertEquals(
             PayOrderService.MarkPaidOutcome.OrderMissing,

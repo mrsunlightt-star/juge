@@ -54,6 +54,17 @@ class AuthController(private val userService: UserService) {
         }
 
     /**
+     * 注销账号：删除账号、全部令牌，并解除历史订单的账号绑定（订单本体留档对账）。
+     * 应用市场合规要求 App 内提供注销入口；必须携带有效令牌，注销后不可恢复。
+     */
+    @PostMapping("/delete-account")
+    fun deleteAccount(@RequestHeader(value = "Authorization", required = false) authorization: String?): ResponseEntity<*> =
+        respond {
+            userService.deleteAccount(bearerToken(authorization))
+            mapOf("success" to true)
+        }
+
+    /**
      * 当前账号信息。App 启动时用它回灌 PRO 状态——
      * 换机后本地没有激活记录，这一步是「找回」的唯一入口。
      */

@@ -3,8 +3,10 @@ package com.juge.lklpay.web
 import com.juge.lklpay.config.PayProperties
 import com.juge.lklpay.service.AlipayPayService
 import com.juge.lklpay.service.AuthException
+import com.juge.lklpay.service.PayApiThrottle
 import com.juge.lklpay.service.PayOrderService
 import com.juge.lklpay.service.UserService
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -23,6 +25,7 @@ class AlipayController(
     private val payOrderService: PayOrderService,
     private val payProperties: PayProperties,
     private val userService: UserService,
+    private val payApiThrottle: PayApiThrottle,
 ) {
 
     private val log = LoggerFactory.getLogger(AlipayController::class.java)
@@ -51,7 +54,12 @@ class AlipayController(
      * 静默降级会让用户以为买到了账号上，实际只落在本机，换机后找不回。
      */
     @PostMapping("/create")
-    fun create(@RequestBody req: CreateOrderRequest): ResponseEntity<*> {
+    fun create(@RequestBody req: CreateOrderRequest, request: HttpServletRequest): ResponseEntity<*> {
+        if (!payApiThrottle.tryConsume("create", clientIp(request), PayApiThrottle.CREATE_LIMIT_PER_MINUTE)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(mapOf("success" to false, "code" to "RATE_LIMITED", "message" to "操作过于频繁，请稍后再试"))
+        }
+
         val product = payProperties.products[req.productId]
             ?: return ResponseEntity.badRequest()
                 .body(mapOf("success" to false, "message" to "未知商品：${req.productId}"))
@@ -79,7 +87,8 @@ class AlipayController(
             ResponseEntity.badRequest().body(mapOf("success" to false, "message" to e.message))
         } catch (e: Exception) {
             log.error("支付宝下单异常", e)
-            ResponseEntity.internalServerError().body(mapOf("success" to false, "message" to e.message))
+            // 异常细节（支付宝网关错误、SQL 异常文本等）只进服务端日志，不回传客户端
+            ResponseEntity.internalServerError().body(mapOf("success" to false, "message" to "服务暂时不可用，请稍后重试"))
         }
     }
 
@@ -96,7 +105,13 @@ class AlipayController(
     fun query(
         @RequestParam outTradeNo: String,
         @RequestHeader(value = "Authorization", required = false) authorization: String?,
+        request: HttpServletRequest,
     ): ResponseEntity<*> {
+        if (!payApiThrottle.tryConsume("query", clientIp(request), PayApiThrottle.QUERY_LIMIT_PER_MINUTE)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(mapOf("success" to false, "code" to "RATE_LIMITED", "message" to "操作过于频繁，请稍后再试"))
+        }
+
         val ownerId = payOrderService.find(outTradeNo)?.userId
         if (ownerId != null) {
             val requester = runCatching { userService.authenticate(bearerToken(authorization)) }.getOrNull()
@@ -113,7 +128,7 @@ class AlipayController(
             ResponseEntity.ok(mapOf("success" to true, "data" to publicQueryFields(result)))
         } catch (e: Exception) {
             log.error("支付宝查单异常 outTradeNo={}", outTradeNo, e)
-            ResponseEntity.internalServerError().body(mapOf("success" to false, "message" to e.message))
+            ResponseEntity.internalServerError().body(mapOf("success" to false, "message" to "服务暂时不可用，请稍后重试"))
         }
     }
 
@@ -131,6 +146,21 @@ class AlipayController(
         val raw = authorization?.trim().orEmpty()
         if (raw.isEmpty()) return null
         return raw.removePrefix("Bearer ").removePrefix("bearer ").trim().ifEmpty { null }
+    }
+
+    /**
+     * 取来源 IP，逻辑与 AuthController 一致：优先 X-Forwarded-For 最左值，再 X-Real-IP。
+     * 前提：Nginx 必须覆写（而非透传）X-Forwarded-For，否则客户端可伪造该头绕过限流。
+     */
+    private fun clientIp(request: HttpServletRequest): String? {
+        request.getHeader("X-Forwarded-For")
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return it }
+        return request.getHeader("X-Real-IP")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: request.remoteAddr?.takeIf { it.isNotEmpty() }
     }
 
     /**
@@ -200,6 +230,12 @@ class AlipayController(
             PayOrderService.MarkPaidOutcome.AmountMismatch ->
                 log.error(
                     "异步通知金额与订单不符，需人工介入 outTradeNo={} 通知金额={}",
+                    outTradeNo, params["total_amount"],
+                )
+
+            PayOrderService.MarkPaidOutcome.AmountMissing ->
+                log.error(
+                    "异步通知缺少可解析金额，需人工介入 outTradeNo={} 通知金额={}",
                     outTradeNo, params["total_amount"],
                 )
         }

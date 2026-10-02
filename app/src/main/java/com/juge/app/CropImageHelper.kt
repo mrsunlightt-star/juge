@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
@@ -230,7 +233,8 @@ object CropImageHelper {
 
         LaunchedEffect(uri) {
             isLoading = true
-            bitmap = loadBitmapFromUri(context, uri)
+            // 大图解码（两次 openInputStream + downsample）放 IO 线程，避免主线程 ANR
+            bitmap = withContext(Dispatchers.IO) { loadBitmapFromUri(context, uri) }
             isLoading = false
             if (bitmap == null) {
                 Toast.makeText(context, "图片加载失败", Toast.LENGTH_SHORT).show()
@@ -241,6 +245,9 @@ object CropImageHelper {
         if (bitmap != null) {
             var scale by remember { mutableStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }
+            // 保存期间置忙：压缩+写盘在 IO 线程执行，防止重复点击与主线程卡顿
+            var isSaving by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
 
             val density = LocalDensity.current
             // 裁剪视窗的宽高比与组件真实宽高比一致，用户框选的区域就是桌面上显示的区域
@@ -341,6 +348,7 @@ object CropImageHelper {
                         ) {
                             OutlinedButton(
                                 onClick = onDismiss,
+                                enabled = !isSaving,
                                 modifier = Modifier.weight(1f),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E3A56)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
@@ -350,27 +358,44 @@ object CropImageHelper {
 
                             Button(
                                 onClick = {
-                                    val savedPath = cropAndSaveBitmap(
-                                        context = context,
-                                        bitmap = bitmap!!,
-                                        viewWidthPx = viewWidthPx,
-                                        viewHeightPx = viewHeightPx,
-                                        scale = scale,
-                                        offset = offset,
-                                        targetWidth = targetWidth,
-                                        targetHeight = targetHeight
-                                    )
-                                    if (savedPath != null) {
-                                        onCropSuccess(savedPath)
-                                    } else {
-                                        Toast.makeText(context, "保存裁剪失败", Toast.LENGTH_SHORT).show()
+                                    if (isSaving) return@Button
+                                    isSaving = true
+                                    val currentBitmap = bitmap!!
+                                    scope.launch {
+                                        val savedPath = withContext(Dispatchers.IO) {
+                                            cropAndSaveBitmap(
+                                                context = context,
+                                                bitmap = currentBitmap,
+                                                viewWidthPx = viewWidthPx,
+                                                viewHeightPx = viewHeightPx,
+                                                scale = scale,
+                                                offset = offset,
+                                                targetWidth = targetWidth,
+                                                targetHeight = targetHeight
+                                            )
+                                        }
+                                        isSaving = false
+                                        if (savedPath != null) {
+                                            onCropSuccess(savedPath)
+                                        } else {
+                                            Toast.makeText(context, "保存裁剪失败", Toast.LENGTH_SHORT).show()
+                                        }
+                                        onDismiss()
                                     }
-                                    onDismiss()
                                 },
+                                enabled = !isSaving,
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
                             ) {
-                                Text("保存并使用", color = Color.White)
+                                if (isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("保存并使用", color = Color.White)
+                                }
                             }
                         }
                     }

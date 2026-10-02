@@ -4,6 +4,7 @@ import com.juge.lklpay.config.AuthProperties
 import com.juge.lklpay.domain.AuthToken
 import com.juge.lklpay.domain.UserAccount
 import com.juge.lklpay.repository.AuthTokenRepository
+import com.juge.lklpay.repository.PayOrderRepository
 import com.juge.lklpay.repository.UserAccountRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -22,6 +23,7 @@ import java.util.Base64
 class UserService(
     private val users: UserAccountRepository,
     private val tokens: AuthTokenRepository,
+    private val orders: PayOrderRepository,
     private val throttle: LoginThrottle,
     private val props: AuthProperties,
 ) {
@@ -104,6 +106,23 @@ class UserService(
     fun logout(token: String?) {
         if (token.isNullOrBlank()) return
         tokens.deleteById(sha256(token))
+    }
+
+    /**
+     * 注销账号：删除账号本体、全部登录令牌，并解除历史订单与账号的绑定。
+     *
+     * 订单记录本身保留用于对账（支付宝侧交易纠纷需要），只清掉 userId 归属——
+     * 与隐私政策「注销账号并删除服务端保存的账号与订单绑定信息」的表述一致。
+     * 令牌无效时抛 UNAUTHORIZED，防止任何人凭猜测调用注销。
+     */
+    @Transactional
+    fun deleteAccount(token: String?) {
+        val user = authenticateInternal(token)
+        val uid = user.id!!
+        val unbound = orders.findByUserId(uid).onEach { it.userId = null }.size
+        val tokenCount = tokens.deleteByUserId(uid)
+        users.delete(user)
+        log.info("账号已注销 userId={} username={} 解绑订单={} 清除令牌={}", uid, user.username, unbound, tokenCount)
     }
 
     private fun authenticateInternal(token: String?): UserAccount {

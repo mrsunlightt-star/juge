@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置：
+  1. 全局禁止明文 HTTP 流量（cleartextTrafficPermitted=false），支付/登录/注册必须走 TLS；
+  2. 对 puretxt.cn 显式禁用明文；
+  3. debug-overrides 仅供本地联调放行 http（如 10.0.2.2:8081），Release 不生效。
+
+  证书固定（pinning）待办：
+  拿到 puretxt.cn 服务器证书的 SPKI SHA-256 哈希后，在 domain-config 中加入：
+  <pin-set expiration="2027-12-31">
+      <pin digest="SHA-256">服务器证书SPKI哈希</pin>
+      <pin digest="SHA-256">备用证书/中间CA的SPKI哈希</pin>
+  </pin-set>
+  注意必须配置备份 pin 与过期时间，否则证书轮换当天全网用户支付瘫痪。
+  获取方式：openssl s_client -connect puretxt.cn:443 -servername puretxt.cn </dev/null 2>/dev/null \
+    | openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER \
+    | openssl dgst -sha256 -binary | openssl enc -base64
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">puretxt.cn</domain>
+    </domain-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

@@ -69,7 +69,15 @@ class PayOrderService(
         }
 
         val paidFen = yuanToFen(paidAmountYuan)
-        if (paidFen != null && paidFen != order.amountFen) {
+        if (paidFen == null) {
+            // 金额缺失/解析失败时绝不放行：防改价是最后一道闸，没有「跳过核对」的安全分支
+            log.error(
+                "支付结果缺少可解析金额，拒绝置为已支付 outTradeNo={} totalAmount={}",
+                outTradeNo, paidAmountYuan,
+            )
+            return MarkPaidOutcome.AmountMissing
+        }
+        if (paidFen != order.amountFen) {
             log.error(
                 "支付金额与订单不符，拒绝置为已支付 outTradeNo={} 订单={}分 实付={}分",
                 outTradeNo, order.amountFen, paidFen,
@@ -127,7 +135,7 @@ class PayOrderService(
         return MarkPaidOutcome.Marked
     }
 
-    /** 解析「元」为「分」；无法解析时返回 null，由调用方决定是否跳过核对 */
+    /** 解析「元」为「分」；无法解析时返回 null，调用方必须拒绝置为已支付 */
     private fun yuanToFen(yuan: String?): Long? {
         if (yuan.isNullOrBlank()) return null
         return runCatching { BigDecimal(yuan).movePointRight(2).toLong() }.getOrNull()
@@ -145,5 +153,8 @@ class PayOrderService(
 
         /** 金额不符，需人工介入 */
         AmountMismatch,
+
+        /** 支付结果缺少可解析金额，需人工介入 */
+        AmountMissing,
     }
 }

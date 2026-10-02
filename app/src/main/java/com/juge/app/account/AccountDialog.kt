@@ -65,6 +65,8 @@ fun AccountDialog(
     var nickname by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    // 注销是破坏性操作，需二次确认，确认后才允许点最终按钮
+    var confirmDelete by remember { mutableStateOf(false) }
 
     val submit: () -> Unit = {
         if (!busy) {
@@ -108,6 +110,33 @@ fun AccountDialog(
                 AccountStore.clear(appContext)
                 snapshot = null
                 busy = false
+            }
+        }
+    }
+
+    val deleteAccount: () -> Unit = {
+        if (!busy) {
+            val token = snapshot?.token
+            if (token == null) {
+                AccountStore.clear(appContext)
+                snapshot = null
+            } else {
+                busy = true
+                message = ""
+                scope.launch {
+                    AccountApi.deleteAccount(token).fold(
+                        onSuccess = {
+                            AccountStore.clear(appContext)
+                            snapshot = null
+                            confirmDelete = false
+                            busy = false
+                        },
+                        onFailure = { e ->
+                            busy = false
+                            message = e.message ?: "注销失败，请稍后重试"
+                        },
+                    )
+                }
             }
         }
     }
@@ -275,12 +304,39 @@ fun AccountDialog(
                         shape = RoundedCornerShape(12.dp),
                     ) {
                         Text(
-                            if (busy) "处理中…" else "退出登录",
+                            if (busy && !confirmDelete) "处理中…" else "退出登录",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                         )
                     }
+
+                    if (!confirmDelete) {
+                        TextButton(onClick = { if (!busy) { confirmDelete = true; message = "" } }, enabled = !busy) {
+                            Text("注销账号", color = Color(0xFFDC2626), fontSize = 12.sp)
+                        }
+                    } else {
+                        Divider()
+                        Text(
+                            "注销后将永久删除服务端账号与订单绑定信息，且无法恢复、无法再通过本账号找回 PRO。本机已解锁的风格不受影响。",
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TextButton(onClick = { if (!busy) confirmDelete = false }, enabled = !busy) {
+                                Text("取消", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                            }
+                            TextButton(onClick = deleteAccount, enabled = !busy) {
+                                Text(
+                                    if (busy) "注销中…" else "确认注销",
+                                    color = Color(0xFFDC2626),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
+
                     TextButton(onClick = onDismiss, enabled = !busy) {
                         Text("关闭", color = Color(0xFF9CA3AF), fontSize = 12.sp)
                     }
