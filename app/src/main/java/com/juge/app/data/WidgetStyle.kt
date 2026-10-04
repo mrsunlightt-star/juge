@@ -376,36 +376,6 @@ data class WidgetStyle(
                 presetImageResName = "rectangle_1"
             ), // 15. 天空蓝风格 (PRO)
             WidgetStyle(
-                presetId = "p_luxun_poster",
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.SOURCE_HAN_SERIF,
-                fontColor = Color.parseColor("#2E2E2E"),
-                showQuoteMark = true,
-                authorSignature = "—— 鲁迅立言",
-                presetImageResName = "bg_illustration_luxun"
-            ), // 16. 鲁迅画报风格 (PRO)
-            WidgetStyle(
-                presetId = "p_guga_doro",
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 咕嘎与doro",
-                presetImageResName = "guga_doro"
-            ), // 17. 咕嘎与doro风格 (PRO)
-            WidgetStyle(
-                presetId = "p_motorcycle_53",
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 53号机车",
-                presetImageResName = "motorcycle_53"
-            ), // 18. 53号机车风格 (PRO)
-            WidgetStyle(
                 presetId = "p_blue_sky_clouds",
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
@@ -415,16 +385,6 @@ data class WidgetStyle(
                 authorSignature = "—— 蓝天白云",
                 presetImageResName = "blue_sky_clouds"
             ), // 19. 蓝天白云风格 (PRO)
-            WidgetStyle(
-                presetId = "p_tiantian_xiangshang",
-                shape = WidgetShape.SPLIT_CARD,
-                backgroundColor = Color.WHITE,
-                font = WidgetFont.LXGW_WENKAI,
-                fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
-                authorSignature = "—— 天天向上",
-                presetImageResName = "tiantian_xiangshang"
-            ), // 20. 天天向上风格 (PRO)
             WidgetStyle(
                 presetId = "p_fight_club",
                 shape = WidgetShape.SPLIT_CARD,
@@ -833,25 +793,8 @@ data class WidgetStyle(
             // 城市微缩（CITY_CUTOUT）一族：抠掉天空的微缩城市按原比例摆进组件，
             // 天空透明处露出壁纸。**一个风格一张素材**，没有按尺寸换素材那套机制。
             // 城市与文字区怎么接由渲染器按素材名认领（见 cityJunctionOf），各风格各一套：
-            // 江西走土层剖面，上海走江面倒影，认不出来的走柔和暗裙。
+            // 上海走江面倒影，认不出来的走柔和暗裙。
             // 圆角滑条统一作用在文字栏底部两角。
-            WidgetStyle(
-                presetId = "p_city_cutout",
-                shape = WidgetShape.CITY_CUTOUT,
-                cornerRadiusDp = 12f,
-                backgroundColor = Color.parseColor("#4E3E2F"), // 深土层：字刻在深层土上
-                backgroundOpacity = 1f,
-                backgroundImagePath = null,
-                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 18f,
-                fontColor = Color.parseColor("#F2EBDF"), // 暖白，配土色比冷白耐看
-                textAlign = "CENTER",
-                showCardShadow = false,
-                cardBorderWidthDp = 0f,
-                presetImageResName = "jiangxi_city_cutout",
-                authorSignature = "—— 城市剪影"
-            ), // 43. 城市剪影 (PRO)
             // 「浙江」：微缩浙江做城市剪影，落到青黛色文字栏上
             WidgetStyle(
                 presetId = "p_zhejiang_cutout",
@@ -978,11 +921,8 @@ data class WidgetStyle(
             "bg_illustration_1" to "晨曦日出",
             "bg_illustration_2" to "治愈落日",
             "bg_illustration_3" to "星空森林",
-            "bg_illustration_luxun" to "鲁迅画报",
             "rectangle_1" to "天空蓝",
-            "motorcycle_53" to "53号机车",
             "blue_sky_clouds" to "蓝天白云",
-            "tiantian_xiangshang" to "天天向上",
             "boji_julebu" to "搏击俱乐部",
             "breaking_bad" to "绝命毒师",
             "v_for_vendetta" to "V字仇杀队",
@@ -1005,7 +945,6 @@ data class WidgetStyle(
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
             "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
             "贴纸夜景" to (PRESETS.firstOrNull { it.shape == WidgetShape.STICKER_SCENE } ?: PRESETS[0]),
-            "城市剪影" to (PRESETS.firstOrNull { it.presetId == "p_city_cutout" } ?: PRESETS[0])
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
@@ -1038,7 +977,6 @@ data class WidgetStyle(
         // 萌宠风格：动物/角色类卡通插画
         val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "得意doro" to (PRESETS.firstOrNull { it.presetImageResName == "deyi_doro" } ?: PRESETS[0]),
-            "咕嘎与doro" to (PRESETS.firstOrNull { it.presetImageResName == "guga_doro" } ?: PRESETS[0]),
             "可爱猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "cute_cat" } ?: PRESETS[0]),
             "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
             "快乐小狗" to (PRESETS.firstOrNull { it.presetImageResName == "happy_dog" } ?: PRESETS[0]),

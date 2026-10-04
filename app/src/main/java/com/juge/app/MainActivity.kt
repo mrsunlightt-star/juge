@@ -2533,7 +2533,7 @@ class MainActivity : ComponentActivity() {
                                                     .fillMaxSize()
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp)),
-                                                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                             )
                                         }
 
@@ -2579,11 +2579,11 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 代码绘制的大卡（书香书架 4×3）排在插图素材之前：
-                            // 它没有插图素材，按桌面 4×3 的设计尺寸渲染后再缩小显示，
-                            // 这样缩略图里的书脊与文本面板比例和桌面组件一致
+                            // 代码绘制的大卡（书香书架）排在插图素材之前：
+                            // 缩略图统一按 150×80 渲染显示（与经典/萌宠/插画组一致），
+                            // 组件内容在渲染时按画布自适应重排，避免一行内宽窄不一
                             val codePreviewHeightDp = 80
-                            val codePreviewWidthDp = (codePreviewHeightDp * 4f / 3f).toInt()
+                            val codePreviewWidthDp = 150
                             WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
                                 val isCodeSelected = selectedStyle.shape == preset.shape &&
                                     selectedStyle.presetImageResName == null &&
@@ -2597,14 +2597,14 @@ class MainActivity : ComponentActivity() {
                                         try {
                                             WidgetCanvasRenderer.renderThumbnail(
                                                 context = this@MainActivity,
-                                                widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
-                                                heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
+                                                widthDp = codePreviewWidthDp,
+                                                heightDp = codePreviewHeightDp,
                                                 // 缩略图内不写风格名，名称显示在下方标签
                                                 content = "",
                                                 style = preset
                                             )
                                         } catch (t: Throwable) {
-                                            Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
+                                            Bitmap.createBitmap(codePreviewWidthDp, codePreviewHeightDp, Bitmap.Config.ARGB_8888)
                                         }
                                     }
                                 }
@@ -2637,7 +2637,7 @@ class MainActivity : ComponentActivity() {
                                                     color = if (isCodeSelected) selectBlue else Color(0xFFE2E8F0),
                                                     shape = RoundedCornerShape(8.dp)
                                                 ),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                         )
                                     }
                                 }
@@ -2658,12 +2658,10 @@ class MainActivity : ComponentActivity() {
                             WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
                                 val isRenderedSelected = selectedStyle.presetId == preset.presetId
                                 val isRenderedLocked = !isActivated && WidgetStyle.isProPreset(preset)
-                                // 天气盒子按 4×4 渲染（素材横幅，扁比例下腔体会被压扁），其余按 4×3
-                                val isWeatherBox = preset.shape == WidgetShape.WEATHER_BOX
-                                val renderedW = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_WIDTH_DP
-                                else WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP
-                                val renderedH = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_HEIGHT_DP
-                                else WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP
+                                // 缩略图统一按 150×80 渲染：天气盒子（4×4）等方版风格
+                                // 在缩略图中与明信片同宽，组件内容按画布自适应重排
+                                val renderedW = codePreviewWidthDp
+                                val renderedH = codePreviewHeightDp
                                 val renderedBitmap by produceState<Bitmap?>(
                                     // 缓存已在则同帧就有图：滚动回来看不到空白帧
                                     initialValue = WidgetCanvasRenderer.cachedThumbnail(renderedW, renderedH, preset),
@@ -2685,12 +2683,12 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 Column(
-                                    modifier = Modifier.width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp),
+                                    modifier = Modifier.width(codePreviewWidthDp.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                 Box(
                                     modifier = Modifier
-                                        .width(if (isWeatherBox) (codePreviewHeightDp * 4f / 4f).toInt().dp else codePreviewWidthDp.dp)
+                                        .width(codePreviewWidthDp.dp)
                                         .height(codePreviewHeightDp.dp)
                                         .clickable {
                                             val newPresetStyle = preset.copy(
@@ -2716,7 +2714,7 @@ class MainActivity : ComponentActivity() {
                                                     color = if (isRenderedSelected) selectBlue else Color(0xFFE2E8F0),
                                                     shape = RoundedCornerShape(8.dp)
                                                 ),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                         )
                                     }
                                 }

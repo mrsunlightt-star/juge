@@ -1120,7 +1120,6 @@ object WidgetCanvasRenderer {
     // 不假造任何材质，只把城市底边柔进背景色。
     private fun cityJunctionOf(style: WidgetStyle): CityJunction =
         when (style.presetImageResName) {
-            "jiangxi_city_cutout" -> CityJunction.SOIL
             "shanghai_city_cutout" -> CityJunction.WATER
             // 浙江素材是一整座**飘着的岛**：底边本来就是不规则轮廓，没有"城 ↔ 地/水"的
             // 平直接缝，硬接土层或倒影反而会在岛底两侧造出假材质。走 FADE，

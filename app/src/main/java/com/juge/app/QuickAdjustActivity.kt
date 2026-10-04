@@ -59,7 +59,6 @@ import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
-import com.juge.app.ui.GradientTrackSlider
 import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
@@ -150,6 +149,9 @@ class QuickAdjustActivity : ComponentActivity() {
                 var accountName by remember { mutableStateOf(AccountStore.snapshot(this@QuickAdjustActivity)?.displayName) }
 
                 // 颜色预设：内置色 + 用户自添加色，长按均可删除
+                var fontColorPresets by remember { mutableStateOf(UserColorPresets.fontColors(this@QuickAdjustActivity)) }
+                var showFontColorPicker by remember { mutableStateOf(false) }
+                var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
                 var backgroundColorPresets by remember { mutableStateOf(UserColorPresets.backgroundColors(this@QuickAdjustActivity)) }
                 var showBackgroundColorPicker by remember { mutableStateOf(false) }
                 var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
@@ -191,13 +193,12 @@ class QuickAdjustActivity : ComponentActivity() {
                                 .fillMaxHeight(0.85f)
                                 .clickable(enabled = false) {},
                             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                            // 面板底色改为透明：直接透出后面的桌面壁纸，
-                            // 面板内的白色卡片自己就构成层次，不需要额外的灰蓝底
-                            color = androidx.compose.ui.graphics.Color.Transparent,
+                            // 冷灰调面板（用户选定 #F1F5F9）：与缩略图底色、卡片边框同色系，
+                            // 整体最统一；比白色卡片略深，层次清晰且不透壁纸
+                            color = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
                             border = androidx.compose.foundation.BorderStroke(1.dp, borderBlue.copy(alpha = 0.4f)),
                             // tonalElevation 会叠加一层 Material 色调（偏蓝的 primary tint），
-                            // 面板底色透明后这层蓝会透出来、把白色卡片染成半透明蓝。
-                            // 这里降为 0，层次改由内层白卡片自身的边框承担。
+                            // 会把白色卡片染蓝，保持 0，层次由卡片自身边框承担。
                             tonalElevation = 0.dp
                         ) {
                             Column(
@@ -283,7 +284,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(5.dp))
-                                                    Text("组件风格", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                    Text("组件风格", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
                                                 }
 
                                                 // 复用：单个预设横滑列表
@@ -409,30 +410,31 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    // 代码绘制的大卡（书香书架 4×3）排在插图素材之前：
-                                                    // 没有插图素材，按桌面 4×3 的设计尺寸渲染后再缩小显示
+                                                    // 代码绘制的大卡（书香书架）排在插图素材之前：
+                                                    // 缩略图统一按 150×80 渲染显示（与经典/萌宠/插画组一致），
+                                                    // 组件内容在渲染时按画布自适应重排，避免一行内宽窄不一
                                                     val codePreviewHeightDp = 80
-                                                    val codePreviewWidthDp = (codePreviewHeightDp * 4f / 3f).toInt()
+                                                    val codePreviewWidthDp = 150
                                                     WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
                                                         val isCodeSelected = currentStyle.shape == preset.shape &&
                                                             currentStyle.presetImageResName == null &&
                                                             currentStyle.backgroundImagePath.isNullOrEmpty()
                                                         val codeBitmap by produceState<Bitmap?>(
                                                             // 缓存已在则同帧就有图：滚动回来看不到空白帧
-                                                            initialValue = WidgetCanvasRenderer.cachedThumbnail(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, preset),
+                                                            initialValue = WidgetCanvasRenderer.cachedThumbnail(codePreviewWidthDp, codePreviewHeightDp, preset),
                                                             preset, presetName
                                                         ) {
                                                             value = withContext(Dispatchers.Default) {
                                                                 try {
                                                                     WidgetCanvasRenderer.renderThumbnail(
                                                                         context = this@QuickAdjustActivity,
-                                                                        widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
-                                                                        heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
+                                                                        widthDp = codePreviewWidthDp,
+                                                                        heightDp = codePreviewHeightDp,
                                                                         content = "",
                                                                         style = preset
                                                                     )
                                                                 } catch (t: Throwable) {
-                                                                    Bitmap.createBitmap(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, Bitmap.Config.ARGB_8888)
+                                                                    Bitmap.createBitmap(codePreviewWidthDp, codePreviewHeightDp, Bitmap.Config.ARGB_8888)
                                                                 }
                                                             }
                                                         }
@@ -463,7 +465,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                     bitmap = codeBitmap!!.asImageBitmap(),
                                                                     contentDescription = presetName,
                                                                     modifier = Modifier.fillMaxSize(),
-                                                                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                                                 )
                                                             }
                                                         }
@@ -482,12 +484,11 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     // 「浙江」三连：同一张素材、三种落地方式，缩略图按组件真实渲染
                                                     WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
                                                         val isRenderedSelected = currentStyle.presetId == preset.presetId
-                                                        // 天气盒子按 4×4 渲染（素材横幅，扁比例下腔体会被压扁），其余按 4×3
-                                                        val isWeatherBox = preset.shape == WidgetShape.WEATHER_BOX
-                                                        val renderedW = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_WIDTH_DP
-                                                        else WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP
-                                                        val renderedH = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_HEIGHT_DP
-                                                        else WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP
+                                                        // 缩略图统一按 150×80 渲染：天气盒子（4×4）等方版风格
+                                                        // 在缩略图中与明信片同宽，组件内容按画布自适应重排，
+                                                        // 避免一行内出现方形/横向混排
+                                                        val renderedW = codePreviewWidthDp
+                                                        val renderedH = codePreviewHeightDp
                                                         val renderedBitmap by produceState<Bitmap?>(
                                                             // 缓存已在则同帧就有图：滚动回来看不到空白帧
                                                             initialValue = WidgetCanvasRenderer.cachedThumbnail(renderedW, renderedH, preset),
@@ -507,14 +508,14 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 }
                                                             }
                                                         }
-                                                    
+
                                                         Column(
-                                                            modifier = Modifier.width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp),
+                                                            modifier = Modifier.width(codePreviewWidthDp.dp),
                                                             horizontalAlignment = Alignment.CenterHorizontally
                                                         ) {
                                                         Box(
                                                             modifier = Modifier
-                                                                .width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp)
+                                                                .width(codePreviewWidthDp.dp)
                                                                 .height(codePreviewHeightDp.dp)
                                                                 .clip(RoundedCornerShape(8.dp))
                                                                 .border(
@@ -534,7 +535,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                     bitmap = renderedBitmap!!.asImageBitmap(),
                                                                     contentDescription = presetName,
                                                                     modifier = Modifier.fillMaxSize(),
-                                                                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                                                 )
                                                             }
                                                         }
@@ -635,7 +636,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(5.dp))
-                                                    Text("文本内容与字形定制", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                    Text("文本内容与字形定制", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
                                                 }
                                                 
                                                 OutlinedTextField(
@@ -805,72 +806,53 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(5.dp))
-                                                    Text("风格与色彩艺术", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                    Text("风格与色彩艺术", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
                                                 }
 
 
+                                                // 字体颜色：与个性定制页一致——预设色块条 + 添加按钮（弹窗取色），无渐变滑块
+                                                Text("字体颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f),
-                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        val hsv = remember(currentStyle.fontColor) {
-                                                            val arr = FloatArray(3)
-                                                            android.graphics.Color.colorToHSV(currentStyle.fontColor, arr)
-                                                            arr
-                                                        }
-                                                        var hue by remember(currentStyle.fontColor) { mutableStateOf(hsv[0]) }
-                                                        var saturation by remember(currentStyle.fontColor) { mutableStateOf(hsv[1]) }
-                                                        var value by remember(currentStyle.fontColor) { mutableStateOf(hsv[2]) }
-
-                                                        GradientTrackSlider(
-                                                            gradient = listOf(
-                                                                androidx.compose.ui.graphics.Color.Red,
-                                                                androidx.compose.ui.graphics.Color.Yellow,
-                                                                androidx.compose.ui.graphics.Color.Green,
-                                                                androidx.compose.ui.graphics.Color.Cyan,
-                                                                androidx.compose.ui.graphics.Color.Blue,
-                                                                androidx.compose.ui.graphics.Color.Magenta,
-                                                                androidx.compose.ui.graphics.Color.Red
-                                                            ),
-                                                            value = hue,
-                                                            onValueChange = {
-                                                                hue = it
-                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                                                currentStyle = currentStyle.copy(fontColor = newColor)
-                                                            },
-                                                            valueRange = 0f..360f
-                                                        )
-
-                                                        val baseHueColor = remember(hue) {
-                                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
-                                                        }
-                                                        GradientTrackSlider(
-                                                            gradient = listOf(
-                                                                androidx.compose.ui.graphics.Color.Black,
-                                                                baseHueColor,
-                                                                androidx.compose.ui.graphics.Color.White
-                                                            ),
-                                                            value = value,
-                                                            onValueChange = {
-                                                                value = it
-                                                                saturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                                                currentStyle = currentStyle.copy(fontColor = newColor)
-                                                            },
-                                                            valueRange = 0f..1f
-                                                        )
-                                                    }
-
-                                                    Box(
+                                                    Row(
                                                         modifier = Modifier
-                                                            .size(44.dp)
-                                                            .background(androidx.compose.ui.graphics.Color(currentStyle.fontColor), RoundedCornerShape(8.dp))
-                                                            .border(1.dp, borderBlue, RoundedCornerShape(8.dp))
+                                                            .weight(1f)
+                                                            .horizontalScroll(rememberScrollState()),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        fontColorPresets.forEach { parsedColor ->
+                                                            val isSelected = currentStyle.fontColor == parsedColor
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(34.dp)
+                                                                    .clip(RoundedCornerShape(9.dp))
+                                                                    .background(androidx.compose.ui.graphics.Color(parsedColor))
+                                                                    .border(
+                                                                        width = if (isSelected) 3.dp else 1.dp,
+                                                                        color = if (isSelected) selectBlue else borderBlue,
+                                                                        shape = RoundedCornerShape(9.dp)
+                                                                    )
+                                                                    .combinedClickable(
+                                                                        onClick = {
+                                                                            currentStyle = currentStyle.copy(fontColor = parsedColor)
+                                                                        },
+                                                                        onLongClick = {
+                                                                            pendingDeleteFontColor = parsedColor
+                                                                        }
+                                                                    )
+                                                            )
+                                                        }
+                                                    }
+                                                    AddColorPresetButton(
+                                                        onClick = { showFontColorPicker = true },
+                                                        size = 34.dp,
+                                                        corner = 9.dp,
+                                                        borderColor = borderBlue,
+                                                        contentColor = textGray
                                                     )
                                                 }
 
@@ -934,70 +916,8 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     )
                                                 }
 
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f),
-                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        val bgHsv = remember(currentStyle.backgroundColor) {
-                                                            val arr = FloatArray(3)
-                                                            android.graphics.Color.colorToHSV(currentStyle.backgroundColor, arr)
-                                                            arr
-                                                        }
-                                                        var bgHue by remember(currentStyle.backgroundColor) { mutableStateOf(bgHsv[0]) }
-                                                        var bgSaturation by remember(currentStyle.backgroundColor) { mutableStateOf(bgHsv[1]) }
-                                                        var bgValue by remember(currentStyle.backgroundColor) { mutableStateOf(bgHsv[2]) }
 
-                                                        GradientTrackSlider(
-                                                            gradient = listOf(
-                                                                androidx.compose.ui.graphics.Color.Red,
-                                                                androidx.compose.ui.graphics.Color.Yellow,
-                                                                androidx.compose.ui.graphics.Color.Green,
-                                                                androidx.compose.ui.graphics.Color.Cyan,
-                                                                androidx.compose.ui.graphics.Color.Blue,
-                                                                androidx.compose.ui.graphics.Color.Magenta,
-                                                                androidx.compose.ui.graphics.Color.Red
-                                                            ),
-                                                            value = bgHue,
-                                                            onValueChange = {
-                                                                bgHue = it
-                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                                                currentStyle = currentStyle.copy(backgroundColor = newColor)
-                                                            },
-                                                            valueRange = 0f..360f
-                                                        )
 
-                                                        val bgBaseHueColor = remember(bgHue) {
-                                                            androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(bgHue, 1f, 1f)))
-                                                        }
-                                                        GradientTrackSlider(
-                                                            gradient = listOf(
-                                                                androidx.compose.ui.graphics.Color.Black,
-                                                                bgBaseHueColor,
-                                                                androidx.compose.ui.graphics.Color.White
-                                                            ),
-                                                            value = bgValue,
-                                                            onValueChange = {
-                                                                bgValue = it
-                                                                bgSaturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                                                currentStyle = currentStyle.copy(backgroundColor = newColor)
-                                                            },
-                                                            valueRange = 0f..1f
-                                                        )
-                                                    }
-
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(44.dp)
-                                                            .background(androidx.compose.ui.graphics.Color(currentStyle.backgroundColor), RoundedCornerShape(8.dp))
-                                                            .border(1.dp, borderBlue, RoundedCornerShape(8.dp))
-                                                    )
-                                                }
                                                 }
                                                 if (!canSetBackgroundColor) {
                                                     Box(
@@ -1031,7 +951,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(5.dp))
-                                                    Text("背景与物理外框", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                    Text("背景与物理外框", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
                                                 }
 
                                                 val canAdjustCorner = currentStyle.shape != WidgetShape.ELLIPSE &&
@@ -1373,6 +1293,22 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                             BackgroundColorBlockedDialog(onDismiss = { showBackgroundColorBlockedTip = false })
                         }
 
+                        if (showFontColorPicker) {
+                            ColorPickerDialog(
+                                title = "添加字体颜色预设",
+                                initialColor = currentStyle.fontColor,
+                                onDismiss = { showFontColorPicker = false },
+                                onConfirm = { color ->
+                                    showFontColorPicker = false
+                                    if (fontColorPresets.contains(color)) {
+                                        Toast.makeText(this@QuickAdjustActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        fontColorPresets = UserColorPresets.addFontColor(this@QuickAdjustActivity, color)
+                                    }
+                                }
+                            )
+                        }
+
                         if (showBackgroundColorPicker) {
                             ColorPickerDialog(
                                 title = "添加背景颜色预设",
@@ -1385,6 +1321,17 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                                     } else {
                                         backgroundColorPresets = UserColorPresets.addBackgroundColor(this@QuickAdjustActivity, color)
                                     }
+                                }
+                            )
+                        }
+
+                        pendingDeleteFontColor?.let { color ->
+                            DeleteColorPresetDialog(
+                                color = color,
+                                onDismiss = { pendingDeleteFontColor = null },
+                                onConfirm = {
+                                    fontColorPresets = UserColorPresets.deleteFontColor(this@QuickAdjustActivity, color)
+                                    pendingDeleteFontColor = null
                                 }
                             )
                         }
