@@ -5,13 +5,14 @@
     android:viewportWidth="300"
     android:viewportHeight="120"
 >
-    <group>
-        <clip-path
-            android:pathData="M12 0H288C294.627 0 300 5.37258 300 12V108C300 114.627 294.627 120 288 120H12C5.37258 120 0 114.627 0 108V12C0 5.37258 5.37258 0 12 0Z"
-        />
-        <path
-            android:pathData="M0 0V120H300V0"
-            android:fillColor="#1E6DD0"
-        />
-    </group>
+    <!--
+        满幅纯色底：整张组件位图的蓝色卡片面。
+        不能在这里做圆角——素材按组件尺寸栅格化后，烘焙圆角的四个角是透明的，
+        会露出下层背景色（渐变/底色），桌面上表现为组件四角的异色楔块；
+        组件的圆角由渲染器的 outerPath 按用户圆角滑条统一裁切（见 WidgetCanvasRenderer.render）。
+    -->
+    <path
+        android:pathData="M0 0H300V120H0"
+        android:fillColor="#1E6DD0"
+    />
 </vector>
