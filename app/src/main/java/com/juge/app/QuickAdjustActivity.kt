@@ -15,6 +15,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,23 +56,24 @@ import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AddColorPresetButton
 import com.juge.app.ui.BackgroundColorBlockedDialog
+import com.juge.app.ui.CheckChip
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
+import com.juge.app.ui.GradientTrackSlider
+import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 
-private val panelBg = androidx.compose.ui.graphics.Color(0xFFEEF2F7) // 面板底色（冷调浅灰蓝）：让面板内的纯白卡片分离出来
 private val cardBg = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
 private val accentBlue = androidx.compose.ui.graphics.Color(0xFF0F766E)
 private val borderBlue = androidx.compose.ui.graphics.Color(0xFFE2E8F0)
 private val textWhite = androidx.compose.ui.graphics.Color(0xFF0F172A)
 private val textGray = androidx.compose.ui.graphics.Color(0xFF64748B)
-private val mintBright = androidx.compose.ui.graphics.Color(0xFF2DD4BF) // 选中/激活态填充·薄荷青明亮版（呼应主界面极光渐变）
-private val mintSky = androidx.compose.ui.graphics.Color(0xFF38BDF8) // 主按钮渐变终点·晴空天蓝（与主界面同源）
 private val mintInk = androidx.compose.ui.graphics.Color(0xFF134E4A) // 明亮薄荷底上的深色文字/图标，保证对比度
+private val selectBlue = androidx.compose.ui.graphics.Color(0xFF42B8EC) // 按钮/页签选中态填充·取自主界面晴空蓝背景（配白字）
 
 class QuickAdjustActivity : ComponentActivity() {
 
@@ -140,11 +150,8 @@ class QuickAdjustActivity : ComponentActivity() {
                 var accountName by remember { mutableStateOf(AccountStore.snapshot(this@QuickAdjustActivity)?.displayName) }
 
                 // 颜色预设：内置色 + 用户自添加色，长按均可删除
-                var fontColorPresets by remember { mutableStateOf(UserColorPresets.fontColors(this@QuickAdjustActivity)) }
                 var backgroundColorPresets by remember { mutableStateOf(UserColorPresets.backgroundColors(this@QuickAdjustActivity)) }
-                var showFontColorPicker by remember { mutableStateOf(false) }
                 var showBackgroundColorPicker by remember { mutableStateOf(false) }
-                var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
                 var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
                 var showBackgroundColorBlockedTip by remember { mutableStateOf(false) }
 
@@ -182,11 +189,16 @@ class QuickAdjustActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(0.85f)
-                                .clickable(enabled = false) {}, 
+                                .clickable(enabled = false) {},
                             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                            color = panelBg.copy(alpha = 0.96f),
+                            // 面板底色改为透明：直接透出后面的桌面壁纸，
+                            // 面板内的白色卡片自己就构成层次，不需要额外的灰蓝底
+                            color = androidx.compose.ui.graphics.Color.Transparent,
                             border = androidx.compose.foundation.BorderStroke(1.dp, borderBlue.copy(alpha = 0.4f)),
-                            tonalElevation = 8.dp
+                            // tonalElevation 会叠加一层 Material 色调（偏蓝的 primary tint），
+                            // 面板底色透明后这层蓝会透出来、把白色卡片染成半透明蓝。
+                            // 这里降为 0，层次改由内层白卡片自身的边框承担。
+                            tonalElevation = 0.dp
                         ) {
                             Column(
                                 modifier = Modifier
@@ -200,7 +212,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                         .width(36.dp)
                                         .height(4.dp)
                                         .clip(RoundedCornerShape(2.dp))
-                                        .background(androidx.compose.ui.graphics.Color(0xFFEDE4D8))
+                                        .background(androidx.compose.ui.graphics.Color(0xFFE2E8F0))
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -220,12 +232,21 @@ class QuickAdjustActivity : ComponentActivity() {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val sizeStr = ReminderWidgetProvider.getWidgetSizeString(this@QuickAdjustActivity, appWidgetId)
-                                            Text(
-                                                text = "📱 桌面快捷个性化 (尺寸: $sizeStr)",
-                                                fontSize = 15.sp,
-                                                color = textWhite,
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Smartphone,
+                                                    contentDescription = null,
+                                                    tint = textWhite,
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "桌面快捷个性化 (尺寸: $sizeStr)",
+                                                    fontSize = 15.sp,
+                                                    color = textWhite,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
                                             Text(
                                                 text = "进入句阁 >",
                                                 fontSize = 12.sp,
@@ -247,14 +268,23 @@ class QuickAdjustActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF5EFE6)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF1F5F9)),
                                             shape = RoundedCornerShape(16.dp)
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(14.dp),
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                Text("🎨 组件风格", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Palette,
+                                                        contentDescription = null,
+                                                        tint = textWhite,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("组件风格", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                }
 
                                                 // 复用：单个预设横滑列表
                                                 @Composable
@@ -280,16 +310,17 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             val presetText = name
 
                                                             val presetBitmap by produceState<Bitmap?>(
-                                                                initialValue = null,
+                                                                // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                                                initialValue = WidgetCanvasRenderer.cachedThumbnail(150, if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80, preset),
                                                                 preset, presetText
                                                             ) {
                                                                 value = withContext(Dispatchers.Default) {
                                                                     try {
-                                                                        WidgetCanvasRenderer.render(
+                                                                        WidgetCanvasRenderer.renderThumbnail(
                                                                             context = this@QuickAdjustActivity,
-                                                                            widthDp = 120,
+                                                                            widthDp = 150,
                                                                             heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
-                                                                            content = presetText,
+                                                                            content = "",
                                                                             style = preset
                                                                         )
                                                                     } catch (t: Throwable) {
@@ -298,15 +329,19 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 }
                                                             }
 
+                                                            Column(
+                                                                modifier = Modifier.width(150.dp),
+                                                                horizontalAlignment = Alignment.CenterHorizontally
+                                                            ) {
                                                             Box(
                                                                 modifier = Modifier
-                                                                    .width(90.dp)
-                                                                    .height(72.dp)
+                                                                    .width(150.dp)
+                                                                    .height(80.dp)
                                                                     .clip(RoundedCornerShape(8.dp))
-                                                                    .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                                    .background(androidx.compose.ui.graphics.Color(0xFFF1F5F9))
                                                                     .border(
                                                                         width = if (isSelected) 3.dp else 1.dp,
-                                                                        color = if (isSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                        color = if (isSelected) selectBlue else androidx.compose.ui.graphics.Color(0xFFE2E8F0),
                                                                         shape = RoundedCornerShape(8.dp)
                                                                     )
                                                                     .clickable {
@@ -317,38 +352,14 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                         }
                                                                     }
                                                             ) {
-                                                                Column(
-                                                                    modifier = Modifier.fillMaxSize()
-                                                                ) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxWidth()
-                                                                            .weight(0.6f)
-                                                                    ) {
-                                                                        if (presetBitmap != null) {
-                                                                            Image(
-                                                                                bitmap = presetBitmap!!.asImageBitmap(),
-                                                                                contentDescription = name,
-                                                                                modifier = Modifier.fillMaxSize(),
-                                                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                    HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .fillMaxWidth()
-                                                                            .weight(0.4f)
-                                                                            .background(androidx.compose.ui.graphics.Color.White),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Text(
-                                                                            text = name,
-                                                                            fontSize = 9.sp,
-                                                                            fontWeight = FontWeight.Bold,
-                                                                            color = if (isSelected) accentBlue else textGray
-                                                                        )
-                                                                    }
+                                                                // 图内只放画面；名称以独立文本显示在缩略图下方（与个性定制页统一）
+                                                                if (presetBitmap != null) {
+                                                                    Image(
+                                                                        bitmap = presetBitmap!!.asImageBitmap(),
+                                                                        contentDescription = name,
+                                                                        modifier = Modifier.fillMaxSize(),
+                                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                                    )
                                                                 }
 
                                                                 // 免费风格角标：当前只有「纯色圆角」一款免费
@@ -357,12 +368,22 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                         modifier = Modifier
                                                                             .align(Alignment.TopStart)
                                                                             .padding(4.dp)
-                                                                            .background(mintBright, RoundedCornerShape(4.dp))
+                                                                            .background(selectBlue, RoundedCornerShape(4.dp))
                                                                             .padding(horizontal = 5.dp, vertical = 1.dp)
                                                                     ) {
-                                                                        Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = mintInk)
+                                                                        Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
                                                                     }
                                                                 }
+                                                            }
+                                                            Text(
+                                                                text = name,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (isSelected) selectBlue else textGray,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.padding(top = 4.dp)
+                                                            )
                                                             }
                                                         }
                                                     }
@@ -370,12 +391,13 @@ class QuickAdjustActivity : ComponentActivity() {
 
                                                 // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
                                                 QuickPresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格")
-                                                Spacer(modifier = Modifier.height(6.dp))
+                                                // 分类之间的额外留白：外层 Column 已有 spacedBy(10.dp)，
+                                                // 这里只再补 2dp 让分组可辨，再多就显得松散
+                                                Spacer(modifier = Modifier.height(2.dp))
                                                 // 2. 萌宠风格（位于经典与明信片之间）
                                                 QuickPresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属")
 
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Spacer(modifier = Modifier.height(2.dp))
 
                                                 // 精选卡片插画
                                                 Text("明信片风格 · 会员专属 · 4×4 / 4×3", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
@@ -384,28 +406,29 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .horizontalScroll(rememberScrollState()),
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     // 代码绘制的大卡（书香书架 4×3）排在插图素材之前：
                                                     // 没有插图素材，按桌面 4×3 的设计尺寸渲染后再缩小显示
-                                                    val codePreviewHeightDp = 72
+                                                    val codePreviewHeightDp = 80
                                                     val codePreviewWidthDp = (codePreviewHeightDp * 4f / 3f).toInt()
                                                     WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
                                                         val isCodeSelected = currentStyle.shape == preset.shape &&
                                                             currentStyle.presetImageResName == null &&
                                                             currentStyle.backgroundImagePath.isNullOrEmpty()
                                                         val codeBitmap by produceState<Bitmap?>(
-                                                            initialValue = null,
+                                                            // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                                            initialValue = WidgetCanvasRenderer.cachedThumbnail(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, preset),
                                                             preset, presetName
                                                         ) {
                                                             value = withContext(Dispatchers.Default) {
                                                                 try {
-                                                                    WidgetCanvasRenderer.render(
+                                                                    WidgetCanvasRenderer.renderThumbnail(
                                                                         context = this@QuickAdjustActivity,
                                                                         widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
                                                                         heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
-                                                                        content = presetName,
+                                                                        content = "",
                                                                         style = preset
                                                                     )
                                                                 } catch (t: Throwable) {
@@ -414,6 +437,10 @@ class QuickAdjustActivity : ComponentActivity() {
                                                             }
                                                         }
 
+                                                        Column(
+                                                            modifier = Modifier.width(codePreviewWidthDp.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally
+                                                        ) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .width(codePreviewWidthDp.dp)
@@ -421,7 +448,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 .clip(RoundedCornerShape(8.dp))
                                                                 .border(
                                                                     width = if (isCodeSelected) 3.dp else 1.dp,
-                                                                    color = if (isCodeSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                    color = if (isCodeSelected) selectBlue else androidx.compose.ui.graphics.Color(0xFFE2E8F0),
                                                                     shape = RoundedCornerShape(8.dp)
                                                                 )
                                                                 .clickable {
@@ -440,6 +467,87 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 )
                                                             }
                                                         }
+                                                            Text(
+                                                                text = presetName,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (isCodeSelected) selectBlue else textGray,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.padding(top = 4.dp)
+                                                            )
+                                                        }
+                                                    }
+
+                                                    // 「浙江」三连：同一张素材、三种落地方式，缩略图按组件真实渲染
+                                                    WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
+                                                        val isRenderedSelected = currentStyle.presetId == preset.presetId
+                                                        // 天气盒子按 4×4 渲染（素材横幅，扁比例下腔体会被压扁），其余按 4×3
+                                                        val isWeatherBox = preset.shape == WidgetShape.WEATHER_BOX
+                                                        val renderedW = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_WIDTH_DP
+                                                        else WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP
+                                                        val renderedH = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_HEIGHT_DP
+                                                        else WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP
+                                                        val renderedBitmap by produceState<Bitmap?>(
+                                                            // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                                            initialValue = WidgetCanvasRenderer.cachedThumbnail(renderedW, renderedH, preset),
+                                                            preset, presetName
+                                                        ) {
+                                                            value = withContext(Dispatchers.Default) {
+                                                                try {
+                                                                    WidgetCanvasRenderer.renderThumbnail(
+                                                                        context = this@QuickAdjustActivity,
+                                                                        widthDp = renderedW,
+                                                                        heightDp = renderedH,
+                                                                        content = "",
+                                                                        style = preset
+                                                                    )
+                                                                } catch (t: Throwable) {
+                                                                    Bitmap.createBitmap(renderedW, renderedH, Bitmap.Config.ARGB_8888)
+                                                                }
+                                                            }
+                                                        }
+                                                    
+                                                        Column(
+                                                            modifier = Modifier.width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally
+                                                        ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp)
+                                                                .height(codePreviewHeightDp.dp)
+                                                                .clip(RoundedCornerShape(8.dp))
+                                                                .border(
+                                                                    width = if (isRenderedSelected) 3.dp else 1.dp,
+                                                                    color = if (isRenderedSelected) selectBlue else androidx.compose.ui.graphics.Color(0xFFE2E8F0),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                )
+                                                                .clickable {
+                                                                    currentStyle = preset.copy(
+                                                                        backgroundOpacity = currentStyle.backgroundOpacity,
+                                                                        cornerRadiusDp = currentStyle.cornerRadiusDp
+                                                                    )
+                                                                }
+                                                        ) {
+                                                            if (renderedBitmap != null) {
+                                                                Image(
+                                                                    bitmap = renderedBitmap!!.asImageBitmap(),
+                                                                    contentDescription = presetName,
+                                                                    modifier = Modifier.fillMaxSize(),
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                                                )
+                                                            }
+                                                        }
+                                                            Text(
+                                                                text = presetName,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (isRenderedSelected) selectBlue else textGray,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.padding(top = 4.dp)
+                                                            )
+                                                        }
                                                     }
 
                                                     val illustrations = WidgetStyle.ILLUSTRATION_PRESETS
@@ -450,15 +558,19 @@ class QuickAdjustActivity : ComponentActivity() {
                                                          val isSelected = currentStyle.presetImageResName == resName && currentStyle.shape == targetShape && currentStyle.backgroundImagePath.isNullOrEmpty()
                                                         val resId = resources.getIdentifier(resName, "drawable", packageName)
                                                         
+                                                        Column(
+                                                            modifier = Modifier.width(150.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally
+                                                        ) {
                                                         Box(
                                                             modifier = Modifier
-                                                                .width(90.dp)
-                                                                .height(72.dp)
+                                                                .width(150.dp)
+                                                                .height(80.dp)
                                                                 .clip(RoundedCornerShape(8.dp))
-                                                                .background(androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                                .background(androidx.compose.ui.graphics.Color(0xFFF1F5F9))
                                                                 .border(
                                                                     width = if (isSelected) 3.dp else 1.dp,
-                                                                    color = if (isSelected) mintBright else androidx.compose.ui.graphics.Color(0xFFEDE4D8),
+                                                                    color = if (isSelected) selectBlue else androidx.compose.ui.graphics.Color(0xFFE2E8F0),
                                                                     shape = RoundedCornerShape(8.dp)
                                                                 )
                                                                 .clickable {
@@ -473,42 +585,28 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                      )
                                                                 }
                                                         ) {
-                                                            Column(
-                                                                modifier = Modifier.fillMaxSize()
-                                                            ) {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .weight(0.6f)
-                                                                ) {
-                                                                    if (resId != 0) {
-                                                                        AsyncImage(
-                                                                            model = resId,
-                                                                            contentDescription = null,
-                                                                            modifier = Modifier.fillMaxSize(),
-                                                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                                            error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color.LightGray)
-                                                                        )
-                                                                    } else {
-                                                                        Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Gray))
-                                                                    }
-                                                                }
-                                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFEDE4D8))
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .weight(0.4f)
-                                                                        .background(androidx.compose.ui.graphics.Color.White),
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Text(
-                                                                        text = desc,
-                                                                        fontSize = 9.sp,
-                                                                        fontWeight = FontWeight.Bold,
-                                                                        color = if (isSelected) accentBlue else textGray
-                                                                    )
-                                                                }
+                                                            // 图内只放画面；名称以独立文本显示在缩略图下方
+                                                            if (resId != 0) {
+                                                                AsyncImage(
+                                                                    model = resId,
+                                                                    contentDescription = desc,
+                                                                    modifier = Modifier.fillMaxSize(),
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                                    error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color.LightGray)
+                                                                )
+                                                            } else {
+                                                                Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Gray))
                                                             }
+                                                        }
+                                                        Text(
+                                                            text = desc,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isSelected) selectBlue else textGray,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.padding(top = 4.dp)
+                                                        )
                                                         }
                                                     }
 
@@ -522,14 +620,23 @@ class QuickAdjustActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF5EFE6)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF1F5F9)),
                                             shape = RoundedCornerShape(16.dp)
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(14.dp),
-                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Text("✍️ 文本内容与字形定制", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.EditNote,
+                                                        contentDescription = null,
+                                                        tint = textWhite,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("文本内容与字形定制", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                }
                                                 
                                                 OutlinedTextField(
                                                     value = textContent,
@@ -560,129 +667,96 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         FilterChip(
                                                             selected = currentStyle.font == font,
                                                             onClick = { currentStyle = currentStyle.copy(font = font) },
-                                                            label = { Text(font.displayName, fontSize = 12.sp) },
+                                                            label = { Text(font.displayName, fontSize = 13.sp) },
                                                             colors = FilterChipDefaults.filterChipColors(
                                                                 labelColor = textGray,
-                                                                selectedLabelColor = mintInk,
-                                                                containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                selectedContainerColor = mintBright
+                                                                selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                                                                containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
+                                                                selectedContainerColor = selectBlue
                                                             ),
                                                             border = FilterChipDefaults.filterChipBorder(
                                                                 enabled = true,
                                                                 selected = currentStyle.font == font,
                                                                 borderColor = borderBlue,
-                                                                selectedBorderColor = mintBright
+                                                                selectedBorderColor = selectBlue
                                                             )
                                                         )
                                                     }
                                                 }
 
                                                 Text("字号大小: ${currentStyle.fontSizeSp.toInt()} sp", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                Slider(
+                                                ThickTrackSlider(
                                                     value = currentStyle.fontSizeSp,
                                                     onValueChange = { currentStyle = currentStyle.copy(fontSizeSp = it) },
                                                     valueRange = 12.0f..48.0f,
-                                                    modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                    colors = SliderDefaults.colors(
-                                                        thumbColor = mintBright,
-                                                        activeTrackColor = mintBright,
-                                                        inactiveTrackColor = borderBlue
-                                                    )
+                                                    modifier = Modifier.fillMaxWidth().height(24.dp)
                                                 )
 
+                                                // 加粗 / 倾斜 / 文字阴影：带勾选框的胶囊选项
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Checkbox(
-                                                            checked = currentStyle.fontBold,
-                                                            onCheckedChange = { currentStyle = currentStyle.copy(fontBold = it) },
-                                                            colors = CheckboxDefaults.colors(
-                                                                checkedColor = mintBright,
-                                                                checkmarkColor = mintInk,
-                                                                uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
-                                                            ),
-                                                            modifier = Modifier.size(24.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("加粗", fontSize = 12.sp, color = textWhite)
-                                                    }
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Checkbox(
-                                                            checked = currentStyle.fontItalic,
-                                                            onCheckedChange = { currentStyle = currentStyle.copy(fontItalic = it) },
-                                                            colors = CheckboxDefaults.colors(
-                                                                checkedColor = mintBright,
-                                                                checkmarkColor = mintInk,
-                                                                uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
-                                                            ),
-                                                            modifier = Modifier.size(24.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("倾斜", fontSize = 12.sp, color = textWhite)
-                                                    }
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Checkbox(
-                                                            checked = currentStyle.shadow.enabled,
-                                                            onCheckedChange = {
-                                                                // 统一阴影设置：模糊度 1，水平/垂直偏移 0，颜色跟随字体颜色
-                                                                currentStyle = currentStyle.copy(
-                                                                    shadow = currentStyle.shadow.copy(
-                                                                        enabled = it,
-                                                                        color = currentStyle.fontColor,
-                                                                        radius = 1f,
-                                                                        dx = 0f,
-                                                                        dy = 0f
-                                                                    )
+                                                    CheckChip(
+                                                        checked = currentStyle.fontBold,
+                                                        label = "加粗",
+                                                        onClick = { currentStyle = currentStyle.copy(fontBold = !currentStyle.fontBold) }
+                                                    )
+                                                    CheckChip(
+                                                        checked = currentStyle.fontItalic,
+                                                        label = "倾斜",
+                                                        onClick = { currentStyle = currentStyle.copy(fontItalic = !currentStyle.fontItalic) }
+                                                    )
+                                                    CheckChip(
+                                                        checked = currentStyle.shadow.enabled,
+                                                        label = "文字阴影",
+                                                        onClick = {
+                                                            // 统一阴影设置：模糊度 1，水平/垂直偏移 0，颜色跟随字体颜色
+                                                            currentStyle = currentStyle.copy(
+                                                                shadow = currentStyle.shadow.copy(
+                                                                    enabled = !currentStyle.shadow.enabled,
+                                                                    color = currentStyle.fontColor,
+                                                                    radius = 1f,
+                                                                    dx = 0f,
+                                                                    dy = 0f
                                                                 )
-                                                            },
-                                                            colors = CheckboxDefaults.colors(
-                                                                checkedColor = mintBright,
-                                                                checkmarkColor = mintInk,
-                                                                uncheckedColor = androidx.compose.ui.graphics.Color(0xFF94A3B8)
-                                                            ),
-                                                            modifier = Modifier.size(24.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("文字阴影", fontSize = 12.sp, color = textWhite)
-                                                    }
+                                                            )
+                                                        }
+                                                    )
                                                 }
 
                                                 Text("对齐方式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    val alignments = listOf(
-                                                        "LEFT" to "左对齐",
-                                                        "CENTER" to "居中对齐",
-                                                        "RIGHT" to "右对齐"
-                                                    )
-                                                    alignments.forEach { (alignKey, label) ->
-                                                        FilterChip(
-                                                            selected = currentStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
-                                                            onClick = { currentStyle = currentStyle.copy(textAlign = alignKey) },
-                                                            label = { Text(label, fontSize = 12.sp) },
-                                                            colors = FilterChipDefaults.filterChipColors(
-                                                                labelColor = textGray,
-                                                                selectedLabelColor = mintInk,
-                                                                containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                selectedContainerColor = mintBright
-                                                            ),
-                                                            border = FilterChipDefaults.filterChipBorder(
-                                                                enabled = true,
-                                                                selected = currentStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
-                                                                borderColor = borderBlue,
-                                                                selectedBorderColor = mintBright
+                                                // 3+1 双排：两端对齐单独一行，避免整行横向滚动与页签左右滑动手势冲突
+                                                val alignments = listOf(
+                                                    "LEFT" to "左对齐",
+                                                    "CENTER" to "居中对齐",
+                                                    "RIGHT" to "右对齐",
+                                                    "JUSTIFY" to "两端对齐"
+                                                )
+                                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        alignments.take(3).forEach { (alignKey, label) ->
+                                                            CheckChip(
+                                                                checked = currentStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
+                                                                label = label,
+                                                                onClick = { currentStyle = currentStyle.copy(textAlign = alignKey) }
                                                             )
-                                                        )
+                                                        }
+                                                    }
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        alignments.drop(3).forEach { (alignKey, label) ->
+                                                            CheckChip(
+                                                                checked = currentStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
+                                                                label = label,
+                                                                onClick = { currentStyle = currentStyle.copy(textAlign = alignKey) }
+                                                            )
+                                                        }
                                                     }
                                                 }
 
                                             }
 
-                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF1F5F9))
 
                                                 Text("行高间距", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
                                                 Row(
@@ -691,30 +765,20 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 ) {
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text("行高: ${"%.1f".format(currentStyle.lineSpacingMultiplier)}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                        Slider(
+                                                        ThickTrackSlider(
                                                             value = currentStyle.lineSpacingMultiplier,
                                                             onValueChange = { currentStyle = currentStyle.copy(lineSpacingMultiplier = it) },
                                                             valueRange = 0.5f..3.0f,
-                                                            modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                            colors = SliderDefaults.colors(
-                                                                thumbColor = mintBright,
-                                                                activeTrackColor = mintBright,
-                                                                inactiveTrackColor = borderBlue
-                                                            )
+                                                            modifier = Modifier.fillMaxWidth().height(24.dp)
                                                         )
                                                     }
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text("字间距: ${"%.1f".format(currentStyle.letterSpacing)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                        Slider(
+                                                        ThickTrackSlider(
                                                             value = currentStyle.letterSpacing,
                                                             onValueChange = { currentStyle = currentStyle.copy(letterSpacing = it) },
                                                             valueRange = 0f..1.0f,
-                                                            modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                            colors = SliderDefaults.colors(
-                                                                thumbColor = mintBright,
-                                                                activeTrackColor = mintBright,
-                                                                inactiveTrackColor = borderBlue
-                                                            )
+                                                            modifier = Modifier.fillMaxWidth().height(24.dp)
                                                         )
                                                     }
                                                 }
@@ -726,62 +790,25 @@ class QuickAdjustActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF5EFE6)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF1F5F9)),
                                             shape = RoundedCornerShape(16.dp)
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(14.dp),
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                Text("🎨 风格与色彩艺术", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Brush,
+                                                        contentDescription = null,
+                                                        tint = textWhite,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("风格与色彩艺术", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                }
 
 
-                                                 Text("字体颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                 Row(
-                                                     modifier = Modifier.fillMaxWidth(),
-                                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                     verticalAlignment = Alignment.CenterVertically
-                                                 ) {
-                                                     Row(
-                                                         modifier = Modifier
-                                                             .weight(1f)
-                                                             .horizontalScroll(rememberScrollState()),
-                                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                         verticalAlignment = Alignment.CenterVertically
-                                                     ) {
-                                                         fontColorPresets.forEach { parsedColor ->
-                                                             val isSelected = currentStyle.fontColor == parsedColor
-                                                             Box(
-                                                                 modifier = Modifier
-                                                                     .size(32.dp)
-                                                                     .clip(RoundedCornerShape(8.dp))
-                                                                     .background(androidx.compose.ui.graphics.Color(parsedColor))
-                                                                     .border(
-                                                                         width = if (isSelected) 3.dp else 1.dp,
-                                                                         color = if (isSelected) mintBright else borderBlue,
-                                                                         shape = RoundedCornerShape(8.dp)
-                                                                     )
-                                                                     .combinedClickable(
-                                                                         onClick = {
-                                                                             currentStyle = currentStyle.copy(fontColor = parsedColor)
-                                                                         },
-                                                                         onLongClick = {
-                                                                             pendingDeleteFontColor = parsedColor
-                                                                         }
-                                                                     )
-                                                             )
-                                                         }
-                                                     }
-                                                     AddColorPresetButton(
-                                                         onClick = { showFontColorPicker = true },
-                                                         size = 32.dp,
-                                                         corner = 8.dp,
-                                                         borderColor = borderBlue,
-                                                         contentColor = textGray
-                                                     )
-                                                 }
-                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -800,85 +827,43 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         var saturation by remember(currentStyle.fontColor) { mutableStateOf(hsv[1]) }
                                                         var value by remember(currentStyle.fontColor) { mutableStateOf(hsv[2]) }
 
-                                                        Box(
-                                                            contentAlignment = Alignment.Center,
-                                                            modifier = Modifier.fillMaxWidth().height(26.dp)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .height(8.dp)
-                                                                    .clip(RoundedCornerShape(4.dp))
-                                                                    .background(
-                                                                        Brush.horizontalGradient(
-                                                                            colors = listOf(
-                                                                                androidx.compose.ui.graphics.Color.Red,
-                                                                                androidx.compose.ui.graphics.Color.Yellow,
-                                                                                androidx.compose.ui.graphics.Color.Green,
-                                                                                androidx.compose.ui.graphics.Color.Cyan,
-                                                                                androidx.compose.ui.graphics.Color.Blue,
-                                                                                androidx.compose.ui.graphics.Color.Magenta,
-                                                                                androidx.compose.ui.graphics.Color.Red
-                                                                            )
-                                                                        )
-                                                                    )
-                                                            )
-                                                            Slider(
-                                                                value = hue,
-                                                                onValueChange = {
-                                                                    hue = it
-                                                                    val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                                                    currentStyle = currentStyle.copy(fontColor = newColor)
-                                                                },
-                                                                valueRange = 0f..360f,
-                                                                colors = SliderDefaults.colors(
-                                                                    thumbColor = androidx.compose.ui.graphics.Color.White,
-                                                                    activeTrackColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                                    inactiveTrackColor = androidx.compose.ui.graphics.Color.Transparent
-                                                                ),
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                        }
+                                                        GradientTrackSlider(
+                                                            gradient = listOf(
+                                                                androidx.compose.ui.graphics.Color.Red,
+                                                                androidx.compose.ui.graphics.Color.Yellow,
+                                                                androidx.compose.ui.graphics.Color.Green,
+                                                                androidx.compose.ui.graphics.Color.Cyan,
+                                                                androidx.compose.ui.graphics.Color.Blue,
+                                                                androidx.compose.ui.graphics.Color.Magenta,
+                                                                androidx.compose.ui.graphics.Color.Red
+                                                            ),
+                                                            value = hue,
+                                                            onValueChange = {
+                                                                hue = it
+                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
+                                                                currentStyle = currentStyle.copy(fontColor = newColor)
+                                                            },
+                                                            valueRange = 0f..360f
+                                                        )
 
                                                         val baseHueColor = remember(hue) {
                                                             androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
                                                         }
-                                                        Box(
-                                                            contentAlignment = Alignment.Center,
-                                                            modifier = Modifier.fillMaxWidth().height(26.dp)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .height(8.dp)
-                                                                    .clip(RoundedCornerShape(4.dp))
-                                                                    .background(
-                                                                        Brush.horizontalGradient(
-                                                                            colors = listOf(
-                                                                                androidx.compose.ui.graphics.Color.Black,
-                                                                                baseHueColor,
-                                                                                androidx.compose.ui.graphics.Color.White
-                                                                            )
-                                                                        )
-                                                                    )
-                                                            )
-                                                            Slider(
-                                                                value = value,
-                                                                onValueChange = {
-                                                                    value = it
-                                                                    saturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                                                    val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                                                    currentStyle = currentStyle.copy(fontColor = newColor)
-                                                                },
-                                                                valueRange = 0f..1f,
-                                                                colors = SliderDefaults.colors(
-                                                                    thumbColor = androidx.compose.ui.graphics.Color.White,
-                                                                    activeTrackColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                                    inactiveTrackColor = androidx.compose.ui.graphics.Color.Transparent
-                                                                ),
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                        }
+                                                        GradientTrackSlider(
+                                                            gradient = listOf(
+                                                                androidx.compose.ui.graphics.Color.Black,
+                                                                baseHueColor,
+                                                                androidx.compose.ui.graphics.Color.White
+                                                            ),
+                                                            value = value,
+                                                            onValueChange = {
+                                                                value = it
+                                                                saturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
+                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
+                                                                currentStyle = currentStyle.copy(fontColor = newColor)
+                                                            },
+                                                            valueRange = 0f..1f
+                                                        )
                                                     }
 
                                                     Box(
@@ -889,7 +874,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     )
                                                 }
 
-                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF1F5F9))
 
                                                 // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
                                                 // （与"外框圆角（此形状无需调整）"保持同一套处理方式）
@@ -907,14 +892,14 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 )
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Row(
                                                         modifier = Modifier
                                                             .weight(1f)
                                                             .horizontalScroll(rememberScrollState()),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         backgroundColorPresets.forEach { colorInt ->
@@ -926,7 +911,7 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                     .background(androidx.compose.ui.graphics.Color(colorInt))
                                                                     .border(
                                                                         width = if (isSelected) 3.dp else 1.dp,
-                                                                        color = if (isSelected) mintBright else borderBlue,
+                                                                        color = if (isSelected) selectBlue else borderBlue,
                                                                         shape = RoundedCornerShape(8.dp)
                                                                     )
                                                                     .combinedClickable(
@@ -967,85 +952,43 @@ class QuickAdjustActivity : ComponentActivity() {
                                                         var bgSaturation by remember(currentStyle.backgroundColor) { mutableStateOf(bgHsv[1]) }
                                                         var bgValue by remember(currentStyle.backgroundColor) { mutableStateOf(bgHsv[2]) }
 
-                                                        Box(
-                                                            contentAlignment = Alignment.Center,
-                                                            modifier = Modifier.fillMaxWidth().height(26.dp)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .height(8.dp)
-                                                                    .clip(RoundedCornerShape(4.dp))
-                                                                    .background(
-                                                                        Brush.horizontalGradient(
-                                                                            colors = listOf(
-                                                                                androidx.compose.ui.graphics.Color.Red,
-                                                                                androidx.compose.ui.graphics.Color.Yellow,
-                                                                                androidx.compose.ui.graphics.Color.Green,
-                                                                                androidx.compose.ui.graphics.Color.Cyan,
-                                                                                androidx.compose.ui.graphics.Color.Blue,
-                                                                                androidx.compose.ui.graphics.Color.Magenta,
-                                                                                androidx.compose.ui.graphics.Color.Red
-                                                                            )
-                                                                        )
-                                                                    )
-                                                            )
-                                                            Slider(
-                                                                value = bgHue,
-                                                                onValueChange = {
-                                                                    bgHue = it
-                                                                    val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                                                    currentStyle = currentStyle.copy(backgroundColor = newColor)
-                                                                },
-                                                                valueRange = 0f..360f,
-                                                                colors = SliderDefaults.colors(
-                                                                    thumbColor = androidx.compose.ui.graphics.Color.White,
-                                                                    activeTrackColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                                    inactiveTrackColor = androidx.compose.ui.graphics.Color.Transparent
-                                                                ),
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                        }
+                                                        GradientTrackSlider(
+                                                            gradient = listOf(
+                                                                androidx.compose.ui.graphics.Color.Red,
+                                                                androidx.compose.ui.graphics.Color.Yellow,
+                                                                androidx.compose.ui.graphics.Color.Green,
+                                                                androidx.compose.ui.graphics.Color.Cyan,
+                                                                androidx.compose.ui.graphics.Color.Blue,
+                                                                androidx.compose.ui.graphics.Color.Magenta,
+                                                                androidx.compose.ui.graphics.Color.Red
+                                                            ),
+                                                            value = bgHue,
+                                                            onValueChange = {
+                                                                bgHue = it
+                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
+                                                                currentStyle = currentStyle.copy(backgroundColor = newColor)
+                                                            },
+                                                            valueRange = 0f..360f
+                                                        )
 
                                                         val bgBaseHueColor = remember(bgHue) {
                                                             androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(bgHue, 1f, 1f)))
                                                         }
-                                                        Box(
-                                                            contentAlignment = Alignment.Center,
-                                                            modifier = Modifier.fillMaxWidth().height(26.dp)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .height(8.dp)
-                                                                    .clip(RoundedCornerShape(4.dp))
-                                                                    .background(
-                                                                        Brush.horizontalGradient(
-                                                                            colors = listOf(
-                                                                                androidx.compose.ui.graphics.Color.Black,
-                                                                                bgBaseHueColor,
-                                                                                androidx.compose.ui.graphics.Color.White
-                                                                            )
-                                                                        )
-                                                                    )
-                                                            )
-                                                            Slider(
-                                                                value = bgValue,
-                                                                onValueChange = {
-                                                                    bgValue = it
-                                                                    bgSaturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                                                    val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                                                    currentStyle = currentStyle.copy(backgroundColor = newColor)
-                                                                },
-                                                                valueRange = 0f..1f,
-                                                                colors = SliderDefaults.colors(
-                                                                    thumbColor = androidx.compose.ui.graphics.Color.White,
-                                                                    activeTrackColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                                    inactiveTrackColor = androidx.compose.ui.graphics.Color.Transparent
-                                                                ),
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                        }
+                                                        GradientTrackSlider(
+                                                            gradient = listOf(
+                                                                androidx.compose.ui.graphics.Color.Black,
+                                                                bgBaseHueColor,
+                                                                androidx.compose.ui.graphics.Color.White
+                                                            ),
+                                                            value = bgValue,
+                                                            onValueChange = {
+                                                                bgValue = it
+                                                                bgSaturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
+                                                                val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
+                                                                currentStyle = currentStyle.copy(backgroundColor = newColor)
+                                                            },
+                                                            valueRange = 0f..1f
+                                                        )
                                                     }
 
                                                     Box(
@@ -1073,14 +1016,23 @@ class QuickAdjustActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF5EFE6)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFF1F5F9)),
                                             shape = RoundedCornerShape(16.dp)
                                         ) {
                                             Column(
                                                 modifier = Modifier.padding(14.dp),
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                Text("🖼 背景与物理外框", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Wallpaper,
+                                                        contentDescription = null,
+                                                        tint = textWhite,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text("背景与物理外框", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                                                }
 
                                                 val canAdjustCorner = currentStyle.shape != WidgetShape.ELLIPSE &&
                                                                       currentStyle.shape != WidgetShape.TORN_PAPER &&
@@ -1098,39 +1050,24 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (canAdjustCorner) textWhite else textGray
                                                 )
-                                                Slider(
+                                                ThickTrackSlider(
                                                     value = currentStyle.cornerRadiusDp,
                                                     onValueChange = { currentStyle = currentStyle.copy(cornerRadiusDp = it) },
                                                     valueRange = 0.0f..30.0f,
                                                     steps = 29,
                                                     enabled = canAdjustCorner,
-                                                    modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                    colors = SliderDefaults.colors(
-                                                        thumbColor = mintBright,
-                                                        activeTrackColor = mintBright,
-                                                        // steps 会触发 M3 绘制刻度点，默认刻度色偏深，看起来像一排黑点；置透明与其他滑条保持一致
-                                                        activeTickColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                        inactiveTrackColor = borderBlue,
-                                                        inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                        disabledThumbColor = borderBlue,
-                                                        disabledInactiveTrackColor = borderBlue
-                                                    )
+                                                    modifier = Modifier.fillMaxWidth().height(24.dp)
                                                 )
 
                                                 Text("背景不透明度: ${(currentStyle.backgroundOpacity * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                Slider(
+                                                ThickTrackSlider(
                                                     value = currentStyle.backgroundOpacity,
                                                     onValueChange = { currentStyle = currentStyle.copy(backgroundOpacity = it) },
                                                     valueRange = 0.0f..1.0f,
-                                                    modifier = Modifier.fillMaxWidth().height(24.dp),
-                                                    colors = SliderDefaults.colors(
-                                                        thumbColor = mintBright,
-                                                        activeTrackColor = mintBright,
-                                                        inactiveTrackColor = borderBlue
-                                                    )
+                                                    modifier = Modifier.fillMaxWidth().height(24.dp)
                                                 )
 
-                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF5EFE6))
+                                                HorizontalDivider(color = androidx.compose.ui.graphics.Color(0xFFF1F5F9))
 
                                                 Text("自定义背景图", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
                                                 Row(
@@ -1147,11 +1084,11 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                     selectImageLauncher.launch("image/*")
                                                                 }
                                                             },
-                                                            colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFE2E8F0), contentColor = accentBlue),
                                                             shape = RoundedCornerShape(8.dp),
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            Text("+ 选择背景图片", color = mintInk, fontSize = 12.sp)
+                                                            Text("+ 选择背景图片", color = accentBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                                         }
                                                     } else {
                                                         Button(
@@ -1199,15 +1136,15 @@ class QuickAdjustActivity : ComponentActivity() {
                                                                 label = { Text(modeDesc, fontSize = 12.sp) },
                                                                 colors = FilterChipDefaults.filterChipColors(
                                                                     labelColor = textGray,
-                                                                    selectedLabelColor = mintInk,
-                                                                    containerColor = androidx.compose.ui.graphics.Color(0xFFF5EFE6),
-                                                                    selectedContainerColor = mintBright
+                                                                    selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                                                                    containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
+                                                                    selectedContainerColor = selectBlue
                                                                 ),
                                                                 border = FilterChipDefaults.filterChipBorder(
                                                                     enabled = true,
                                                                     selected = currentStyle.bgImageScaleMode == mode,
                                                                     borderColor = borderBlue,
-                                                                    selectedBorderColor = mintBright
+                                                                    selectedBorderColor = selectBlue
                                                                 )
                                                             )
                                                         }
@@ -1311,18 +1248,13 @@ class QuickAdjustActivity : ComponentActivity() {
                                             .weight(1f)
                                             .shadow(3.dp, RoundedCornerShape(12.dp))
                                             .background(
-                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                                    listOf(
-                                                        mintBright,
-                                                        mintSky
-                                                    )
-                                                ),
+                                                selectBlue,
                                                 RoundedCornerShape(12.dp)
                                             ),
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                                     ) {
-                                        Text("保存并刷新", color = mintInk, fontWeight = FontWeight.Bold)
+                                        Text("保存并刷新", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1355,7 +1287,16 @@ class QuickAdjustActivity : ComponentActivity() {
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
-                                        androidx.compose.material3.Text("👑 PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = androidx.compose.ui.graphics.Color(0xFF1E293B))
+Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Filled.WorkspacePremium,
+                                                contentDescription = null,
+                                                tint = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            androidx.compose.material3.Text("PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = androidx.compose.ui.graphics.Color(0xFF1E293B))
+                                        }
                                         androidx.compose.material3.Text("${ProPurchase.PRICE_TEXT} 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color(0xFF0F766E))
                                         androidx.compose.material3.Text("解锁全部内置卡片风格，后续新增免费更新", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF4B5563))
                                         androidx.compose.material3.Button(
@@ -1384,16 +1325,16 @@ class QuickAdjustActivity : ComponentActivity() {
                                                 }
                                             },
                                             enabled = !isPaying,
-                                            modifier = Modifier.fillMaxWidth().height(46.dp).shadow(4.dp, RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
+                                            modifier = Modifier.fillMaxWidth().height(46.dp).shadow(4.dp, RoundedCornerShape(12.dp)).background(selectBlue, RoundedCornerShape(12.dp)),
                                             colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                                             shape = RoundedCornerShape(12.dp)
                                         ) {
                                             if (isPaying) {
-                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = mintInk, strokeWidth = 2.dp)
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
                                                 Spacer(Modifier.width(8.dp))
-                                                androidx.compose.material3.Text("支付确认中…", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                androidx.compose.material3.Text("支付确认中…", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             } else {
-                                                androidx.compose.material3.Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                androidx.compose.material3.Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             }
                                         }
                                         androidx.compose.material3.Text("支付成功后自动激活，无需手动操作。", fontSize = 11.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
@@ -1428,22 +1369,6 @@ class QuickAdjustActivity : ComponentActivity() {
                             )
                         }
 
-                        if (showFontColorPicker) {
-                            ColorPickerDialog(
-                                title = "添加字体颜色预设",
-                                initialColor = currentStyle.fontColor,
-                                onDismiss = { showFontColorPicker = false },
-                                onConfirm = { color ->
-                                    showFontColorPicker = false
-                                    if (fontColorPresets.contains(color)) {
-                                        Toast.makeText(this@QuickAdjustActivity, "该颜色已在预设中", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        fontColorPresets = UserColorPresets.addFontColor(this@QuickAdjustActivity, color)
-                                    }
-                                }
-                            )
-                        }
-
                         if (showBackgroundColorBlockedTip) {
                             BackgroundColorBlockedDialog(onDismiss = { showBackgroundColorBlockedTip = false })
                         }
@@ -1460,17 +1385,6 @@ class QuickAdjustActivity : ComponentActivity() {
                                     } else {
                                         backgroundColorPresets = UserColorPresets.addBackgroundColor(this@QuickAdjustActivity, color)
                                     }
-                                }
-                            )
-                        }
-
-                        pendingDeleteFontColor?.let { color ->
-                            DeleteColorPresetDialog(
-                                color = color,
-                                onDismiss = { pendingDeleteFontColor = null },
-                                onConfirm = {
-                                    fontColorPresets = UserColorPresets.deleteFontColor(this@QuickAdjustActivity, color)
-                                    pendingDeleteFontColor = null
                                 }
                             )
                         }

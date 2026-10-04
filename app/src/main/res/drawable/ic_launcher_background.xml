@@ -4,8 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 新图标底色：取自设计稿角落取样众数 #04AA48 -->
+    <!-- 图标底色：与应用按钮一致的晴空蓝 #42B8EC -->
     <path
-        android:fillColor="#FF04AA48"
+        android:fillColor="#FF42B8EC"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

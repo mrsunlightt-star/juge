@@ -4,7 +4,7 @@
 
 ## 为什么需要
 
-6 款内置字体原始合计约 66MB，体积几乎全部来自字形轮廓：`--no-hinting`
+7 款内置字体原始合计约 71MB，体积几乎全部来自字形轮廓：`--no-hinting`
 对毛笔类字体几乎无效（MaShanZheng 仅 -1.2%），因此**按字符集裁剪是唯一有效的杠杆**。
 
 ## 用法
@@ -46,6 +46,7 @@ python3 tools/fonts/subset_fonts.py --dir <目录>  # 处理指定目录（默�
 | 霞鹜新晰黑 Screen | `LXGWNeoXiHeiScreen.ttf` | [lxgw/LxgwNeoXiZhi-Screen](https://github.com/lxgw/LxgwNeoXiZhi-Screen) 26.08.21 |
 | 霞鹜文楷 | `LXGWWenKai-Regular.ttf` | [lxgw/LxgwWenKaiGB](https://github.com/lxgw/LxgwWenkaiGB)（GB 大陆字形，PostScript 名 `LXGWWenKaiGB-Regular`） |
 | 毛笔楷书 | `MaShanZheng-Regular.ttf` | [googlefonts/mashanzheng](https://github.com/googlefonts/mashanzheng) |
+| jf open 粉圆 JF Open Huninn | `JFOpenHuninn-Regular.ttf` | [justfont/open-huninn-font](https://github.com/justfont/open-huninn-font) v2.1 |
 
 ## 效果
 
@@ -57,24 +58,28 @@ python3 tools/fonts/subset_fonts.py --dir <目录>  # 处理指定目录（默�
 | LXGWNeoXiHeiScreen.ttf | 7.3M | 2.1M | 8696/8968 |
 | LXGWWenKai-Regular.ttf | 24.6M | 4.2M | 8765/8968 |
 | MaShanZheng-Regular.ttf | 5.4M | 5.4M | 6863/8968 |
-| **合计** | **66.4M** | **19.0M** | |
+| JFOpenHuninn-Regular.ttf | 4.7M | 2.0M | 5528/8968 |
+| **合计** | **71.1M** | **21.0M** | |
 
 ## 授权与注意事项
 
 - **子集化属于「修改字体」**，脚本用 `--name-IDs=* --name-languages=* --name-legacy`
   完整保留 name 表（版权、授权、商标记录，含非英文与 Macintosh 平台），避免丢失授权声明。
 - 授权分两档：
-  - **OFL 1.1**：思源黑体、思源宋体、霞鹜文楷、毛笔楷书。
+  - **OFL 1.1**：思源黑体、思源宋体、霞鹜文楷、毛笔楷书、jf open 粉圆。
     OFL 要求：再分发时保留版权与授权声明（本脚本已保留）；不得使用保留字体名
     （Source Han Sans / Source Han Serif 保留名 `Source`）另行命名衍生字体。
   - **IPA Font License 1.0**：霞鹜新致宋、霞鹜新晰黑 Screen（字体内 nameID 13/14 指向
     `https://opensource.org/licenses/IPA/`）。IPA 条款允许嵌入 App 与制作衍生字体，
     但衍生字体须继续以 IPA 条款分发，且不得使用原字体名命名衍生字体。当前仅做子集化、未改名。
-- **合规落地**：App 内「开源许可」页面（`LegalDocs.OPEN_SOURCE_LICENSES`，入口在页面底部页脚与「我的」页）
+- **合规落地**：App 内「开源许可」页面（`LegalDocs.OPEN_SOURCE_LICENSES`，入口在页面底部页脚）
   逐款列出上表字体的版权与授权，并附 **OFL 1.1 与 IPA 1.0 的许可证全文**，
   满足 OFL「随分发附版权声明与许可证」与 IPA「附协议副本」的要求。
 - **覆盖数**：思源黑体、思源宋体、霞鹜新致宋、霞鹜新晰黑、霞鹜文楷均为完整字库，
   裁剪后仍覆盖目标集 8700+ 字，常用字不会缺字；毛笔楷书自身字库上限 6863 字，
   目标集之外的字符会显示为方块——这是字体本身的限制，与裁剪无关。
+  jf open 粉圆为台湾繁体圆体，字库以繁体为主，对简体目标集仅覆盖 5528/8968
+  （缺 2793 个常用简体字，如「阁、跃、纸、记、录、灵」），缺失字形由系统字体回退渲染，
+  这是字体本身的覆盖范围限制，与裁剪无关。
 - `WidgetFontRenderTest` 会逐个渲染内置字体并与系统默认字体比对，
   防止子集化损坏或资源名失配导致 Android 静默回退到系统字体。

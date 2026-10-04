@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  组件风格与插画图片由代码通过
+  resources.getIdentifier(resName, "drawable", packageName)
+  按名字动态加载，资源收缩器无法静态识别这类引用。
+  因此 release 包（isShrinkResources = true）必须在此显式保留 drawable，
+  否则图片会被当作未使用资源裁掉，导致所有图片类组件不显示图片。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/*" />

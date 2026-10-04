@@ -1,3 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">句阁</string>
+
+    <!-- 桌面长按图标的快捷方式：一键把句阁小组件添加到桌面 -->
+    <string name="shortcut_add_big_short">添加 4×4 组件</string>
+    <string name="shortcut_add_big_long">添加句阁 4×4 组件（方卡）</string>
+    <string name="shortcut_add_compact_short">添加 4×2 组件</string>
+    <string name="shortcut_add_compact_long">添加句阁 4×2 组件（扁卡）</string>
 </resources>

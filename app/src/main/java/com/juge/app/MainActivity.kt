@@ -1,8 +1,11 @@
 package com.juge.app
 
 
+import android.appwidget.AppWidgetManager
 import android.graphics.Bitmap
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -27,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -51,8 +56,10 @@ import com.juge.app.data.*
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AddColorPresetButton
 import com.juge.app.ui.BackgroundColorBlockedDialog
+import com.juge.app.ui.CheckChip
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
+import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -66,8 +73,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalContext
@@ -88,16 +93,24 @@ private val accentLightBlue = Color(0xFF0284C7) // 晴空天蓝 (Sky Cyan)
 private val borderBlue = Color(0xFFE2E8F0) // 网站同款精细边框与网格线
 private val textWhite = Color(0xFF0F172A) // 现代极简墨色 (Slate Ink)
 private val textGray = Color(0xFF64748B) // 板岩轻灰，副标题/描述文字 (Slate Muted)
-private val mintBright = Color(0xFF2DD4BF) // 选中/激活态填充·薄荷青明亮版（呼应主界面极光渐变）
-private val mintSky = Color(0xFF38BDF8) // 主按钮渐变终点·晴空天蓝（与主界面同源）
 private val mintInk = Color(0xFF134E4A) // 明亮薄荷底上的深色文字/图标，保证对比度
+private val selectBlue = Color(0xFF42B8EC) // 按钮/页签选中态填充·取自主界面晴空蓝背景（配白字）
 
 class MainActivity : ComponentActivity() {
 
     companion object {
         private var _dbHelper: DbHelper? = null
         private var _trialManager: TrialManager? = null
+
+        /** 桌面快捷方式（长按图标弹出）的 Intent action */
+        const val ACTION_ADD_WIDGET = "com.juge.app.action.ADD_WIDGET"
     }
+
+    /** 来自桌面快捷方式的待固定组件类型（big/compact），在 onResume 中消费 */
+    private var pendingPinWidgetKind: String? = null
+
+    /** 一键固定不可用时置 true：进 App 后自动切到「个性定制」并展开添加教程 */
+    private var startOnAdjustTutorial = false
 
     private val dbHelper: DbHelper get() = _dbHelper!!
     private val trialManager: TrialManager get() = _trialManager!!
@@ -113,6 +126,10 @@ class MainActivity : ComponentActivity() {
 
         val goToActivate = intent.getBooleanExtra("go_to_activate", false)
         val editConfigId = intent.getLongExtra("config_id", -1L)
+
+        // 桌面长按图标的「添加组件」快捷方式入口：记下待固定组件，等 onResume 后再拉起系统确认框
+        // （部分桌面在 Activity 尚未恢复时会忽略 requestPinAppWidget）
+        pendingPinWidgetKind = intent?.takeIf { it.action == ACTION_ADD_WIDGET }?.getStringExtra("widget_kind")
 
         setContent {
             MyApplicationTheme {
@@ -133,10 +150,57 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    MainAppScreen(goToActivate, editConfigId)
+                    MainAppScreen(
+                        goToActivate,
+                        editConfigId,
+                        startOnAdjust = startOnAdjustTutorial,
+                        startTutorialExpanded = startOnAdjustTutorial
+                    )
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val kind = pendingPinWidgetKind ?: return
+        pendingPinWidgetKind = null
+        if (tryRequestPinWidget(kind)) return
+        // 一键固定不可用（如 ColorOS 对白名单外的应用会静默拒绝固定请求）：
+        // 自动切到「个性定制」页并展开添加教程，引导用户手动添加
+        startOnAdjustTutorial = true
+        Toast.makeText(this, "当前系统不支持一键添加，已为你打开桌面组件添加教程", Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * 尝试拉起系统的固定小组件确认框。返回 true 表示请求已被桌面受理（确认框会展示），
+     * false 表示该设备/桌面不支持（需要走教程引导的降级路径）。
+     */
+    private fun tryRequestPinWidget(widgetKind: String): Boolean {
+        // requestPinAppWidget 需要 API 26+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        // ColorOS/OPPO 系桌面存在组件固定管控：仅系统应用、预装可卸载名单、
+        // 持有 oplus.permission.OPLUS_COMPONENT_SAFE 特权或 RUS 云端白名单的应用可用，
+        // 其它应用会被静默拒绝（连提示都不显示），因此直接走教程引导
+        if (isOplusFamilyDevice()) return false
+        val provider = if (widgetKind == "compact") {
+            ComponentName(this, ReminderWidgetProviderCompact::class.java)
+        } else {
+            ComponentName(this, ReminderWidgetProvider::class.java)
+        }
+        return try {
+            getSystemService(AppWidgetManager::class.java)?.requestPinAppWidget(provider, null, null) ?: false
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
+    /** 是否为 OPPO/OnePlus/realme 设备（共享同一套 OPlus 桌面与组件管控策略） */
+    private fun isOplusFamilyDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER ?: return false
+        return manufacturer.contains("oppo", ignoreCase = true) ||
+            manufacturer.contains("oneplus", ignoreCase = true) ||
+            manufacturer.contains("realme", ignoreCase = true)
     }
 
     @Composable
@@ -223,9 +287,9 @@ class MainActivity : ComponentActivity() {
                         Button(
                             onClick = onAgree,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk)
+                            colors = ButtonDefaults.buttonColors(containerColor = selectBlue, contentColor = Color.White)
                         ) {
-                            Text("同意并继续", fontSize = 13.sp, color = mintInk)
+                            Text("同意并继续", fontSize = 13.sp, color = Color.White)
                         }
                     }
                 }
@@ -306,65 +370,12 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk)
+                        colors = ButtonDefaults.buttonColors(containerColor = selectBlue, contentColor = Color.White)
                     ) {
-                        Text("我知道了", fontSize = 13.sp, color = mintInk)
+                        Text("我知道了", fontSize = 13.sp, color = Color.White)
                     }
                 }
             }
-        }
-    }
-
-    /** 「我的」页统一卡片外壳 */
-    @Composable
-    fun ProfileCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = BorderStroke(1.dp, borderBlue)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentBlue
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                content()
-            }
-        }
-    }
-
-    /** 「我的」页左标签右取值的信息行 */
-    @Composable
-    fun ProfileInfoRow(label: String, value: String, valueColor: Color = textWhite) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = label,
-                fontSize = 13.sp,
-                color = textGray
-            )
-            Text(
-                text = value,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = valueColor,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
-            )
         }
     }
 
@@ -384,19 +395,19 @@ class MainActivity : ComponentActivity() {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     text = "《用户协议》",
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     color = accentLightBlue,
                     modifier = Modifier.clickable { onOpenDoc("user") }
                 )
                 Text(
                     text = "《隐私政策》",
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     color = accentLightBlue,
                     modifier = Modifier.clickable { onOpenDoc("privacy") }
                 )
                 Text(
                     text = "《开源许可》",
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     color = accentLightBlue,
                     modifier = Modifier.clickable { onOpenDoc("license") }
                 )
@@ -404,7 +415,7 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = LegalDocs.ICP_LICENSE,
-                fontSize = 11.sp,
+                fontSize = 13.sp,
                 color = Color(0xFF94A3B8),
                 modifier = Modifier.clickable {
                     runCatching {
@@ -414,176 +425,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             )
-        }
-    }
-
-    /**
-     * 「我的」页：账号、会员激活记录、协议入口与版本信息。
-     *
-     * 激活记录取自 TrialManager 本地存储；本次升级前就已激活的用户没有记录，
-     * 支付方式显示为「未记录」，不影响其会员权益。
-     */
-    @Composable
-    fun ProfileTabContent(
-        isActivated: Boolean,
-        accountName: String?,
-        onOpenAccount: () -> Unit,
-        onOpenDoc: (String) -> Unit
-    ) {
-        val context = LocalContext.current
-        val versionName = remember {
-            runCatching {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName
-            }.getOrNull() ?: "1.0"
-        }
-        val record = remember(isActivated) { trialManager.activationRecord() }
-        val activatedAtText = record?.let {
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(it.activatedAt))
-        } ?: "未记录"
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ProfileCard(title = "账号") {
-                ProfileInfoRow(
-                    label = "登录状态",
-                    value = accountName ?: "未登录",
-                    valueColor = if (accountName == null) textGray else textWhite
-                )
-                Text(
-                    text = if (accountName == null) {
-                        "登录后可在更换手机或重装应用后找回已购 PRO。不登录也能完整使用全部功能。"
-                    } else {
-                        "本机 PRO 权益已绑定账号，在其他设备登录后可自动找回。"
-                    },
-                    fontSize = 12.sp,
-                    color = textGray,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                OutlinedButton(
-                    onClick = onOpenAccount,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    border = BorderStroke(1.dp, borderBlue),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentBlue)
-                ) {
-                    Text(
-                        text = if (accountName == null) "登录 / 注册账号" else "管理账号",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            ProfileCard(title = "会员") {
-                ProfileInfoRow(
-                    label = "会员状态",
-                    value = if (isActivated) "✨ 已激活 PRO" else "未激活",
-                    valueColor = if (isActivated) accentBlue else textGray
-                )
-                ProfileInfoRow(label = "激活时间", value = activatedAtText)
-                ProfileInfoRow(
-                    label = "支付方式",
-                    value = record?.payMethod ?: "未记录"
-                )
-                ProfileInfoRow(label = "权益有效期", value = "永久有效")
-                if (!isActivated) {
-                    Text(
-                        text = "尚未激活。点击顶部「👑 激活PRO」即可解锁全部内置风格。",
-                        fontSize = 12.sp,
-                        color = textGray,
-                        lineHeight = 17.sp,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-
-            ProfileCard(title = "协议与政策") {
-                Text(
-                    text = "《用户协议》",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentLightBlue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenDoc("user") }
-                        .padding(vertical = 8.dp)
-                )
-                Text(
-                    text = "《隐私政策》",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentLightBlue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenDoc("privacy") }
-                        .padding(vertical = 8.dp)
-                )
-                Text(
-                    text = "《开源许可》",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentLightBlue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenDoc("license") }
-                        .padding(vertical = 8.dp)
-                )
-            }
-
-            ProfileCard(title = "关于") {
-                ProfileInfoRow(label = "应用名称", value = "句阁 DeskQuotes")
-                ProfileInfoRow(label = "版本", value = versionName)
-                ProfileInfoRow(label = "数据存储", value = "全部保存在本机")
-                ProfileInfoRow(label = "广告", value = "无任何广告")
-
-                // 可点开发信的邮箱：应用商店审核要求存在可联系渠道
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_SENDTO,
-                                        Uri.parse("mailto:${LegalDocs.EMAIL}")
-                                    )
-                                )
-                            }.onFailure {
-                                Toast.makeText(
-                                    context,
-                                    "未找到邮件应用，联系邮箱：${LegalDocs.EMAIL}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "联系邮箱",
-                        fontSize = 13.sp,
-                        color = textGray
-                    )
-                    Text(
-                        text = LegalDocs.EMAIL,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = accentLightBlue,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 12.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 
@@ -626,8 +467,10 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun MainAppScreen(startOnActivate: Boolean, targetEditConfigId: Long) {
-        var subTab by remember { mutableStateOf("library") }
+    fun MainAppScreen(startOnActivate: Boolean, targetEditConfigId: Long, startOnAdjust: Boolean = false, startTutorialExpanded: Boolean = false) {
+        // 「跃然纸上 / 个性定制」翻页状态：页签点击、预览卡片点击与内容区左右滑动共用。
+        // 指示器与文字颜色都直接读 pager（currentPage 越过一半即切换），避免等落定才变色
+        val subTabPagerState = rememberPagerState(initialPage = if (startOnAdjust) 1 else 0, pageCount = { 2 })
         var isActivatedState by remember { mutableStateOf(trialManager.isActivated()) }
         // 支付进行中：用于按钮置忙，避免重复拉起收银台
         var isPaying by remember { mutableStateOf(false) }
@@ -746,11 +589,19 @@ class MainActivity : ComponentActivity() {
             val shape = if (wid == selectedWidgetId) currentStyle.shape
                 else if (wid != -1) ReminderWidgetProvider.getWidgetStyle(this@MainActivity, wid, cfg?.styleJson).shape
                 else WidgetStyle.fromJsonString(cfg?.styleJson).shape
-            val spanY = cfg?.sizeType?.split("x", "*")?.getOrNull(1)?.toIntOrNull()
-                ?: if (wid != -1) {
-                    ReminderWidgetProvider.getWidgetSizeString(this@MainActivity, wid)
-                        .split("*").getOrNull(1)?.toIntOrNull() ?: 2
-                } else 2
+            // 行数一律以**系统上报的实时尺寸**为准，不读库里的 sizeType。
+            // 原因：sizeType 只在新建配置那一刻写一次（ReminderWidgetProvider:177），
+            // 之后用户在桌面拉伸组件、或者组件被桌面重新分配格子，库里那份都不更新，
+            // 于是 4×2 的组件会一直按陈旧的 "4x3"/"4x4" 渲染，预览被拉成近正方形。
+            // getWidgetSizeString 读的是 OPTION_APPWIDGET_MIN_WIDTH/HEIGHT，是当前真实落位。
+            val liveSpanY = if (wid != -1) {
+                ReminderWidgetProvider.getWidgetSizeString(this@MainActivity, wid)
+                    .split("*").getOrNull(1)?.toIntOrNull()
+            } else null
+            // 无桌面组件可问（wid == -1，App 内预览的常态）时，**按声明的默认落位 4×2 兜底**，
+            // 不读数据库里的 sizeType —— 它是建配置那一刻写死的（默认 "4x3"），之后永不更新，
+            // 桌面组件撤销后拿它算高度，4×2 的预览就会被按 3 行拉成近正方形。
+            val spanY = liveSpanY ?: 2
             val sy = spanY.coerceIn(2, 4)
             val adaptiveHeight = when (shape) {
                 WidgetShape.SPLIT_CARD_HORIZONTAL -> 130
@@ -762,8 +613,9 @@ class MainActivity : ComponentActivity() {
             return adaptiveHeight.coerceAtLeast(180)
         }
         // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
-        // 统一只收紧一行(24dp)：固定 244dp，仅当组件需要的渲染高度超过时才抬高，
-        // 封顶 268dp 保证 4×4(预览高 260)不被裁切；这样各种组件都恰好上移一行。
+        // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后
+        // 以 ContentScale.Fit 贴顶显示在盒内，4×2 时卡片约 155dp 高、下方自然留白。
+        // 渲染比例正确的前提下，盒子只提供"预览区域"的视觉高度，不影响卡片形状。
         val previewBoxHeightDp = (244)
             .coerceAtLeast(previewHeightForPage(pagerState.currentPage) + 8)
             .coerceAtMost(268)
@@ -990,7 +842,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 Text(
                                     text = "DeskQuotes",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     color = Color(0xFF065F46),
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1023,9 +875,8 @@ class MainActivity : ComponentActivity() {
                                     Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF065F46), modifier = Modifier.size(18.dp))
                                 }
 
-                                val badgeText = if (isActivatedState) "✨ PRO" else "👑 激活PRO ${ProPurchase.PRICE_TEXT}"
                                 val badgeBg = if (isActivatedState) {
-                                    Brush.horizontalGradient(listOf(mintBright, mintSky))
+                                    Brush.horizontalGradient(listOf(selectBlue, selectBlue))
                                 } else {
                                     Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706)))
                                 }
@@ -1039,11 +890,19 @@ class MainActivity : ComponentActivity() {
                                         .padding(horizontal = 14.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    // 扁平线性图标替代实体 emoji：已激活用认证徽章，未激活用Premium徽章
+                                    Icon(
+                                        imageVector = if (isActivatedState) Icons.Filled.Verified else Icons.Filled.WorkspacePremium,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text(
-                                        text = badgeText,
+                                        text = if (isActivatedState) "PRO" else "激活PRO ${ProPurchase.PRICE_TEXT}",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = mintInk
+                                        color = Color.White
                                     )
                                 }
 
@@ -1115,16 +974,26 @@ class MainActivity : ComponentActivity() {
                                 // 复用与预览盒一致的规格计算，避免渲染高度与盒高度不一致造成裁切/空洞
                                 val previewHeightDp = previewHeightForPage(page)
                                 android.util.Log.d("JugeH", "shape=${pageStyle.shape} h=$previewHeightDp sizeType=${pageConfig?.sizeType}")
+                                // 预览按组件**真实 dp 尺寸**渲染，而不是写死宽度：
+                                // 写死 360dp 会让渲染比例与桌面实际比例脱节（4×2 实际是 250:110≈2.27:1），
+                                // 各类按比例分配的几何（图文卡、天气盒子的腔体等）会算错格子。
+                                val (realW, realH) = if (pageWidgetId != -1) {
+                                    ReminderWidgetProvider.getWidgetSizeDp(this@MainActivity, pageWidgetId)
+                                } else 250 to 110
+                                // 渲染高度直接用真实高度：位图比例与桌面组件完全一致，
+                                // 显示层用 ContentScale.Fit 等比缩小，预览比例自然正确。
+                                // previewHeightDp（行数估算）只用于外层显示盒高度防裁切，不参与渲染。
+                                val renderHeightDp = if (realH > 0) realH else previewHeightDp
                                 val pageBitmap by produceState<Bitmap?>(
                                     initialValue = null,
-                                    pageContent, pageStyle, previewHeightDp
+                                    pageContent, pageStyle, renderHeightDp, realW
                                 ) {
                                     value = withContext(Dispatchers.Default) {
                                         try {
                                             WidgetCanvasRenderer.render(
                                                 context = this@MainActivity,
-                                                widthDp = 360,
-                                                heightDp = previewHeightDp,
+                                                widthDp = realW,
+                                                heightDp = renderHeightDp,
                                                 content = pageContent,
                                                 style = pageStyle
                                             )
@@ -1139,7 +1008,9 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(previewHeightDp.dp)
-                                        .clickable { subTab = "adjust" },
+                                        .clickable {
+                                            scope.launch { subTabPagerState.animateScrollToPage(1) }
+                                        },
                                     contentAlignment = Alignment.TopCenter
                                 ) {
                                     // 用 Crossfade 让预览位图在切换风格时平滑过渡，避免颜色/形状突变造成"晃动"感
@@ -1223,12 +1094,12 @@ class MainActivity : ComponentActivity() {
                                         .padding(3.dp)
                                 ) {
                                     val width = maxWidth
-                                    val tabKeys = listOf("library", "adjust", "mine")
-                                    val selectedIndex = tabKeys.indexOf(subTab).coerceAtLeast(0)
-                                    val indicatorWidth = width / 3
+                                    val tabKeys = listOf("library", "adjust")
+                                    val indicatorWidth = width / 2
 
-                                    // 无动效：指示器位置随 Tab 即时切换（无过渡动画）
-                                    val selectedOffset = indicatorWidth * selectedIndex
+                                    // 指示器随左右滑动实时跟手，落定后与页签一致
+                                    val indicatorPosition = subTabPagerState.currentPage + subTabPagerState.currentPageOffsetFraction
+                                    val selectedOffset = indicatorWidth * indicatorPosition
 
                                     // 背景滑块：仅静态到位，不含隐式/显式位移动画
                                     Box(
@@ -1237,33 +1108,50 @@ class MainActivity : ComponentActivity() {
                                             .width(indicatorWidth)
                                             .fillMaxHeight()
                                             .shadow(2.dp, RoundedCornerShape(10.dp))
-                                            .background(Color.White, RoundedCornerShape(10.dp))
+                                            .background(selectBlue, RoundedCornerShape(10.dp))
                                     )
 
-                                    // Tab 按钮文字
+                                    // Tab 按钮：扁平线性图标 + 文字，替代实体 emoji
                                     Row(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         listOf(
-                                            "library" to "📜 跃然纸上",
-                                            "adjust" to "⚙️ 个性定制",
-                                            "mine" to "👤 我的"
-                                        ).forEach { (key, label) ->
+                                            Triple("library", "跃然纸上", Icons.AutoMirrored.Filled.MenuBook),
+                                            Triple("adjust", "个性定制", Icons.Filled.Tune)
+                                        ).forEach { (key, label, icon) ->
+                                            val tabTint = if (subTabPagerState.currentPage == tabKeys.indexOf(key)) {
+                                                Color.White
+                                            } else {
+                                                Color(0xFF64748B)
+                                            }
                                             Box(
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .fillMaxHeight()
-                                                    .clickable { subTab = key },
+                                                    .clickable {
+                                                        scope.launch {
+                                                            subTabPagerState.animateScrollToPage(tabKeys.indexOf(key))
+                                                        }
+                                                    },
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (subTab == key) Color(0xFF0F766E) else Color(0xFF64748B),
-                                                    maxLines = 1
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = null,
+                                                        tint = tabTint,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = tabTint,
+                                                        maxLines = 1
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1271,8 +1159,16 @@ class MainActivity : ComponentActivity() {
 
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                // 内容区
-                                if (subTab == "library") {
+                                // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
+                                // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
+                                HorizontalPager(
+                                    state = subTabPagerState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    beyondViewportPageCount = 1
+                                ) { page ->
+                                if (page == 0) {
                                     LibraryTabContent(
                                         categories = categories,
                                         reminders = reminders,
@@ -1379,7 +1275,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenDoc = { showLegalDoc = it }
                                     )
-                                } else if (subTab == "adjust") {
+                                } else {
                                     AdjustTabContent(
                                         widgetConfigs = widgetConfigs,
                                         isActivated = isActivatedState,
@@ -1396,15 +1292,10 @@ class MainActivity : ComponentActivity() {
                                         onStyleChange = { wId, rId, text, newStyle ->
                                             onStyleChange(wId, rId, text, newStyle)
                                         },
-                                        onOpenDoc = { showLegalDoc = it }
+                                        onOpenDoc = { showLegalDoc = it },
+                                        initiallyTutorialExpanded = startTutorialExpanded
                                     )
-                                } else {
-                                    ProfileTabContent(
-                                        isActivated = isActivatedState,
-                                        accountName = accountName,
-                                        onOpenAccount = { showAccountDialog = true },
-                                        onOpenDoc = { showLegalDoc = it }
-                                    )
+                                }
                                 }
                             }
                         }
@@ -1440,7 +1331,16 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("👑 PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E293B))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.WorkspacePremium,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("PRO 会员", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E293B))
+                    }
                     Text("${ProPurchase.PRICE_TEXT} 一次性买断 · 永久有效", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F766E))
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1461,11 +1361,11 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .height(44.dp)
                                 .shadow(2.dp, RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
+                                .background(selectBlue, RoundedCornerShape(12.dp)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("好的", color = mintInk, fontWeight = FontWeight.Bold)
+                            Text("好的", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Text("点击下方按钮，将拉起支付宝完成支付。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
@@ -1476,20 +1376,20 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .height(46.dp)
                                 .shadow(4.dp, RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(12.dp)),
+                                .background(selectBlue, RoundedCornerShape(12.dp)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             if (isPaying) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = mintInk,
+                                    color = Color.White,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("支付确认中…", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("支付确认中…", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             } else {
-                                Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("支付宝支付 ${ProPurchase.PRICE_TEXT}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
                         }
                         Text("支付成功后自动激活，无需手动操作。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
@@ -1582,15 +1482,15 @@ class MainActivity : ComponentActivity() {
                             label = { Text("全部", fontWeight = if (selectedCategory == null) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 labelColor = Color(0xFF64748B),
-                                selectedLabelColor = mintInk,
+                                selectedLabelColor = Color.White,
                                 containerColor = Color.White,
-                                selectedContainerColor = mintBright
+                                selectedContainerColor = selectBlue
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = selectedCategory == null,
                                 borderColor = Color(0xFFE2E8F0),
-                                selectedBorderColor = mintBright
+                                selectedBorderColor = selectBlue
                             )
                         )
                     }
@@ -1601,15 +1501,15 @@ class MainActivity : ComponentActivity() {
                             label = { Text(cat.name, fontWeight = if (selectedCategory?.id == cat.id) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 labelColor = Color(0xFF64748B),
-                                selectedLabelColor = mintInk,
+                                selectedLabelColor = Color.White,
                                 containerColor = Color.White,
-                                selectedContainerColor = mintBright
+                                selectedContainerColor = selectBlue
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = selectedCategory?.id == cat.id,
                                 borderColor = Color(0xFFE2E8F0),
-                                selectedBorderColor = mintBright
+                                selectedBorderColor = selectBlue
                             ),
                             modifier = Modifier.pointerInput(cat) {
                                 detectTapGestures(
@@ -1673,12 +1573,12 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = Color(0xFFCCFBF1)
+                                            color = selectBlue
                                         ) {
                                             Text(
                                                 text = catName,
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF0F766E),
+                                                fontSize = 13.sp,
+                                                color = Color.White,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1734,11 +1634,7 @@ class MainActivity : ComponentActivity() {
                     .height(50.dp)
                     .shadow(6.dp, RoundedCornerShape(25.dp))
                     .clip(RoundedCornerShape(25.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(mintBright, mintSky)
-                        )
-                    )
+                    .background(selectBlue)
                     .clickable {
                         if (categories.isEmpty()) {
                             Toast.makeText(this@MainActivity, "请先创建一个分类目录", Toast.LENGTH_SHORT).show()
@@ -1751,9 +1647,9 @@ class MainActivity : ComponentActivity() {
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Add, contentDescription = "Add", tint = mintInk)
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("录入新句", fontWeight = FontWeight.Bold, color = mintInk, fontSize = 14.sp)
+                    Text("录入新句", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                 }
             }
         }
@@ -1811,11 +1707,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
+                                    .background(selectBlue, RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("确认", color = mintInk, fontWeight = FontWeight.Bold)
+                                Text("确认", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1891,13 +1787,17 @@ class MainActivity : ComponentActivity() {
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(6.dp))
                                         .clickable { selectedCatForReminder = cat }
-                                        .background(if (selectedCatForReminder?.id == cat.id) Color(0xFFC6FBF3) else Color.Transparent)
+                                        .background(if (selectedCatForReminder?.id == cat.id) selectBlue.copy(alpha = 0.25f) else Color.Transparent)
                                         .padding(horizontal = 8.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
                                         selected = selectedCatForReminder?.id == cat.id,
                                         onClick = { selectedCatForReminder = cat },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = selectBlue,
+                                            unselectedColor = Color(0xFF94A3B8)
+                                        ),
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -1925,11 +1825,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
+                                    .background(selectBlue, RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("确认", color = mintInk, fontWeight = FontWeight.Bold)
+                                Text("确认", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -2014,6 +1914,10 @@ class MainActivity : ComponentActivity() {
                                     RadioButton(
                                         selected = editCategorySelection?.id == cat.id,
                                         onClick = { editCategorySelection = cat },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = selectBlue,
+                                            unselectedColor = Color(0xFF94A3B8)
+                                        ),
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -2039,11 +1943,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
+                                    .background(selectBlue, RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("保存并更新", color = mintInk, fontWeight = FontWeight.Bold)
+                                Text("保存并更新", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -2220,11 +2124,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
+                                    .background(selectBlue, RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("添加", color = mintInk, fontWeight = FontWeight.Bold)
+                                Text("添加", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -2285,11 +2189,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier
                                     .shadow(2.dp, RoundedCornerShape(8.dp))
-                                    .background(Brush.horizontalGradient(listOf(mintBright, mintSky)), RoundedCornerShape(8.dp)),
+                                    .background(selectBlue, RoundedCornerShape(8.dp)),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("保存", color = mintInk, fontWeight = FontWeight.Bold)
+                                Text("保存", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -2360,7 +2264,8 @@ class MainActivity : ComponentActivity() {
         onContentStateChange: (String) -> Unit,
         onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
         onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
-        onOpenDoc: (String) -> Unit
+        onOpenDoc: (String) -> Unit,
+        initiallyTutorialExpanded: Boolean = false
     ) {
         val scope = rememberCoroutineScope()
         val appWidgetIds = remember {
@@ -2377,8 +2282,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 折叠控制
-        var isTutorialExpanded by remember { mutableStateOf(false) }
+        // 折叠控制（从桌面快捷方式进入时默认展开，配合一键添加不可用时的引导）
+        var isTutorialExpanded by remember { mutableStateOf(initiallyTutorialExpanded) }
 
         // 颜色预设：内置色 + 用户自添加色，长按均可删除
         var fontColorPresets by remember { mutableStateOf(UserColorPresets.fontColors(this@MainActivity)) }
@@ -2412,12 +2317,21 @@ class MainActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "📱 桌面组件添加教程",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Widgets,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1E293B),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "桌面组件添加教程",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B)
+                                )
+                            }
                             Text(
                                 text = if (isTutorialExpanded) "收起 ▲" else "展开 ▼",
                                 fontSize = 12.sp,
@@ -2431,6 +2345,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     text = "国产手机系统的桌面组件添加入口比较隐蔽，且大多不允许 App 内一键添加到桌面，请在桌面通过系统入口手动添加：",
                                     fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = Color(0xFF64748B),
                                     lineHeight = 16.sp
                                 )
@@ -2443,11 +2358,34 @@ class MainActivity : ComponentActivity() {
                                     fontWeight = FontWeight.Bold,
                                     lineHeight = 16.sp
                                 )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                // 从桌面快捷方式引导进入时附带一键回桌面：
+                                // 系统组件列表页没有对外入口，回桌面长按是唯一路径，帮用户省掉切回桌面的操作
+                                if (initiallyTutorialExpanded) {
+                                    Button(
+                                        onClick = { this@MainActivity.moveTaskToBack(true) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = selectBlue, contentColor = Color.White),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("回到桌面，长按空白处添加", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
                                 Spacer(modifier = Modifier.height(12.dp))
                                 HorizontalDivider(color = Color(0xFFF1F5F9))
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                Text("💡 常见国产手机添加与权限教程：", fontSize = 13.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Lightbulb,
+                                        contentDescription = null,
+                                        tint = Color(0xFF1E293B),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("常见国产手机添加与权限教程：", fontSize = 13.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Bold)
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "• 华为 / 鸿蒙系统：在桌面双指捏合 -> 选择“服务卡片” -> 滑动到最下方选择“窗口小工具” -> 找到“句阁 / DeskQuotes”拖动到桌面。\n" +
@@ -2455,6 +2393,7 @@ class MainActivity : ComponentActivity() {
                                            "• OPPO / VIVO：桌面双指捏合 -> 点击“卡片 / 插件” -> 选择“句阁”添加。\n" +
                                            "• 无法弹出快捷面板？：请确保在手机的“应用设置 -> 权限管理”中，为本应用开启了【后台弹出界面】和【悬浮窗】权限，防止系统拦截快捷面板 Activity 的启动。",
                                     fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = Color(0xFF64748B),
                                     lineHeight = 18.sp
                                 )
@@ -2501,12 +2440,21 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "🎨 组件风格",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Palette,
+                                contentDescription = null,
+                                tint = accentBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "组件风格",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accentBlue
+                            )
+                        }
 
                         // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
                         // 间距统一交给外层 Column 的 spacedBy(10.dp)，这里不再叠加 Spacer/分割线
@@ -2534,16 +2482,19 @@ class MainActivity : ComponentActivity() {
                                     val isLocked = !isActivated && isProPreset
 
                                     val presetBitmap by produceState<Bitmap?>(
-                                        initialValue = null,
+                                        // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                        initialValue = WidgetCanvasRenderer.cachedThumbnail(150, if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80, preset),
                                         preset, presetName
                                     ) {
                                         value = withContext(Dispatchers.Default) {
                                             try {
-                                                WidgetCanvasRenderer.render(
+                                                WidgetCanvasRenderer.renderThumbnail(
                                                     context = this@MainActivity,
                                                     widthDp = 150,
                                                     heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
-                                                    content = presetName,
+                                                    // 缩略图内不写风格名：名称以独立文本显示在缩略图下方，
+                                                    // 避免"图里的字"与"图下的名"重复，也省掉一次 StaticLayout 排版
+                                                    content = "",
                                                     style = preset
                                                 )
                                             } catch (t: Throwable) {
@@ -2552,6 +2503,10 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
+                                    Column(
+                                        modifier = Modifier.width(150.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
                                     Box(
                                         modifier = Modifier
                                             .width(150.dp)
@@ -2588,12 +2543,22 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier
                                                     .align(Alignment.TopStart)
                                                     .padding(4.dp)
-                                                    .background(mintBright, RoundedCornerShape(4.dp))
+                                                    .background(selectBlue, RoundedCornerShape(4.dp))
                                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                                             ) {
-                                                Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = mintInk)
+                                                Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                             }
                                         }
+                                    }
+                                        // 风格名称独立显示在缩略图下方（缩略图内不再渲染文字）
+                                        Text(
+                                            text = presetName,
+                                            fontSize = 13.sp,
+                                            color = if (isProPreset) Color(0xFF64748B) else selectBlue,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 5.dp)
+                                        )
                                     }
                                 }
                             }
@@ -2624,16 +2589,18 @@ class MainActivity : ComponentActivity() {
                                     selectedStyle.presetImageResName == null &&
                                     selectedStyle.backgroundImagePath.isNullOrEmpty()
                                 val codeBitmap by produceState<Bitmap?>(
-                                    initialValue = null,
+                                    // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                    initialValue = WidgetCanvasRenderer.cachedThumbnail(WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP, WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP, preset),
                                     preset, presetName
                                 ) {
                                     value = withContext(Dispatchers.Default) {
                                         try {
-                                            WidgetCanvasRenderer.render(
+                                            WidgetCanvasRenderer.renderThumbnail(
                                                 context = this@MainActivity,
                                                 widthDp = WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP,
                                                 heightDp = WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP,
-                                                content = presetName,
+                                                // 缩略图内不写风格名，名称显示在下方标签
+                                                content = "",
                                                 style = preset
                                             )
                                         } catch (t: Throwable) {
@@ -2642,6 +2609,10 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
+                                Column(
+                                    modifier = Modifier.width(codePreviewWidthDp.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                 Box(
                                     modifier = Modifier
                                         .width(codePreviewWidthDp.dp)
@@ -2663,12 +2634,101 @@ class MainActivity : ComponentActivity() {
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .border(
                                                     width = if (isCodeSelected) 3.dp else 1.dp,
-                                                    color = if (isCodeSelected) mintBright else Color(0xFFE2E8F0),
+                                                    color = if (isCodeSelected) selectBlue else Color(0xFFE2E8F0),
                                                     shape = RoundedCornerShape(8.dp)
                                                 ),
                                             contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
                                         )
                                     }
+                                }
+                                    Text(
+                                        text = presetName,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64748B),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 5.dp)
+                                    )
+                                }
+                            }
+
+                            // 明信片行的微缩城市 / 立体场景：缩略图按组件真实渲染——
+                            // 若像插图那样裁原图，几张会长得一模一样、分不出方案。
+                            WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
+                                val isRenderedSelected = selectedStyle.presetId == preset.presetId
+                                val isRenderedLocked = !isActivated && WidgetStyle.isProPreset(preset)
+                                // 天气盒子按 4×4 渲染（素材横幅，扁比例下腔体会被压扁），其余按 4×3
+                                val isWeatherBox = preset.shape == WidgetShape.WEATHER_BOX
+                                val renderedW = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_WIDTH_DP
+                                else WidgetStyle.POSTCARD_CODE_RENDER_WIDTH_DP
+                                val renderedH = if (isWeatherBox) WidgetStyle.WEATHER_BOX_RENDER_HEIGHT_DP
+                                else WidgetStyle.POSTCARD_CODE_RENDER_HEIGHT_DP
+                                val renderedBitmap by produceState<Bitmap?>(
+                                    // 缓存已在则同帧就有图：滚动回来看不到空白帧
+                                    initialValue = WidgetCanvasRenderer.cachedThumbnail(renderedW, renderedH, preset),
+                                    preset, presetName
+                                ) {
+                                    value = withContext(Dispatchers.Default) {
+                                        try {
+                                            WidgetCanvasRenderer.renderThumbnail(
+                                                                        context = this@MainActivity,
+                                                                        widthDp = renderedW,
+                                                                        heightDp = renderedH,
+                                                                        content = "",
+                                                                        style = preset
+                                                                    )
+                                        } catch (t: Throwable) {
+                                            Bitmap.createBitmap(renderedW, renderedH, Bitmap.Config.ARGB_8888)
+                                        }
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.width(if (isWeatherBox) codePreviewHeightDp.dp else codePreviewWidthDp.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(if (isWeatherBox) (codePreviewHeightDp * 4f / 4f).toInt().dp else codePreviewWidthDp.dp)
+                                        .height(codePreviewHeightDp.dp)
+                                        .clickable {
+                                            val newPresetStyle = preset.copy(
+                                                backgroundOpacity = selectedStyle.backgroundOpacity,
+                                                cornerRadiusDp = selectedStyle.cornerRadiusDp
+                                            )
+                                            if (isRenderedLocked) {
+                                                onStyleStateChange(newPresetStyle)
+                                            } else {
+                                                onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                                            }
+                                        }
+                                ) {
+                                    if (renderedBitmap != null) {
+                                        Image(
+                                            bitmap = renderedBitmap!!.asImageBitmap(),
+                                            contentDescription = presetName,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .border(
+                                                    width = if (isRenderedSelected) 3.dp else 1.dp,
+                                                    color = if (isRenderedSelected) selectBlue else Color(0xFFE2E8F0),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+                                        )
+                                    }
+                                }
+                                    Text(
+                                        text = presetName,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64748B),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 5.dp)
+                                    )
                                 }
                             }
 
@@ -2680,6 +2740,10 @@ class MainActivity : ComponentActivity() {
                                  val isSelected = selectedStyle.presetImageResName == resName && selectedStyle.shape == targetShape && selectedStyle.backgroundImagePath.isNullOrEmpty()
                                 val resId = resources.getIdentifier(resName, "drawable", packageName)
                                 
+                                Column(
+                                    modifier = Modifier.width(150.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                 Box(
                                     modifier = Modifier
                                         .width(150.dp)
@@ -2688,7 +2752,7 @@ class MainActivity : ComponentActivity() {
                                         .background(Color(0xFFF1F5F9))
                                         .border(
                                             width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                            color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
                                             shape = RoundedCornerShape(8.dp)
                                         )
                                         .clickable {
@@ -2705,42 +2769,23 @@ class MainActivity : ComponentActivity() {
                                             onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                                         }
                                 ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(0.6f)
-                                        ) {
-                                            if (resId != 0) {
-                                                AsyncImage(
-                                                    model = resId,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.LightGray)
-                                                )
-                                            } else {
-                                                Box(modifier = Modifier.fillMaxSize().background(Color.Gray))
-                                            }
-                                        }
-                                        HorizontalDivider(color = Color(0xFFE2E8F0))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(0.4f)
-                                                .background(Color.White),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = desc,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) Color(0xFF0F766E) else Color(0xFF64748B)
-                                            )
-                                        }
-                                    }
+                                    // 图内只放画面；名称以独立文本显示在缩略图下方（与其他风格行统一）
+                                    AsyncImage(
+                                        model = resId,
+                                        contentDescription = desc,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(Color.LightGray)
+                                    )
+                                }
+                                Text(
+                                    text = desc,
+                                    fontSize = 13.sp,
+                                    color = if (isSelected) selectBlue else Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 5.dp)
+                                )
                                 }
                             }
 
@@ -2761,12 +2806,21 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "✍️ 文本内容与字形定制",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.EditNote,
+                                contentDescription = null,
+                                tint = accentBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "文本内容与字形定制",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accentBlue
+                            )
+                        }
 
                         // 文本框输入（最多 500 字）
                         OutlinedTextField(
@@ -2806,18 +2860,18 @@ class MainActivity : ComponentActivity() {
                                         onStyleStateChange(newStyle)
                                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                                     },
-                                    label = { Text(fnt.displayName, fontSize = 12.sp) },
+                                    label = { Text(fnt.displayName, fontSize = 13.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         labelColor = Color(0xFF64748B),
-                                        selectedLabelColor = mintInk,
+                                        selectedLabelColor = Color.White,
                                         containerColor = Color(0xFFF1F5F9),
-                                        selectedContainerColor = mintBright
+                                        selectedContainerColor = selectBlue
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = true,
                                         selected = selectedStyle.font == fnt,
                                         borderColor = Color(0xFFE2E8F0),
-                                        selectedBorderColor = mintBright
+                                        selectedBorderColor = selectBlue
                                     )
                                 )
                             }
@@ -2831,7 +2885,7 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Text("字体大小: ${selectedStyle.fontSizeSp.toInt()} sp", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                         }
-                        Slider(
+                        ThickTrackSlider(
                             value = selectedStyle.fontSizeSp,
                             onValueChange = {
                                 val newStyle = selectedStyle.copy(fontSizeSp = it)
@@ -2839,119 +2893,86 @@ class MainActivity : ComponentActivity() {
                                 onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                             },
                             valueRange = 12.0f..48.0f,
-                            modifier = Modifier.fillMaxWidth().height(24.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = mintBright,
-                                activeTrackColor = mintBright,
-                                inactiveTrackColor = Color(0xFFE2E8F0)
-                            )
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
                         )
 
-                        // 加粗与倾斜 Checkbox
+                        // 加粗 / 倾斜 / 文字阴影：带勾选框的胶囊选项
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = selectedStyle.fontBold,
-                                    onCheckedChange = {
-                                        val newStyle = selectedStyle.copy(fontBold = it)
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = mintBright,
-                                        checkmarkColor = mintInk,
-                                        uncheckedColor = Color(0xFF94A3B8)
-                                    ),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("加粗", fontSize = 12.sp, color = Color(0xFF1E293B))
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = selectedStyle.fontItalic,
-                                    onCheckedChange = {
-                                        val newStyle = selectedStyle.copy(fontItalic = it)
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = mintBright,
-                                        checkmarkColor = mintInk,
-                                        uncheckedColor = Color(0xFF94A3B8)
-                                    ),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("倾斜", fontSize = 12.sp, color = Color(0xFF1E293B))
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = selectedStyle.shadow.enabled,
-                                    onCheckedChange = {
-                                        // 统一阴影设置：模糊度 1，水平/垂直偏移 0，颜色跟随字体颜色
-                                        val newStyle = selectedStyle.copy(
-                                            shadow = selectedStyle.shadow.copy(
-                                                enabled = it,
-                                                color = selectedStyle.fontColor,
-                                                radius = 1f,
-                                                dx = 0f,
-                                                dy = 0f
-                                            )
+                            CheckChip(
+                                checked = selectedStyle.fontBold,
+                                label = "加粗",
+                                onClick = {
+                                    val newStyle = selectedStyle.copy(fontBold = !selectedStyle.fontBold)
+                                    onStyleStateChange(newStyle)
+                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                }
+                            )
+                            CheckChip(
+                                checked = selectedStyle.fontItalic,
+                                label = "倾斜",
+                                onClick = {
+                                    val newStyle = selectedStyle.copy(fontItalic = !selectedStyle.fontItalic)
+                                    onStyleStateChange(newStyle)
+                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                }
+                            )
+                            CheckChip(
+                                checked = selectedStyle.shadow.enabled,
+                                label = "文字阴影",
+                                onClick = {
+                                    // 统一阴影设置：模糊度 1，水平/垂直偏移 0，颜色跟随字体颜色
+                                    val newStyle = selectedStyle.copy(
+                                        shadow = selectedStyle.shadow.copy(
+                                            enabled = !selectedStyle.shadow.enabled,
+                                            color = selectedStyle.fontColor,
+                                            radius = 1f,
+                                            dx = 0f,
+                                            dy = 0f
                                         )
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = mintBright,
-                                        checkmarkColor = mintInk,
-                                        uncheckedColor = Color(0xFF94A3B8)
-                                    ),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("文字阴影", fontSize = 12.sp, color = Color(0xFF1E293B))
-                            }
+                                    )
+                                    onStyleStateChange(newStyle)
+                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                }
+                            )
                         }
 
-                        // 文字对齐方式
+                        // 文字对齐方式：3+1 双排——两端对齐单独一行，避免整行横向滚动与页签左右滑动手势冲突
                         Text("对齐方式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            val alignments = listOf(
-                                "LEFT" to "左对齐",
-                                "CENTER" to "居中对齐",
-                                "RIGHT" to "右对齐"
-                            )
-                            alignments.forEach { (alignKey, label) ->
-                                FilterChip(
-                                    selected = selectedStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
-                                    onClick = {
-                                        val newStyle = selectedStyle.copy(textAlign = alignKey)
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    label = { Text(label, fontSize = 12.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        labelColor = Color(0xFF64748B),
-                                        selectedLabelColor = mintInk,
-                                        containerColor = Color(0xFFF1F5F9),
-                                        selectedContainerColor = mintBright
-                                    ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        enabled = true,
-                                        selected = selectedStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
-                                        borderColor = Color(0xFFE2E8F0),
-                                        selectedBorderColor = mintBright
+                        val alignments = listOf(
+                            "LEFT" to "左对齐",
+                            "CENTER" to "居中对齐",
+                            "RIGHT" to "右对齐",
+                            "JUSTIFY" to "两端对齐"
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                alignments.take(3).forEach { (alignKey, label) ->
+                                    CheckChip(
+                                        checked = selectedStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
+                                        label = label,
+                                        onClick = {
+                                            val newStyle = selectedStyle.copy(textAlign = alignKey)
+                                            onStyleStateChange(newStyle)
+                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                        }
                                     )
-                                )
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                alignments.drop(3).forEach { (alignKey, label) ->
+                                    CheckChip(
+                                        checked = selectedStyle.textAlign.uppercase(java.util.Locale.ROOT) == alignKey,
+                                        label = label,
+                                        onClick = {
+                                            val newStyle = selectedStyle.copy(textAlign = alignKey)
+                                            onStyleStateChange(newStyle)
+                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                        }
+                                    )
+                                }
                             }
                         }
 
@@ -2971,12 +2992,21 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "🎨 色彩与质感艺术",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Brush,
+                                contentDescription = null,
+                                tint = accentBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "色彩与质感艺术",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accentBlue
+                            )
+                        }
 
                         // 4.1. 字体颜色设置
                         Text("字体颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
@@ -3002,7 +3032,7 @@ class MainActivity : ComponentActivity() {
                                             .background(Color(parsedColor))
                                             .border(
                                                 width = if (isSelected) 3.dp else 1.dp,
-                                                color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                                color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
                                                 shape = RoundedCornerShape(9.dp)
                                             )
                                             .combinedClickable(
@@ -3020,111 +3050,6 @@ class MainActivity : ComponentActivity() {
                             }
                             AddColorPresetButton(onClick = { showFontColorPicker = true })
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                val hsv = remember(selectedStyle.fontColor) {
-                                    val arr = FloatArray(3)
-                                    android.graphics.Color.colorToHSV(selectedStyle.fontColor, arr)
-                                    arr
-                                }
-                                var hue by remember(selectedStyle.fontColor) { mutableStateOf(hsv[0]) }
-                                var saturation by remember(selectedStyle.fontColor) { mutableStateOf(hsv[1]) }
-                                var value by remember(selectedStyle.fontColor) { mutableStateOf(hsv[2]) }
-
-                                // 字体色调
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxWidth().height(28.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(
-                                                        Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
-                                                    )
-                                                )
-                                            )
-                                    )
-                                    Slider(
-                                        value = hue,
-                                        onValueChange = {
-                                            hue = it
-                                            val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                            val newStyle = selectedStyle.copy(fontColor = newColor)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        },
-                                        valueRange = 0f..360f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.Transparent,
-                                            inactiveTrackColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                // 字体亮度
-                                val baseHueColor = remember(hue) {
-                                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
-                                }
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxWidth().height(28.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(Color.Black, baseHueColor, Color.White)
-                                                )
-                                            )
-                                    )
-                                    Slider(
-                                        value = value,
-                                        onValueChange = {
-                                            value = it
-                                            saturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                            val newColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
-                                            val newStyle = selectedStyle.copy(fontColor = newColor)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        },
-                                        valueRange = 0f..1f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.Transparent,
-                                            inactiveTrackColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-
-                            // 字体颜色预览框
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .background(Color(selectedStyle.fontColor), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            )
-                        }
-
                         HorizontalDivider(color = Color(0xFFF1F5F9))
 
                         // 4.2. 卡片背景颜色设置
@@ -3165,7 +3090,7 @@ class MainActivity : ComponentActivity() {
                                             .background(Color(colorInt))
                                             .border(
                                                 width = if (isSelected) 3.dp else 1.dp,
-                                                color = if (isSelected) mintBright else Color(0xFFE2E8F0),
+                                                color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
                                                 shape = RoundedCornerShape(9.dp)
                                             )
                                             .combinedClickable(
@@ -3184,110 +3109,6 @@ class MainActivity : ComponentActivity() {
                             AddColorPresetButton(onClick = { showBackgroundColorPicker = true })
                         }
 
-                        // 自定义背景色调 HSV 滑块
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                val bgHsv = remember(selectedStyle.backgroundColor) {
-                                    val arr = FloatArray(3)
-                                    android.graphics.Color.colorToHSV(selectedStyle.backgroundColor, arr)
-                                    arr
-                                }
-                                var bgHue by remember(selectedStyle.backgroundColor) { mutableStateOf(bgHsv[0]) }
-                                var bgSaturation by remember(selectedStyle.backgroundColor) { mutableStateOf(bgHsv[1]) }
-                                var bgValue by remember(selectedStyle.backgroundColor) { mutableStateOf(bgHsv[2]) }
-
-                                // 背景色调色环
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxWidth().height(28.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(
-                                                        Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
-                                                    )
-                                                )
-                                            )
-                                    )
-                                    Slider(
-                                        value = bgHue,
-                                        onValueChange = {
-                                            bgHue = it
-                                            val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                            val newStyle = selectedStyle.copy(backgroundColor = newColor)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        },
-                                        valueRange = 0f..360f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.Transparent,
-                                            inactiveTrackColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                // 背景亮度
-                                val bgBaseHueColor = remember(bgHue) {
-                                    Color(android.graphics.Color.HSVToColor(floatArrayOf(bgHue, 1f, 1f)))
-                                }
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxWidth().height(28.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(Color.Black, bgBaseHueColor, Color.White)
-                                                )
-                                            )
-                                    )
-                                    Slider(
-                                        value = bgValue,
-                                        onValueChange = {
-                                            bgValue = it
-                                            bgSaturation = if (it < 0.5f) 1f else (1f - (it - 0.5f) * 2f).coerceIn(0f, 1f)
-                                            val newColor = android.graphics.Color.HSVToColor(floatArrayOf(bgHue, bgSaturation, bgValue))
-                                            val newStyle = selectedStyle.copy(backgroundColor = newColor)
-                                            onStyleStateChange(newStyle)
-                                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                        },
-                                        valueRange = 0f..1f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.Transparent,
-                                            inactiveTrackColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-
-                            // 背景颜色预览框
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .background(Color(selectedStyle.backgroundColor), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            )
-                        }
                         }
                         if (!canSetBackgroundColor) {
                             Box(
@@ -3313,12 +3134,21 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "🖼 物理形状与背景材质",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Wallpaper,
+                                contentDescription = null,
+                                tint = accentBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "物理形状与背景材质",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accentBlue
+                            )
+                        }
 
 
 
@@ -3348,7 +3178,7 @@ class MainActivity : ComponentActivity() {
                                 color = if (canAdjustCorner) Color(0xFF334155) else Color(0xFF94A3B8)
                             )
                         }
-                        Slider(
+                        ThickTrackSlider(
                             value = selectedStyle.cornerRadiusDp,
                             onValueChange = {
                                 val newStyle = selectedStyle.copy(cornerRadiusDp = it)
@@ -3358,17 +3188,7 @@ class MainActivity : ComponentActivity() {
                             valueRange = 0.0f..30.0f,
                             steps = 29,
                             enabled = canAdjustCorner,
-                            modifier = Modifier.fillMaxWidth().height(24.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = mintBright,
-                                activeTrackColor = mintBright,
-                                // steps 会触发 M3 绘制刻度点，默认刻度色偏深，看起来像一排黑点；置透明与其他滑条保持一致
-                                activeTickColor = Color.Transparent,
-                                inactiveTrackColor = Color(0xFFE2E8F0),
-                                inactiveTickColor = Color.Transparent,
-                                disabledThumbColor = Color(0xFFCBD5E1),
-                                disabledInactiveTrackColor = Color(0xFFE2E8F0)
-                            )
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
                         )
 
                         // 背景不透明度 Slider
@@ -3379,7 +3199,7 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Text("背景不透明度: ${(selectedStyle.backgroundOpacity * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                         }
-                        Slider(
+                        ThickTrackSlider(
                             value = selectedStyle.backgroundOpacity,
                             onValueChange = {
                                 val newStyle = selectedStyle.copy(backgroundOpacity = it)
@@ -3387,12 +3207,7 @@ class MainActivity : ComponentActivity() {
                                 onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                             },
                             valueRange = 0.0f..1.0f,
-                            modifier = Modifier.fillMaxWidth().height(24.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = mintBright,
-                                activeTrackColor = mintBright,
-                                inactiveTrackColor = Color(0xFFE2E8F0)
-                            )
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
                         )
 
                         HorizontalDivider(color = Color(0xFFF1F5F9))
@@ -3413,11 +3228,11 @@ class MainActivity : ComponentActivity() {
                                             selectImageLauncher.launch("image/*")
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = mintBright, contentColor = mintInk),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE2E8F0), contentColor = accentBlue),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("+ 选择本地图片", color = mintInk, fontSize = 12.sp)
+                                    Text("+ 选择本地图片", color = accentBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             } else {
                                 Button(
@@ -3472,15 +3287,15 @@ class MainActivity : ComponentActivity() {
                                         label = { Text(modeDesc, fontSize = 12.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             labelColor = Color(0xFF64748B),
-                                            selectedLabelColor = mintInk,
+                                            selectedLabelColor = Color.White,
                                             containerColor = Color(0xFFF1F5F9),
-                                            selectedContainerColor = mintBright
+                                            selectedContainerColor = selectBlue
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = selectedStyle.bgImageScaleMode == mode,
                                             borderColor = Color(0xFFE2E8F0),
-                                            selectedBorderColor = mintBright
+                                            selectedBorderColor = selectBlue
                                         )
                                     )
                                 }
@@ -3499,7 +3314,7 @@ class MainActivity : ComponentActivity() {
                         .height(48.dp)
                         .shadow(3.dp, RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.horizontalGradient(listOf(mintBright, mintSky)))
+                        .background(selectBlue)
                         .clickable {
                             val outcome = onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
                             if (outcome == SaveOutcome.SAVED) {
@@ -3508,7 +3323,7 @@ class MainActivity : ComponentActivity() {
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("保存并应用到桌面小组件", color = mintInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("保存并应用到桌面小组件", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 

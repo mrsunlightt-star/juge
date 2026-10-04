@@ -15,7 +15,9 @@ enum class WidgetFont(val fontPath: String?, val displayName: String) {
     LXGW_NEO_XIHEI_SCREEN("fonts/LXGWNeoXiHeiScreen.ttf", "霞鹜新晰黑 Screen"),
     // 枚举名保持 LXGW_WENKAI 不变：旧存档按 name 序列化，改名会让老用户字体选择回退为默认
     LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷"),
-    MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书");
+    MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书"),
+    // 台湾繁体圆体，简体字库覆盖有限（约 5528/8968），冷僻与部分常用简体字会回退系统字体
+    JF_OPEN_HUNINN("fonts/JFOpenHuninn-Regular.ttf", "jf open 粉圆");
 
     fun getTypeface(context: Context): Typeface {
         if (fontPath != null) {
@@ -53,11 +55,12 @@ enum class WidgetShape(val displayName: String) {
     NIUPI_SHOUZHANG("撕边牛皮手账"),
     CLASSROOM_BLACKBOARD("教室黑板"),
     BOOKSHELF("书香书架"),
-    CAT_CARD("猫咪卡片"),
     GIANT_SWORD("巨剑"),
     PLUSH_FOREST("毛绒森林"),
     SUBOR_CONSOLE("小霸王游戏机"),
-    STICKER_SCENE("贴纸夜景")
+    STICKER_SCENE("贴纸夜景"),
+    CITY_CUTOUT("城市剪影"),
+    WEATHER_BOX("天气盒子")
 }
 
 // 图片缩放模式
@@ -113,7 +116,7 @@ data class WidgetStyle(
     val fontBold: Boolean = false,
     val fontItalic: Boolean = false,
     val fontColor: Int = Color.parseColor("#333333"), // 字体颜色
-    val textAlign: String = "CENTER", // LEFT, CENTER, RIGHT
+    val textAlign: String = "CENTER", // LEFT, CENTER, RIGHT, JUSTIFY（两端对齐，API 26+ 生效）
     val shadow: TextShadow = TextShadow(),
     val gradientColors: List<Int>? = null,
     val gradientAngle: Float = 45f,
@@ -736,24 +739,6 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 authorSignature = "—— 书香书架"
             ), // 37. 书香书架 (PRO)
-            // 猫咪卡片 (PRO)：奶白圆角卡 + 粉色双层描边，顶部一只猫头头像，正文落在头像下方的留白区
-            WidgetStyle(
-                presetId = "p_cat_card",
-                shape = WidgetShape.CAT_CARD,
-                cornerRadiusDp = 16f,
-                backgroundColor = Color.parseColor("#FFF8F5"),
-                backgroundOpacity = 1f,
-                backgroundImagePath = null,
-                bgImageScaleMode = ImageScaleMode.STRETCH,
-                font = WidgetFont.DEFAULT,
-                fontSizeSp = 19f,
-                fontColor = Color.parseColor("#4A2C2A"),
-                textAlign = "CENTER",
-                showCardShadow = true,
-                cardBorderWidthDp = 2f,
-                cardBorderColor = Color.parseColor("#F5A8C0"),
-                authorSignature = "—— 猫咪卡片"
-            ), // 38. 猫咪卡片 (PRO)
             // 巨剑 (PRO)：武士扛巨剑横贯画面，正文压在剑身金属面上（左侧人物留白，文字区只取剑身）
             WidgetStyle(
                 presetId = "p_giant_sword",
@@ -844,7 +829,90 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 presetImageResName = "sticker_lalaland",
                 authorSignature = "—— 贴纸夜景"
-            ) // 42. 贴纸夜景 (PRO)
+            ), // 42. 贴纸夜景 (PRO)
+            // 城市微缩（CITY_CUTOUT）一族：抠掉天空的微缩城市按原比例摆进组件，
+            // 天空透明处露出壁纸。**一个风格一张素材**，没有按尺寸换素材那套机制。
+            // 城市与文字区怎么接由渲染器按素材名认领（见 cityJunctionOf），各风格各一套：
+            // 江西走土层剖面，上海走江面倒影，认不出来的走柔和暗裙。
+            // 圆角滑条统一作用在文字栏底部两角。
+            WidgetStyle(
+                presetId = "p_city_cutout",
+                shape = WidgetShape.CITY_CUTOUT,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#4E3E2F"), // 深土层：字刻在深层土上
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#F2EBDF"), // 暖白，配土色比冷白耐看
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "jiangxi_city_cutout",
+                authorSignature = "—— 城市剪影"
+            ), // 43. 城市剪影 (PRO)
+            // 「浙江」：微缩浙江做城市剪影，落到青黛色文字栏上
+            WidgetStyle(
+                presetId = "p_zhejiang_cutout",
+                shape = WidgetShape.CITY_CUTOUT,
+                cornerRadiusDp = 12f,
+                // 青黛色文字栏：压在城郭之下，配浙江的青山绿水，冷绿底衬暖白字
+                backgroundColor = Color.parseColor("#1E3A32"),
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#EAF3EC"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "zhejiang_city_cutout",
+                authorSignature = "—— 浙江剪影"
+            ), // 44. 浙江剪影 (PRO)
+            // 北京微缩：同样是城市微缩（路线 E），但衔接走 FADE，且文字栏直接取**模型底座自己的
+            // 米杏色**（#FAF0D9，从素材底座采样）。于是"底座 → 文字栏"连成一片、没有分界，
+            // 读起来就是这座微缩北京长在纸上、题词就写在底座上。
+            WidgetStyle(
+                presetId = "p_beijing_cutout",
+                shape = WidgetShape.CITY_CUTOUT,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#FAF0D9"),
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                // 暖褐色字：米杏底上的"墨色"，与底座的金色描边、朱红宫墙同一暖调
+                fontColor = Color.parseColor("#4A3B2B"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "beijing_city_cutout",
+                authorSignature = "—— 北京微缩"
+            ), // 48. 北京微缩 (PRO)
+            // 天气盒子 (PRO)：白色盒体正面挖出一个内凹的方形小腔，腔底是蓝天微缩城市
+            // （云/太阳/楼群），腔体四周留白即正文区。盒体、腔体内凹的暗角与高光全部由
+            // 渲染器按当前组件尺寸现算，素材只是腔底那一块画面，因此 4×2 / 4×4 都不会拉伸。
+            WidgetStyle(
+                presetId = "p_weather_box",
+                shape = WidgetShape.WEATHER_BOX,
+                cornerRadiusDp = 20f,
+                backgroundColor = Color.parseColor("#FFFFFF"), // 盒面：白，可跟随「背景颜色」自定义
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                // 腔底素材按原比例完整显示，两侧余量由盒面白色兜住，不会裁掉云和楼
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3A4757"), // 冷灰蓝：与腔底蓝天同一色温
+                textAlign = "CENTER",
+                showCardShadow = true,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "weather_box_cavity",
+                authorSignature = "—— 天气盒子"
+            ) // 49. 天气盒子 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -934,10 +1002,10 @@ data class WidgetStyle(
             "竹青撕纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.ZHU_QING_SI_ZHI } ?: PRESETS[0]),
             "撕边牛皮手账" to (PRESETS.firstOrNull { it.shape == WidgetShape.NIUPI_SHOUZHANG } ?: PRESETS[0]),
             "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0]),
-            "猫咪卡片" to (PRESETS.firstOrNull { it.shape == WidgetShape.CAT_CARD } ?: PRESETS[0]),
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
             "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
-            "贴纸夜景" to (PRESETS.firstOrNull { it.shape == WidgetShape.STICKER_SCENE } ?: PRESETS[0])
+            "贴纸夜景" to (PRESETS.firstOrNull { it.shape == WidgetShape.STICKER_SCENE } ?: PRESETS[0]),
+            "城市剪影" to (PRESETS.firstOrNull { it.presetId == "p_city_cutout" } ?: PRESETS[0])
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
@@ -951,6 +1019,21 @@ data class WidgetStyle(
         // 使缩略图里的书脊/文本面板比例与桌面组件一致
         const val POSTCARD_CODE_RENDER_WIDTH_DP = 240
         const val POSTCARD_CODE_RENDER_HEIGHT_DP = 180
+        // 天气盒子固定按 4×4 渲染：素材是横幅（2.09:1），在扁组件上腔体只能居中、
+        // 两侧留白过多且正文被压扁；竖版才能把「蓝天腔体 + 下方留白」的比例拉舒服
+        const val WEATHER_BOX_RENDER_WIDTH_DP = 240
+        const val WEATHER_BOX_RENDER_HEIGHT_DP = 240
+
+        // 明信片风格行里的「微缩城市 / 立体场景」预设：缩略图必须**按组件真实渲染**
+        // （而非裁原图），否则形状/铺图方式的差异在缩略图上完全看不出来。按 presetId 定位，
+        // 避免 PRESETS 新增条目时索引漂移。
+        // 天气盒子是纯代码绘制的立体盒（白盒体 + 内凹腔体），素材比例锁死为横幅，
+        // 在 4×2 这类扁组件上腔体只能居中、两侧留白过多，故归到明信片行按 4×4 渲染。
+        val POSTCARD_RENDERED_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "浙江剪影" to (PRESETS.firstOrNull { it.presetId == "p_zhejiang_cutout" } ?: PRESETS[0]),
+            "北京微缩" to (PRESETS.firstOrNull { it.presetId == "p_beijing_cutout" } ?: PRESETS[0]),
+            "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0])
+        )
 
         // 萌宠风格：动物/角色类卡通插画
         val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(

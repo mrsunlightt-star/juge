@@ -1,5 +1,6 @@
 package com.juge.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,12 +15,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -35,10 +42,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlin.math.roundToInt
+
+private val SelectBlue = Color(0xFF42B8EC)
 
 /** 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗 */
 @Composable
@@ -132,7 +144,10 @@ fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
     )
 }
 
-/** 取色弹窗：色相 / 饱和度 / 明度三档调节，确认后把颜色交给调用方保存 */
+/**
+ * 取色弹窗：既可直接填写颜色编码，也可用色相 / 饱和度 / 明度三档调节。
+ * 两种输入双向联动，确认后把颜色交给调用方保存。
+ */
 @Composable
 fun ColorPickerDialog(
     title: String,
@@ -146,6 +161,7 @@ fun ColorPickerDialog(
     var hue by remember { mutableStateOf(initialHsv[0]) }
     var saturation by remember { mutableStateOf(initialHsv[1]) }
     var value by remember { mutableStateOf(initialHsv[2]) }
+    var hexInput by remember { mutableStateOf(toHexColor(initialColor)) }
     val picked = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
 
     Dialog(onDismissRequest = onDismiss) {
@@ -155,62 +171,130 @@ fun ColorPickerDialog(
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E293B),
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color(0xFF94A3B8))
+                }
+            }
 
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Color(picked))
-                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
             )
 
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("颜色编码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                OutlinedTextField(
+                    value = hexInput,
+                    onValueChange = { raw ->
+                        // 只接受 # 与十六进制字符，最长 #RRGGBB
+                        val filtered = raw.filter { it == '#' || it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+                        val capped = filtered.take(7)
+                        hexInput = capped
+                        parseHexColor(capped)?.let { parsed ->
+                            val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(parsed, it) }
+                            hue = hsv[0]
+                            saturation = hsv[1]
+                            value = hsv[2]
+                        }
+                    },
+                    singleLine = true,
+                    // 十六进制含字母，指定 ASCII 键盘并关闭联想，避免输入法把字母吞进候选词
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Ascii,
+                        autoCorrect = false,
+                        capitalization = KeyboardCapitalization.Characters
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color(0xFF1E293B),
+                        unfocusedTextColor = Color(0xFF1E293B),
+                        focusedContainerColor = Color(0xFFF1F5F9),
+                        unfocusedContainerColor = Color(0xFFF1F5F9),
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        cursorColor = SelectBlue
+                    )
+                )
+            }
+
             GradientSlider(
-                label = "色相",
+                label = "色相 H",
+                valueText = hue.roundToInt().toString(),
                 gradient = listOf(
                     Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
                 ),
                 value = hue,
                 valueRange = 0f..360f,
-                onValueChange = { hue = it }
+                onValueChange = { newHue ->
+                    hue = newHue
+                    hexInput = toHexColor(android.graphics.Color.HSVToColor(floatArrayOf(newHue, saturation, value)))
+                }
             )
             GradientSlider(
-                label = "饱和度",
+                label = "饱和度 S",
+                valueText = (saturation * 100).roundToInt().toString(),
                 gradient = listOf(
                     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, value))),
                     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, value)))
                 ),
                 value = saturation,
                 valueRange = 0f..1f,
-                onValueChange = { saturation = it }
+                onValueChange = { newSaturation ->
+                    saturation = newSaturation
+                    hexInput = toHexColor(android.graphics.Color.HSVToColor(floatArrayOf(hue, newSaturation, value)))
+                }
             )
             GradientSlider(
-                label = "明度",
+                label = "明度 V",
+                valueText = (value * 100).roundToInt().toString(),
                 gradient = listOf(
                     Color.Black,
                     Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))
                 ),
                 value = value,
                 valueRange = 0f..1f,
-                onValueChange = { value = it }
+                onValueChange = { newValue ->
+                    value = newValue
+                    hexInput = toHexColor(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, newValue)))
+                }
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                    Text("取消", color = Color(0xFF64748B))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("取消", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                 }
                 Button(
                     onClick = { onConfirm(picked) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2DD4BF),
-                        contentColor = Color(0xFF134E4A)
+                        containerColor = SelectBlue,
+                        contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("添加", fontWeight = FontWeight.Bold)
@@ -220,40 +304,43 @@ fun ColorPickerDialog(
     }
 }
 
+/** 把不透明颜色格式化为 #RRGGBB */
+private fun toHexColor(color: Int): String = "#%06X".format(0xFFFFFF and color)
+
+/** 解析 #RGB / #RRGGBB / #AARRGGBB，非法输入返回 null */
+private fun parseHexColor(input: String): Int? {
+    val digits = input.removePrefix("#").trim()
+    if (digits.length != 3 && digits.length != 6 && digits.length != 8) return null
+    if (!digits.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }) return null
+    return try {
+        android.graphics.Color.parseColor("#$digits")
+    } catch (e: Exception) {
+        null
+    }
+}
+
 @Composable
 private fun GradientSlider(
     label: String,
+    valueText: String,
     gradient: List<Color>,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit
 ) {
-    Column {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(28.dp)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Brush.horizontalGradient(gradient))
-            )
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = Color.Transparent,
-                    inactiveTrackColor = Color.Transparent
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+            Text(valueText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
         }
+        GradientTrackSlider(
+            gradient = gradient,
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange
+        )
     }
 }

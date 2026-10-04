@@ -1,7 +1,6 @@
 package com.juge.app.ui.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -35,7 +34,10 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // 全 App 的视觉按浅色设计（各界面颜色均为写死的浅色系，不随主题切换）。
+    // 这里不再跟随系统暗色模式：否则 AlertDialog 等吃主题色的组件会在暗色模式下
+    // 变成深色底，与写死的浅色文字（如深色标题）冲突，出现"深色弹窗+看不清标题"。
+    darkTheme: Boolean = false,
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面长按应用图标的快捷方式：直接拉起系统「固定小组件」确认框 -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_widget_big"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_widget_big"
+        android:shortcutShortLabel="@string/shortcut_add_big_short"
+        android:shortcutLongLabel="@string/shortcut_add_big_long">
+        <intent
+            android:action="com.juge.app.action.ADD_WIDGET"
+            android:targetPackage="com.juge.app"
+            android:targetClass="com.juge.app.MainActivity">
+            <extra
+                android:name="widget_kind"
+                android:value="big" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="add_widget_compact"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_widget_compact"
+        android:shortcutShortLabel="@string/shortcut_add_compact_short"
+        android:shortcutLongLabel="@string/shortcut_add_compact_long">
+        <intent
+            android:action="com.juge.app.action.ADD_WIDGET"
+            android:targetPackage="com.juge.app"
+            android:targetClass="com.juge.app.MainActivity">
+            <extra
+                android:name="widget_kind"
+                android:value="compact" />
+        </intent>
+    </shortcut>
+</shortcuts>

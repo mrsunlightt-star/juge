@@ -10,11 +10,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -135,6 +138,256 @@ object WidgetCanvasRenderer {
     private val STICKER_LEAF_COLOR = 0x4C7A55.toInt()
     private val STICKER_VINE_COLOR = 0x3F6146.toInt()
 
+    // ==================== 城市微缩（CITY_CUTOUT） ====================
+    // 一个风格一张素材：presetImageResName 就是素材名，抠掉天空的微缩城市按**原始宽高比**
+    // 摆进组件，天空透明处露出壁纸。没有"按尺寸换素材"那套机制 —— 素材比例与组件比例
+    // 不合时，由 drawCityArt 用「等比 contain + 底边贴住衔接线」消化：宁可两侧留壁纸，
+    // 也不把天际线切平（切平就没有剪影了）。
+    //
+    // 城市与文字区怎么接，是**每个风格自己的设计**，不共用画法、也不共用配比：
+    //   SOIL —— 江西「城市剪影」：山地古城像从地里整块挖出来，接草皮 → 浅壤 → 深土的剖面
+    //   WATER —— 上海「上海微缩」：现代城市立在黄浦江面上，接倒影与波纹，向下渐入深水面
+    //   FADE —— 用户自定义素材：不假造任何材质，只把城市底边柔进背景色
+    // 新增城市风格时在 cityJunctionOf 里认领一种，别默认套土层。
+    private enum class CityJunction { SOIL, WATER, FADE }
+
+    // —— 江西·土层剖面 ——
+    // 关键一：**起伏在地层的下沿，不在上沿**。上沿严格平直、紧贴城市底边
+    //（草皮顶色从素材底边取色做无缝过渡），下沿才是块状不规则的轮廓，
+    // 文字区贴着那条轮廓往下长 —— 这样城市与地层是"同一块地块"，
+    // 文字框的上边形状就是地块的断面形状。
+    // 关键二：三段配比 **城市 50% / 地层 5% / 文字 45%**，按组件实际像素高度切。
+    private const val SOIL_ART_RATIO = 0.50f
+    private const val SOIL_WALL_RATIO = 0.05f
+    private const val SOIL_GRASS_RATIO = 0.20f
+    private const val SOIL_EDGE_TRANS_DP = 4f // 素材底边色 → 草皮色的无缝过渡高度
+    // 地层下沿的轮廓：粗块（大起伏）+ 细块（碎起伏）叠加，再滑动平均磨圆 →
+    // 圆润的下垂地块，而不是城墙垛口。单频方波太机械，真实地块断面是几块深的夹着几块浅的。
+    // 幅度必须随 5% 的薄地层同步收小，否则起伏会翻出地层、把草皮顶穿。
+    private const val SOIL_RIDGE_AMP_RATIO = 0.32f
+    private const val SOIL_RIDGE_AMP_MIN_DP = 2.5f
+    private const val SOIL_RIDGE_AMP_MAX_DP = 6.5f
+    private const val SOIL_RIDGE_BLOCK_DP = 18f // 粗块宽
+    private const val SOIL_RIDGE_EDGE = 0.20f // 块间过渡带占比（越小越像垂直陡壁）
+    private const val SOIL_RIDGE_FINE_BLOCK_DP = 8f // 细块宽
+    private const val SOIL_RIDGE_COARSE_MIX = 0.76f // 粗块权重
+    private const val SOIL_RIDGE_SMOOTH_DP = 2.5f // 磨圆窗口
+    private const val SOIL_RIDGE_SAMPLE_DP = 0.5f // 轮廓采样步长
+    private const val SOIL_GRASS_RIDGE_SCALE = 0.55f // 草皮下沿起伏衰减（凸处草皮薄、凹处厚）
+    private const val CITY_NOISE_SEED = 2026f // 固定种子：每次渲染必须同一条曲线，否则桌面组件会抖
+    private val SOIL_GRASS_COLOR = 0xFF7E9C4E.toInt()
+    private val SOIL_TOPSOIL_COLOR = 0xFFB07E52.toInt()
+    // 接触阴影：城市底边往下叠淡暗色，柔化"插画底边"与草皮之间那条直切。
+    // 上限被草皮高度夹住（见 drawSoilStrata）——5% 地层里草皮只有 1% 组件高，
+    // 阴影一旦压满整个草皮，绿色就全被吃掉了。
+    private const val SOIL_SHADOW_DP = 3f
+    private const val SOIL_SHADOW_MAX_ALPHA = 52
+    private const val SOIL_SHADOW_STEPS = 5
+    private val SOIL_SHADOW_COLOR = 0xFF241B12.toInt()
+    // 地层外轮廓的暗边：沿下沿轮廓往上叠渐暗，给下垂的凸块做出体积（只压最外层，
+    // 草皮与浅壤之间的分界保持干净）
+    private const val SOIL_EDGE_SHADE_DP = 5f
+    private const val SOIL_EDGE_SHADE_ALPHA = 54
+    private const val SOIL_EDGE_SHADE_STEPS = 6
+    // 深土层质感：等厚沉积层理 + 低密度土壤颗粒 + 底部压暗，避免一大块纯色显得空
+    private const val SOIL_STRATA_SPACING_DP = 22f
+    private const val SOIL_STRATA_ALPHA = 58
+    private const val SOIL_STRATA_FOLLOW = 0.5f
+    private const val SOIL_SPECKLE_BOX_DP = 22f
+    private const val SOIL_SPECKLE_DENSITY = 0.24f
+    private const val SOIL_SPECKLE_RADIUS_DP = 1.5f
+    private const val SOIL_SPECKLE_ALPHA = 46
+    private const val SOIL_VIGNETTE_ALPHA = 24
+    private val SOIL_DARK_GRAIN = 0xFF221A12.toInt()
+    private val SOIL_LIGHT_GRAIN = 0xFF967E62.toInt()
+
+    // —— 上海·水面与倒影 ——
+    // 城市底边就是水线。水线以下：先一段被压暗、竖向压缩、模糊过的**镜像倒影**，
+    // 再叠横向波纹高光，最后向下渐进"小组件背景颜色"那池深水，文字浮在水面上。
+    // 现代玻璃楼群做土层剖面会读成"城市被挖出来"，很突兀；立在水面上才是陆家嘴。
+    private const val WATER_ART_RATIO = 0.52f // 水线在组件高度上的位置（城市占这个高度）
+    private const val WATER_REFLECT_RATIO = 0.16f // 倒影画多高（占组件高）
+    private const val WATER_REFLECT_SRC_RATIO = 0.42f // 取城市下部多少高度做倒影源
+    // 文字只让出组件高的 7%，其余压给倒影的尾巴：倒影本来就靠向下溶解收尾，
+    // 文字落在它淡掉的那段上正好，不必为它单独腾出一整条带 ——
+    // 腾多了 4×2 就只剩一行字的位置（18sp 一行约 100px，扁组件根本经不起让）。
+    private const val WATER_TEXT_BAND_RATIO = 0.07f
+    private const val WATER_REFLECT_ALPHA = 74 // 倒影本体透明度
+    private const val WATER_RIPPLE_COUNT = 7 // 波纹条数
+    private const val WATER_RIPPLE_THIN_DP = 1.1f // 波纹基础粗细
+    private const val WATER_RIPPLE_ALPHA = 34
+    private const val WATER_RIPPLE_SALT = 41f // cityHash 的盐：与土层的轮廓噪声分开
+    private val WATER_SURFACE_COLOR = 0xFF2C5C72.toInt() // 水线处偏亮的江面
+    private val WATER_HILITE_COLOR = 0xFFBFE3F0.toInt() // 波纹高光
+    private const val WATER_LINE_ALPHA = 70 // 水线本身那道亮边
+    private const val WATER_VIGNETTE_ALPHA = 70 // 底部压暗，把文字从水面里托出来
+
+    // —— 各衔接共用 ——
+    private const val CITY_TEXT_PAD_X_DP = 16f
+    // 上下内边距只保底"一行正文不贴边"即可：FADE 下城市要尽量顶满宽度，
+    // 文字区每省 1dp 内边距，城市就能多占一截宽度（见 fadeArtHeight）。
+    private const val CITY_TEXT_PAD_Y_DP = 5f
+    private const val FADE_ART_RATIO = 0.55f // FADE 衔接：城市占组件高度的**下限**
+    private const val CITY_FADE_BAND_RATIO = 0.10f // FADE 衔接：城市底边柔进背景色的带高
+    // 一行正文的高度 ≈ 字号 × 该系数（含行距）。用来估文字区下限，宁可估大不估小。
+    private const val FADE_LINE_HEIGHT_FACTOR = 1.1f
+    // 垫平带取色时认定"内容"的最低 alpha：软边/噪声边缘像素不算内容，免得取到半透明的脏色。
+    private const val CITY_PAD_ALPHA_MIN = 128
+
+    // 江西·土层：素材底边过渡色带的缓存（key = 素材实例 + 目标像素尺寸）。
+    // 缓存出来的 bitmap 会交给 Canvas.drawBitmap，硬件加速下 DisplayList 仍持有它的引用，
+    // 所以**不能**主动 recycle —— 换新的一份时把旧的引用丢掉、交给 GC 即可。
+    private var soilFadeKey: Int = 0
+    private var soilFadeBitmap: Bitmap? = null
+
+    // 城市微缩：素材"底边垫平带"的缓存（key = 素材实例 + 像素尺寸）。
+    // 同样交给 Canvas 绘制过，不能主动 recycle。
+    private var cityPadKey: Int = 0
+    private var cityPadBitmap: Bitmap? = null
+
+    // ==================== 天气盒子（WEATHER_BOX） ====================
+    // 白色盒体正面挖一个内凹方腔，腔底铺 weather_box_cavity 素材（蓝天微缩城市）。
+    // 关键：**腔体始终保持素材的宽高比**，只在盒体里水平居中、上下按比例分配。
+    // 若让腔体去适应组件的宽高比（像 4×2 那样摊成 3.5:1），素材就填不满腔体，
+    // 两侧会露出盒面空白、把"内凹"读成两条孤立暗带。锁死比例后素材永远恰好填满腔口，
+    // 素材自带的四周暗角正好落在腔口边缘，凹感自然且 4×2 / 4×4 都不会变形。
+    // 素材比例由 weather_box_cavity.webp 实测（1414×676），换图后需同步。
+    private const val WEATHER_BOX_CAVITY_ASPECT = 1414f / 676f
+    // 腔体在盒体里的垂直位置与高度上限：顶部留 3.1%，腔高不超过盒高的 66%，
+    // 剩下的留给正文，保证 4×4 这类高组件也放得下一行字
+    private const val WEATHER_BOX_CAVITY_TOP_RATIO = 0.031f
+    // 腔高占盒高的比例。素材是横幅（2.09:1）：组件越扁，腔体越容易被宽度卡住、
+    // 两侧留白越多，所以给到 0.66 让 4×2 下腔体接近顶满宽度；
+    // 而正文区至少要留得下一行 18sp（约 30dp），否则文字会被挤出盒体下沿。
+    private const val WEATHER_BOX_CAVITY_HEIGHT_RATIO = 0.66f
+    private const val WEATHER_BOX_CAVITY_MAX_HEIGHT_RATIO = 0.66f
+    // 腔体左右最少留边（占盒宽），与设计稿的 2.7% 同量级
+    private const val WEATHER_BOX_CAVITY_SIDE_RATIO = 0.027f
+    // 腔口圆角：内凹开口的圆角略小于外框，弱化"贴纸感"
+    private const val WEATHER_BOX_CAVITY_RADIUS_DP = 10f
+    // 内壁遮光带厚度（腔口向内渐暗的一条），按密度放大。
+    // 素材边缘已自带一圈暗角，这里只补很浅的一层，主要是为了让上沿的暗更连贯
+    private const val WEATHER_BOX_INNER_WALL_DP = 5f
+    private const val WEATHER_BOX_INNER_SHADOW_ALPHA = 90
+    // 腔体下沿高光：光从腔口下沿反弹进来的一条亮边，是"凹"的主要立体线索
+    private const val WEATHER_BOX_RIM_LIGHT_DP = 2.5f
+    private val WEATHER_BOX_INNER_SHADOW = 0xFF5A6478.toInt()
+    private val WEATHER_BOX_RIM_LIGHT = 0xFFFFFFFF.toInt()
+    // 正文区（腔体下方留白）内边距
+    private const val WEATHER_BOX_TEXT_PAD_X_DP = 16f
+    private const val WEATHER_BOX_TEXT_PAD_Y_DP = 8f
+    // 正文区最小净高：一行 18sp 正文（含行距）约需此高度。
+    // 腔体高度按它反推，确保扁组件（4×2）下文字不会被挤出盒体下沿
+    private const val WEATHER_BOX_TEXT_MIN_HEIGHT_DP = 26f
+
+    // ==================== 天气盒子 ====================
+
+    /**
+     * 内凹腔体在盒体里的矩形，**宽高比恒等于素材比例**。
+     *
+     * 高度从两个约束里取较小值：一个是按盒高分的上限（让腔体在 4×4 这类高组件上
+     * 不会过大），另一个是**给正文预留出的净高度**——扁组件（4×2）按比例分完腔高后
+     * 剩下的空间不足一行字，文字会被挤出盒体，所以这里先把正文需要的高度扣掉。
+     * 宽度再由高度按素材比例反推，超出可用宽度（左右留边后）则以宽度为准回调高度。
+     */
+    private fun weatherBoxCavityRect(outerRect: RectF, densityScale: Float): RectF {
+        val availWidth = outerRect.width() * (1f - 2f * WEATHER_BOX_CAVITY_SIDE_RATIO)
+        val top = outerRect.top + outerRect.height() * WEATHER_BOX_CAVITY_TOP_RATIO
+        val ratioCap = outerRect.height() * WEATHER_BOX_CAVITY_MAX_HEIGHT_RATIO
+
+        // 正文净高：一行 18sp 正文（含行距与上下内边距）所需的高度
+        val textPadY = WEATHER_BOX_TEXT_PAD_Y_DP * densityScale
+        val textMinHeight = WEATHER_BOX_TEXT_MIN_HEIGHT_DP * densityScale
+        val textCap = outerRect.bottom - textPadY - textMinHeight - top
+
+        var height = minOf(outerRect.height() * WEATHER_BOX_CAVITY_HEIGHT_RATIO, ratioCap, textCap)
+        if (height <= 0f) {
+            // 组件过矮（扣掉正文后放不下腔体）：腔体退让，保证正文仍有位置
+            height = textCap.coerceAtLeast(outerRect.height() * 0.4f)
+        }
+
+        var width = height * WEATHER_BOX_CAVITY_ASPECT
+        if (width > availWidth) {
+            width = availWidth
+            height = width / WEATHER_BOX_CAVITY_ASPECT
+        }
+        val cx = outerRect.centerX()
+        return RectF(
+            cx - width / 2f,
+            top,
+            cx + width / 2f,
+            top + height
+        )
+    }
+
+    /**
+     * 画内凹腔体。腔体尺寸与素材比例一致，因此素材直接铺满整个腔口：
+     * 素材四周自带的暗角正好压在腔口边缘，读起来就是腔壁遮光。
+     * 这里再补两笔：上沿一条浅暗（让顶部转折更连贯）与下沿一条亮边
+     * （光从腔口下沿反弹回来）——这条亮边是让平面矩形读成"凹"的关键。
+     */
+    private fun drawWeatherBoxCavity(
+        canvas: Canvas,
+        cavity: RectF,
+        bitmap: Bitmap?,
+        style: WidgetStyle,
+        densityScale: Float,
+        alpha: Int
+    ) {
+        val radius = WEATHER_BOX_CAVITY_RADIUS_DP * densityScale
+        val clip = Path().apply {
+            addRoundRect(cavity, radius, radius, Path.Direction.CW)
+        }
+
+        canvas.save()
+        canvas.clipPath(clip)
+
+        if (bitmap != null && !bitmap.isRecycled) {
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+                this.alpha = alpha
+            }
+            // 腔体比例 == 素材比例，故直接铺满腔口（dst 与 cavity 重合）
+            canvas.drawBitmap(bitmap, null, cavity, paint)
+        } else {
+            // 素材缺失时铺一层天空蓝兜底，避免腔体变成一块空洞
+            canvas.drawRect(
+                cavity,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFFA8C0E0.toInt()
+                    this.alpha = alpha
+                }
+            )
+        }
+
+        // 上沿浅暗：衔接盒面与腔壁的转折
+        val wall = WEATHER_BOX_INNER_WALL_DP * densityScale
+        val shadeAlpha = (alpha * WEATHER_BOX_INNER_SHADOW_ALPHA / 255f).toInt()
+        val shade = LinearGradient(
+            cavity.left, cavity.top, cavity.left, cavity.top + wall,
+            WEATHER_BOX_INNER_SHADOW, Color.TRANSPARENT, Shader.TileMode.CLAMP
+        )
+        canvas.drawRect(
+            cavity.left, cavity.top, cavity.right, cavity.top + wall,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = shade; this.alpha = shadeAlpha }
+        )
+
+        // 腔口下沿高光：贴着腔体底边、向上淡出的一条亮边
+        val rimH = WEATHER_BOX_RIM_LIGHT_DP * densityScale
+        val rim = LinearGradient(
+            cavity.bottom, 0f, cavity.bottom - rimH, 0f,
+            WEATHER_BOX_RIM_LIGHT, Color.TRANSPARENT, Shader.TileMode.CLAMP
+        )
+        canvas.drawRect(
+            cavity.left, cavity.bottom - rimH, cavity.right, cavity.bottom,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = rim
+                this.alpha = (alpha * 0.65f).toInt()
+            }
+        )
+
+        canvas.restore()
+    }
+
     fun render(
         context: Context,
         widthDp: Int,
@@ -159,7 +412,10 @@ object WidgetCanvasRenderer {
         val usesInsetCard = style.shape == WidgetShape.RECTANGLE ||
             style.shape == WidgetShape.HANDBOOK_TAPE ||
             style.shape == WidgetShape.SPLIT_CARD ||
-            style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL
+            style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL ||
+            // 天气盒子：盒体与腔体都按 outerRect 布局，内缩安全；预设开了投影，
+            // 不内缩的话阴影会被位图边界裁掉，盒体看起来是"贴平"的
+            style.shape == WidgetShape.WEATHER_BOX
         val cardInset = if (usesInsetCard) CARD_INSET_DP * densityScale else 0f
         val offsetY = cardInset
         val rectF = RectF(cardInset, offsetY, targetWidth - cardInset, targetHeight - cardInset)
@@ -168,12 +424,15 @@ object WidgetCanvasRenderer {
         // 圆角裁剪会把主体切掉。预设套用时会继承上一个风格的圆角值，
         // 这里统一强制按直角渲染，避免旧数据/跨风格套用后画面被裁。
         // 贴纸夜景整幅透明、不画外框，它的圆角滑条作用在文本框上（见 paperCutBoxPath），不在此列。
+        // 城市剪影同理：没有卡片外框，圆角滑条作用在文字栏底部两角（见 cityBarPath）。
         val effectiveCornerRadiusDp =
-            if (style.shape == WidgetShape.GIANT_SWORD || style.shape == WidgetShape.PLUSH_FOREST || style.shape == WidgetShape.SUBOR_CONSOLE) 0f
+            if (style.shape == WidgetShape.GIANT_SWORD || style.shape == WidgetShape.PLUSH_FOREST ||
+                style.shape == WidgetShape.SUBOR_CONSOLE || style.shape == WidgetShape.CITY_CUTOUT
+            ) 0f
             else style.cornerRadiusDp
 
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.CAT_CARD, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE -> {
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX -> {
                 val rx = effectiveCornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
@@ -201,7 +460,7 @@ object WidgetCanvasRenderer {
             // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
             WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
-            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.CAT_CARD, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE ->
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX ->
                 effectiveCornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
@@ -222,7 +481,10 @@ object WidgetCanvasRenderer {
 
         // 绘制卡片软阴影（移至 clip 外部以防被气泡边界截断）
         // 贴纸夜景整幅是透明底，阴影只该跟着文本框走，因此单独在文本框绘制处处理
-        if (style.showCardShadow && style.shape != WidgetShape.STICKER_SCENE) {
+        // 城市剪影同理：整幅没有卡片外框，只有剪影 + 文字栏，不画整卡投影
+        if (style.showCardShadow && style.shape != WidgetShape.STICKER_SCENE &&
+            style.shape != WidgetShape.CITY_CUTOUT
+        ) {
             val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = effectiveBgColor
                 if (Color.alpha(effectiveBgColor) < 255) {
@@ -265,7 +527,10 @@ object WidgetCanvasRenderer {
         bgPaint.alpha = alpha
         // 背景色为透明时不填充，避免 alpha 被强制为 255 后把透明底画成黑色。
         // 贴纸夜景整幅是透明底，背景色只作用于文本框（下方单独绘制），这里不铺整卡底色
-        if (Color.alpha(effectiveBgColor) > 0 && style.shape != WidgetShape.STICKER_SCENE) {
+        // 城市剪影的背景色只作用于文字栏（下方单独绘制），同样不铺整卡底色
+        if (Color.alpha(effectiveBgColor) > 0 && style.shape != WidgetShape.STICKER_SCENE &&
+            style.shape != WidgetShape.CITY_CUTOUT
+        ) {
             if (style.shape == WidgetShape.SPLIT_CARD || style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
                 // 图文明信片：文字显示区（下半/右半）的底色由下方 panelPaint 单独绘制，
                 // 这里只铺图片区，避免同一底色叠两遍导致不透明度失真
@@ -291,7 +556,14 @@ object WidgetCanvasRenderer {
                 Timber.e(e, "Failed to load background image from path")
             }
         } else {
-            val resName = style.presetImageResName ?: if (style.shape == WidgetShape.SPLIT_CARD || style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) "bg_illustration_1" else null
+            val resName = if (style.shape == WidgetShape.CITY_CUTOUT) {
+                // 城市微缩：一个风格一张素材，presetImageResName 就是素材名
+                style.presetImageResName
+            } else if (style.shape == WidgetShape.SPLIT_CARD || style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
+                style.presetImageResName ?: "bg_illustration_1"
+            } else {
+                style.presetImageResName
+            }
             if (!resName.isNullOrEmpty()) {
                 try {
                     bgBitmap = getPresetImage(context, resName, targetWidth, targetHeight)
@@ -304,7 +576,11 @@ object WidgetCanvasRenderer {
 
         // 绘制背景图片（若有）
         // 贴纸夜景的素材是抠出的人物+路灯，位置/大小由下方贴纸逻辑单独计算，不走这里的整卡铺图
-        if (bgBitmap != null && style.shape != WidgetShape.STICKER_SCENE) {
+        // 城市剪影的素材要按剪影带单独铺（且必须跳过 detectLightBorder，见 drawCityArt）
+        // 天气盒子同理：素材只铺进内凹腔体，盒面留白由背景色负责
+        if (bgBitmap != null && style.shape != WidgetShape.STICKER_SCENE &&
+            style.shape != WidgetShape.CITY_CUTOUT && style.shape != WidgetShape.WEATHER_BOX
+        ) {
             canvas.save()
             canvas.clipPath(if (style.shape == WidgetShape.TORN_PAPER) path else outerPath)
             if (style.shape == WidgetShape.SPLIT_CARD || style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
@@ -425,6 +701,32 @@ object WidgetCanvasRenderer {
             drawStickerRoses(canvas, textBox, densityScale, alpha)
         }
 
+        // 城市微缩：先把抠掉天空的城市按原比例铺上（天空透明处露出壁纸），
+        // 再按**这个风格自己的**衔接把城市底边接进文字栏。
+        if (style.shape == WidgetShape.CITY_CUTOUT) {
+            val junction = cityJunctionOf(style)
+            val artRect = cityArtRect(outerRect, junction, style, densityScale, bgBitmap)
+            if (bgBitmap != null && !bgBitmap.isRecycled) {
+                // 先垫平素材底边的透明垫高区，再画城市：垫平带画在模型之下，
+                // 被模型实体盖住的部分不可见，只有露在衔接线上方的那截把壁纸挡掉。
+                if (cityNeedsBottomPad(style)) {
+                    drawCityBottomPad(canvas, bgBitmap, artRect, style)
+                }
+                drawCityArt(canvas, bgBitmap, artRect, style)
+            }
+            when (junction) {
+                CityJunction.SOIL -> drawSoilStrata(
+                    canvas, outerRect, artRect, bgBitmap, densityScale, style, bgPaint)
+                CityJunction.WATER -> drawCityWater(
+                    canvas, outerRect, artRect, bgBitmap, densityScale, style, bgPaint)
+                CityJunction.FADE -> drawCityFade(
+                    canvas, outerRect, artRect, densityScale, style, bgPaint)
+            }
+            if (bgBitmap != null && !bgFromCache && !bgBitmap.isRecycled) {
+                bgBitmap.recycle()
+            }
+        }
+
         // 蓝色便签：在蓝色大底上追加顶部 NOTE 区域与底部米白签条
         if (style.shape == WidgetShape.BLUE_NOTE) {
             drawBlueNoteChrome(canvas, targetWidth.toFloat(), targetHeight.toFloat(), outerRect, outerPath, densityScale, style, context)
@@ -435,9 +737,14 @@ object WidgetCanvasRenderer {
             drawBookshelfChrome(canvas, outerRect, densityScale, style, context)
         }
 
-        // 猫咪卡片：奶白卡上补一层浅粉内描边，并在顶部画出猫头头像
-        if (style.shape == WidgetShape.CAT_CARD) {
-            drawCatCardChrome(canvas, outerRect, outerPath, densityScale, style)
+        // 天气盒子：白色盒体正面挖一个内凹方腔，腔底铺蓝天微缩城市素材，
+        // 腔口画内壁暗面 + 下沿高光，形成"凹进去"的体积感；腔下留白即正文区。
+        if (style.shape == WidgetShape.WEATHER_BOX) {
+            val cavity = weatherBoxCavityRect(outerRect, densityScale)
+            drawWeatherBoxCavity(canvas, cavity, bgBitmap, style, densityScale, alpha)
+            if (bgBitmap != null && !bgFromCache && !bgBitmap.isRecycled) {
+                bgBitmap.recycle()
+            }
         }
 
         // 羽毛信纸：使用透自信纸抠图作背景（走上方背景图绘制逻辑），透明区透底色
@@ -511,9 +818,14 @@ object WidgetCanvasRenderer {
             }
         }
 
-        val textAlignment = when (style.textAlign.uppercase(Locale.ROOT)) {
-            "LEFT" -> Layout.Alignment.ALIGN_NORMAL
-            "RIGHT" -> Layout.Alignment.ALIGN_OPPOSITE
+        // 两端对齐（JUSTIFY）依赖 StaticLayout 的 justification 能力（API 26+），
+        // 低版本回退为左对齐；词间距拉伸只在折行行生效，末行保持正常排布（标准行为）
+        val alignKey = style.textAlign.uppercase(Locale.ROOT)
+        val isJustify = alignKey == "JUSTIFY" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        val textAlignment = when {
+            alignKey == "LEFT" -> Layout.Alignment.ALIGN_NORMAL
+            alignKey == "RIGHT" -> Layout.Alignment.ALIGN_OPPOSITE
+            isJustify -> Layout.Alignment.ALIGN_NORMAL
             else -> Layout.Alignment.ALIGN_CENTER
         }
 
@@ -613,14 +925,6 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = panel.top + textPadY
                 cardHeight = (panel.bottom - textPadY - cardTop).coerceAtLeast(1f)
-            } else if (style.shape == WidgetShape.CAT_CARD) {
-                // 猫咪卡片：顶部让出猫头头像，正文落在头像下方的奶白留白区
-                val lateral = targetWidth * 0.11f
-                paddingLeft = lateral
-                paddingRight = targetWidth - lateral
-                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                cardTop = targetHeight * 0.50f
-                cardHeight = targetHeight - cardTop - targetHeight * 0.10f
             } else if (style.shape == WidgetShape.GIANT_SWORD) {
                 // 巨剑：左侧是扛剑武士，正文只压在右侧剑身金属面上，避开剑柄/护手与上下剑棱。
                 // 剑身纵向只占画面约 1/3，这里把可用高度吃满，保证 4×2 规格下也能排出两行
@@ -657,6 +961,32 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = textBox.top + textPadY
                 cardHeight = (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f)
+            } else if (style.shape == WidgetShape.CITY_CUTOUT) {
+                // 城市微缩：正文落在衔接层之下——土层的轮廓谷底 / 倒影的最下沿。
+                // 取的是这条带的**最低点**，所以文字绝不会压到剖面或倒影上。
+                val junction = cityJunctionOf(style)
+                val artRect = cityArtRect(
+                    outerRect, junction, style, densityScale, bgBitmap?.takeIf { !it.isRecycled })
+                val textBox = cityTextBoxRect(
+                    outerRect, artRect, cityBand(junction, outerRect, densityScale))
+                val textPadX = CITY_TEXT_PAD_X_DP * densityScale
+                val textPadY = CITY_TEXT_PAD_Y_DP * densityScale
+                paddingLeft = textBox.left + textPadX
+                paddingRight = textBox.right - textPadX
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = textBox.top + textPadY
+                cardHeight = (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f)
+            } else if (style.shape == WidgetShape.WEATHER_BOX) {
+                // 天气盒子：正文落在腔体下方的白色留白区。留白区从腔体下沿切起，
+                // 因此组件变高时多出来的高度全给正文，腔体本身不会被拉长变形
+                val cavity = weatherBoxCavityRect(outerRect, densityScale)
+                val textPadX = WEATHER_BOX_TEXT_PAD_X_DP * densityScale
+                val textPadY = WEATHER_BOX_TEXT_PAD_Y_DP * densityScale
+                paddingLeft = outerRect.left + textPadX
+                paddingRight = outerRect.right - textPadX
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = cavity.bottom + textPadY
+                cardHeight = (outerRect.bottom - textPadY - cardTop).coerceAtLeast(1f)
             } else {
                 paddingLeft = 16f * densityScale
                 paddingRight = targetWidth - 16f * densityScale
@@ -681,6 +1011,7 @@ object WidgetCanvasRenderer {
                 .setAlignment(textAlignment)
                 .setLineSpacing(0f, style.lineSpacingMultiplier)
                 .setIncludePad(true)
+                .apply { if (isJustify) setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD) }
                 .build()
             val staticLayout = if (fullLayout.lineCount > maxLines) {
                 StaticLayout.Builder.obtain(content, 0, content.length, textPaint, textWidth.toInt())
@@ -689,6 +1020,7 @@ object WidgetCanvasRenderer {
                     .setIncludePad(true)
                     .setMaxLines(maxLines)
                     .setEllipsize(android.text.TextUtils.TruncateAt.END)
+                    .apply { if (isJustify) setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD) }
                     .build()
             } else {
                 fullLayout
@@ -780,6 +1112,726 @@ object WidgetCanvasRenderer {
         val w = h * STICKER_ART_ASPECT
         val cx = outerRect.centerX()
         return RectF(cx - w / 2f, feet - h, cx + w / 2f, feet)
+    }
+
+    // 城市微缩：这个风格用哪种衔接。按素材名认领——素材就是那座城市的长相，
+    // 衔接得跟着材质走：山地古城像从地里挖出来的，配土层剖面；
+    // 玻璃楼群立在水边上，配江面倒影。认不出来的（用户自定义抠图）走 FADE，
+    // 不假造任何材质，只把城市底边柔进背景色。
+    private fun cityJunctionOf(style: WidgetStyle): CityJunction =
+        when (style.presetImageResName) {
+            "jiangxi_city_cutout" -> CityJunction.SOIL
+            "shanghai_city_cutout" -> CityJunction.WATER
+            // 浙江素材是一整座**飘着的岛**：底边本来就是不规则轮廓，没有"城 ↔ 地/水"的
+            // 平直接缝，硬接土层或倒影反而会在岛底两侧造出假材质。走 FADE，
+            // 只把岛底柔进文字栏底色，读起来就是一座浮在夜色里的微缩浙江。
+            "zhejiang_city_cutout" -> CityJunction.FADE
+            // 北京素材底边是模型底座的一条平直边缘，底下没有"地/水"要接，
+            // 且文字栏已经取了底座同色 —— 走 FADE 让底座柔进文字栏，接缝直接消失。
+            "beijing_city_cutout" -> CityJunction.FADE
+            else -> CityJunction.FADE
+        }
+
+    // 城市微缩：城市可占的矩形——通栏铺满宽度，**底边就是衔接线**。
+    // 高度按衔接各自定：土层要留出剖面层，水面把城市压到水线上沿，
+    // FADE 则按素材比例反推"铺满整宽"需要多高（见 fadeArtHeight）。
+    private fun cityArtRect(
+        outerRect: RectF,
+        junction: CityJunction,
+        style: WidgetStyle,
+        densityScale: Float,
+        artBitmap: Bitmap?
+    ): RectF {
+        val artH = when (junction) {
+            CityJunction.SOIL -> outerRect.height() * SOIL_ART_RATIO
+            CityJunction.WATER -> outerRect.height() * WATER_ART_RATIO
+            CityJunction.FADE -> fadeArtHeight(outerRect, style, densityScale, artBitmap)
+        }.coerceAtLeast(1f)
+        return RectF(outerRect.left, outerRect.top, outerRect.right, outerRect.top + artH)
+    }
+
+    // FADE 衔接：城市矩形要多高，素材才能按原始宽高比**铺满整宽**。
+    //
+    // 铺满不是白给的——城市越高，留给文字区的高度越少，所以给它一道下限：
+    // 至少放得下一行正文（按当前字号 + 上下内边距估算）。够，就把城市顶到满宽；
+    // 不够，就退回等比留白（cityArtDst 的 contain 会自然接管，宁可两侧露壁纸
+    // 也不把天际线切平）。
+    //
+    // 同时不允许比 FADE_ART_RATIO 更矮：4×4 这类高组件本来就已铺满，
+    // 别反过来把它改小、把城市往上挪。
+    private fun fadeArtHeight(
+        outerRect: RectF,
+        style: WidgetStyle,
+        densityScale: Float,
+        artBitmap: Bitmap?
+    ): Float {
+        val h = outerRect.height()
+        val floor = h * FADE_ART_RATIO
+        if (artBitmap == null || artBitmap.height <= 0 || outerRect.width() <= 0f) return floor
+        val need = outerRect.width() / (artBitmap.width.toFloat() / artBitmap.height)
+        val oneLine = style.fontSizeSp * densityScale * FADE_LINE_HEIGHT_FACTOR +
+            2f * CITY_TEXT_PAD_Y_DP * densityScale
+        val cap = (h - h * CITY_FADE_BAND_RATIO - oneLine).coerceAtLeast(floor)
+        return need.coerceIn(floor, cap)
+    }
+
+    // 城市微缩：衔接带高度（衔接线 → 文字可用顶边）。文字不许压进倒影/剖面层，
+    // 所以取这条带的最低点：土层轮廓的起伏谷底、倒影带的最下沿。
+    private fun cityBand(junction: CityJunction, outerRect: RectF, densityScale: Float): Float =
+        when (junction) {
+            CityJunction.SOIL -> {
+                val wall = soilWall(outerRect)
+                wall + soilWallAmp(wall, densityScale) / 2f
+            }
+            CityJunction.WATER -> outerRect.height() * WATER_TEXT_BAND_RATIO
+            CityJunction.FADE -> outerRect.height() * CITY_FADE_BAND_RATIO
+        }
+
+    // 城市剪影：地层厚度（px）——严格占组件高度的 5%（配比硬要求，不再设 dp 上下限：
+    // 一旦设下限，4×2 那种扁组件的地层会被顶到 16% 以上，把文字区挤掉）
+    private fun soilWall(outerRect: RectF): Float {
+        return (outerRect.height() * SOIL_WALL_RATIO).coerceAtLeast(1f)
+    }
+
+    // 城市剪影：地层下沿轮廓的起伏幅度（px）
+    private fun soilWallAmp(wall: Float, densityScale: Float): Float {
+        val wallDp = wall / densityScale
+        return (wallDp * SOIL_RIDGE_AMP_RATIO)
+            .coerceIn(SOIL_RIDGE_AMP_MIN_DP, SOIL_RIDGE_AMP_MAX_DP) * densityScale
+    }
+
+    // 城市剪影：正文区矩形——地层（草皮 + 浅壤）之下，通栏到组件底部。
+    // 传入的地层厚度是 wall + amp/2（轮廓最低点），这样文字绝不会压到浅壤上。
+    private fun cityTextBoxRect(outerRect: RectF, artRect: RectF, band: Float): RectF = RectF(
+        outerRect.left,
+        artRect.bottom + band,
+        outerRect.right,
+        outerRect.bottom
+    )
+
+    // 城市剪影：底部两角按用户的圆角设置收圆，上沿（土层顶边）保持直角
+    private fun cityBarPath(outerRect: RectF, top: Float, radius: Float): Path {
+        val box = RectF(outerRect.left, top, outerRect.right, outerRect.bottom)
+        val path = Path()
+        val r = radius.coerceIn(0f, minOf(box.width(), box.height()) / 2f)
+        if (r <= 0f) {
+            path.addRect(box, Path.Direction.CW)
+        } else {
+            // 圆角数组顺序：左上x,左上y, 右上x,右上y, 右下x,右下y, 左下x,左下y
+            path.addRoundRect(box, floatArrayOf(0f, 0f, 0f, 0f, r, r, r, r), Path.Direction.CW)
+        }
+        return path
+    }
+
+    // 城市剪影：土层轮廓的取值——fract(sin(i·12.9898 + seed·78.233)·43758.5453)。
+    // 与出图脚本 tools/juge_widget_cutout_preview.py 是同一算式、同一 seed，
+    // 所以离线预览和这里跑出来是同一条曲线、同一批颗粒位置。
+    private fun cityHash(i: Int, salt: Float = 0f): Float {
+        val x = Math.sin(i * 12.9898 + (CITY_NOISE_SEED + salt) * 78.233) * 43758.5453
+        return (x - Math.floor(x)).toFloat()
+    }
+
+    // 城市剪影：地层轮廓的块状函数 ∈[0,1]——块内基本恒定，块间窄带 smoothstep 陡降，
+    // 形成"平顶块 + 陡壁 + 台阶"。幂次拉伸(hash^1.6)让多数块平缓、少数块明显下垂，
+    // 等幅方波太机械，真实的地块断面就是几块深的夹着几块浅的。
+    private fun ridgeBlock(x: Float, step: Float, edge: Float): Float {
+        val t = x / step - 0.5f
+        val i = Math.floor(t.toDouble()).toInt()
+        val f = (t - i).coerceIn(0f, 1f)
+        val a = Math.pow(cityHash(i, 21f).toDouble(), 1.6).toFloat()
+        val b = Math.pow(cityHash(i + 1, 21f).toDouble(), 1.6).toFloat()
+        if (f <= 1f - edge) return a
+        val s = (f - (1f - edge)) / edge
+        return a + (b - a) * (s * s * (3f - 2f * s))
+    }
+
+    /**
+     * 城市剪影：地层下沿轮廓的偏移数组（相对基准线的 px 偏移，中心为 0）。
+     *
+     * 粗块（大起伏，决定地层的块状）+ 细块（碎起伏，让下沿不平板）叠加后做滑动平均，
+     * 把方波磨圆 —— 不磨是城墙垛口，磨过之后才像被切开的下垂地块。
+     *
+     * 走固定 seed 的整数哈希而不是 Random：① 每次渲染同一条轮廓，桌面组件不会抖；
+     * ② 与出图脚本 tools/juge_widget_cutout_terrain.py 同算式同 seed，离线预览即真机。
+     */
+    private fun soilRidgeWiggle(
+        width: Float,
+        sample: Float,
+        amp: Float,
+        coarseStep: Float,
+        fineStep: Float,
+        mix: Float,
+        smoothPx: Float
+    ): FloatArray {
+        val count = (width / sample).toInt() + 2
+        val raw = FloatArray(count)
+        for (i in 0 until count) {
+            val x = i * sample
+            raw[i] = ridgeBlock(x, coarseStep, SOIL_RIDGE_EDGE) * mix +
+                ridgeBlock(x, fineStep, 0.28f) * (1f - mix)
+        }
+        val win = (smoothPx / sample / 2f).toInt().coerceAtLeast(1)
+        val out = FloatArray(count)
+        for (i in 0 until count) {
+            val lo = (i - win).coerceAtLeast(0)
+            val hi = (i + win + 1).coerceAtMost(count)
+            var sum = 0f
+            for (k in lo until hi) sum += raw[k]
+            out[i] = (sum / (hi - lo) - 0.5f) * amp
+        }
+        return out
+    }
+
+    // 城市剪影：由轮廓偏移数组派生一条地层分界线（基准 depth + 偏移 × 衰减）
+    private fun strataEdgeYs(baseY: Float, depth: Float, wiggle: FloatArray, scale: Float): FloatArray {
+        val out = FloatArray(wiggle.size)
+        for (i in wiggle.indices) out[i] = baseY + depth + wiggle[i] * scale
+        return out
+    }
+
+    // 城市剪影：由一条地层分界线生成"该线以下"的区域路径
+    private fun strataRegionPath(
+        edgeYs: FloatArray,
+        left: Float,
+        sample: Float,
+        right: Float,
+        bottom: Float
+    ): Path {
+        val p = Path()
+        for (i in edgeYs.indices) {
+            val x = (left + i * sample).coerceAtMost(right)
+            val y = edgeYs[i]
+            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        }
+        p.lineTo(right, bottom)
+        p.lineTo(left, bottom)
+        p.close()
+        return p
+    }
+
+    // 城市剪影：两条地层分界线之间的带状路径（草皮带 / 浅壤带 / 轮廓暗边）
+    private fun strataBandPath(
+        topYs: FloatArray,
+        botYs: FloatArray,
+        left: Float,
+        sample: Float,
+        right: Float
+    ): Path {
+        val p = Path()
+        for (i in topYs.indices) {
+            val x = (left + i * sample).coerceAtMost(right)
+            val y = topYs[i]
+            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        }
+        val n = minOf(topYs.size, botYs.size)
+        for (i in (n - 1) downTo 0) {
+            val x = (left + i * sample).coerceAtMost(right)
+            p.lineTo(x, botYs[i])
+        }
+        p.close()
+        return p
+    }
+
+    /**
+     * 江西·土层剖面：城市底边往下接「草皮 → 浅壤 → 深土」，
+     * 最深一层用「小组件背景颜色」，文字就落在这一层里。
+     * 这是**江西这一个风格**的衔接，不是城市类的通用做法——上海那版走水面。
+     *
+     * 整段地层只占组件高度的 5%（`SOIL_WALL_RATIO`），城市 50%、文字 45%。
+     * 因为地层薄，腔体内的每一层都要按比例收：草皮 20%、接触阴影 ≤ 草皮 70%、
+     * 过渡带 ≤ 草皮 45%，否则 1% 组件高的草皮会被上面几层叠满、绿意全无。
+     *
+     * 三条分界线共用同一条**块状轮廓偏移**（等厚地层），文字区的上边就是最外面那条轮廓，
+     * 所以"文字框的上边形状"等于地块的断面形状 —— 两段是同一块地块，不会各说各话。
+     *
+     * 与更早版本（起伏做在土层顶边）的根本区别：**起伏搬到了下沿**。
+     * 上沿严格平直、紧贴城市底边，再用素材底边色做一段无缝过渡，城市与地层才是一个整体。
+     * 深土里再叠底部压暗 / 等厚沉积层理 / 土壤颗粒，避免一大块纯色显得空。
+     */
+    private fun drawSoilStrata(
+        canvas: Canvas,
+        outerRect: RectF,
+        artRect: RectF,
+        bgBitmap: Bitmap?,
+        densityScale: Float,
+        style: WidgetStyle,
+        deepPaint: Paint
+    ) {
+        val left = outerRect.left
+        val right = outerRect.right
+        val bottom = outerRect.bottom
+        val baseY = artRect.bottom
+        val wall = soilWall(outerRect)
+        val grassH = wall * SOIL_GRASS_RATIO
+        val amp = soilWallAmp(wall, densityScale)
+        val sample = SOIL_RIDGE_SAMPLE_DP * densityScale
+        val soilAlpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+        if (soilAlpha <= 0) return
+
+        val wiggle = soilRidgeWiggle(
+            outerRect.width(), sample, amp,
+            SOIL_RIDGE_BLOCK_DP * densityScale,
+            SOIL_RIDGE_FINE_BLOCK_DP * densityScale,
+            SOIL_RIDGE_COARSE_MIX,
+            SOIL_RIDGE_SMOOTH_DP * densityScale
+        )
+        val flatYs = FloatArray(wiggle.size) { baseY }
+        // 草皮的起伏衰减：凸处草皮薄、凹处厚，符合真实剖面
+        val grassYs = strataEdgeYs(baseY, grassH, wiggle, SOIL_GRASS_RIDGE_SCALE)
+        val wallYs = strataEdgeYs(baseY, wall, wiggle, 1f)
+        val deepTop = baseY + wall + amp / 2f
+
+        canvas.save()
+        // 裁剪范围包住接触阴影（在 baseY 之下）与底部两角圆角
+        canvas.clipPath(
+            cityBarPath(outerRect, baseY - 1f, style.cornerRadiusDp * densityScale)
+        )
+
+        // 1. 深土（= 文字区底色）：沿最外层轮廓以下铺满
+        canvas.drawPath(strataRegionPath(wallYs, left, sample, right, bottom), deepPaint)
+
+        // 2. 浅壤带：[baseY, 最外层轮廓]
+        val topsoilPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = SOIL_TOPSOIL_COLOR
+            alpha = soilAlpha
+        }
+        canvas.drawPath(strataBandPath(flatYs, wallYs, left, sample, right), topsoilPaint)
+
+        // 3. 草皮带：[baseY, 草皮分界]
+        val grassPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = SOIL_GRASS_COLOR
+            alpha = soilAlpha
+        }
+        canvas.drawPath(strataBandPath(flatYs, grassYs, left, sample, right), grassPaint)
+
+        // 4. 素材底边色 → 草皮色的无缝过渡，藏掉"插画底边"与"地层顶边"之间那条直切。
+        //    高度被草皮高度夹死在 45% 以内 —— 5% 地层里草皮只有组件高的 1%，
+        //    过渡带一旦超过草皮就会把整条草皮盖成素材的灰绿色。
+        //    横向只铺**素材实际落位**那一段：素材等比 contain 后比组件窄时，
+        //    把素材底行拉满全宽等于把过渡色涂到壁纸上去。
+        val transH = minOf(SOIL_EDGE_TRANS_DP * densityScale, grassH * 0.45f)
+        val artSpan = if (bgBitmap != null) cityArtDst(bgBitmap, artRect) else outerRect
+        if (bgBitmap != null && transH > 1f) {
+            drawSoilBottomFade(
+                canvas, bgBitmap, artSpan.left, baseY, artSpan.right, transH, soilAlpha)
+        }
+
+        // 5. 接触阴影：城市底边往下压几 px 淡暗色，越靠上越深。
+        //    同样被草皮高度夹住，否则阴影会吃掉整条草皮；横向同样只压城市那一档
+        val shadowH = minOf(SOIL_SHADOW_DP * densityScale, grassH * 0.7f)
+        val shadowSteps = SOIL_SHADOW_STEPS
+        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        for (k in 0 until shadowSteps) {
+            val a = SOIL_SHADOW_MAX_ALPHA *
+                Math.pow((1.0 - k.toDouble() / shadowSteps), 1.6)
+            shadowPaint.color = SOIL_SHADOW_COLOR
+            shadowPaint.alpha = (a * soilAlpha / 255.0).toInt()
+            canvas.drawRect(
+                artSpan.left,
+                baseY + shadowH * k / shadowSteps,
+                artSpan.right,
+                baseY + shadowH * (k + 1) / shadowSteps,
+                shadowPaint
+            )
+        }
+
+        // 6. 地层外轮廓的暗边：沿最外层轮廓往上叠渐暗，给下垂的凸块做出体积。
+        //    只压最外层 —— 草皮与浅壤之间的分界要保持干净，两条线都压就糊成一片。
+        val shadeH = minOf(SOIL_EDGE_SHADE_DP * densityScale, (wall - grassH) * 0.9f)
+        val shadeSteps = SOIL_EDGE_SHADE_STEPS
+        val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        for (k in 0 until shadeSteps) {
+            val a = SOIL_EDGE_SHADE_ALPHA *
+                Math.pow((1.0 - k.toDouble() / shadeSteps), 1.4)
+            shadePaint.color = SOIL_SHADOW_COLOR
+            shadePaint.alpha = (a * soilAlpha / 255.0).toInt()
+            val outer = -shadeH * k / shadeSteps
+            val inner = -shadeH * (k + 1) / shadeSteps
+            canvas.drawPath(
+                strataBandPath(
+                    FloatArray(wallYs.size) { wallYs[it] + inner },
+                    FloatArray(wallYs.size) { wallYs[it] + outer },
+                    left, sample, right
+                ),
+                shadePaint
+            )
+        }
+
+        // 7. 深土区质感：底部压暗 → 等厚沉积层理 → 土壤颗粒
+        val regionH = bottom - deepTop
+        if (regionH > 6f * densityScale) {
+            val vPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, deepTop, 0f, bottom,
+                    Color.TRANSPARENT,
+                    Color.argb(SOIL_VIGNETTE_ALPHA, 0, 0, 0),
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawPath(strataRegionPath(wallYs, left, sample, right, bottom), vPaint)
+
+            val lines = (regionH / (SOIL_STRATA_SPACING_DP * densityScale))
+                .toInt().coerceIn(2, 8)
+            val strataPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = SOIL_DARK_GRAIN
+                alpha = (SOIL_STRATA_ALPHA * soilAlpha / 255f).toInt()
+                strokeWidth = 1.2f * densityScale
+                this.style = Paint.Style.STROKE
+            }
+            for (k in 1..lines) {
+                val y0 = deepTop + regionH * k / (lines + 1f)
+                val path = Path()
+                for (i in wallYs.indices) {
+                    val x = (left + i * sample).coerceAtMost(right)
+                    // 层理跟随地层下沿起伏但幅度衰减一半：看上去就是一套等厚地层
+                    val y = (y0 + (wallYs[i] - baseY - wall) * SOIL_STRATA_FOLLOW)
+                        .coerceIn(deepTop, bottom)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                canvas.drawPath(path, strataPaint)
+            }
+
+            val box = SOIL_SPECKLE_BOX_DP * densityScale
+            val radius = SOIL_SPECKLE_RADIUS_DP * densityScale
+            val specklePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                alpha = (SOIL_SPECKLE_ALPHA * soilAlpha / 255f).toInt()
+            }
+            var j = 0
+            var y = deepTop
+            while (y < bottom) {
+                var i = 0
+                var x = left
+                while (x < right) {
+                    if (cityHash(i * 31 + j * 977, 7f) <= SOIL_SPECKLE_DENSITY) {
+                        val px = x + cityHash(i * 13 + j * 71, 11f) * box
+                        val py = y + cityHash(i * 17 + j * 53, 13f) * box
+                        if (py < bottom) {
+                            specklePaint.color = if (cityHash(i * 7 + j * 19, 17f) > 0.5f) {
+                                SOIL_LIGHT_GRAIN
+                            } else {
+                                SOIL_DARK_GRAIN
+                            }
+                            canvas.drawCircle(px, py, radius, specklePaint)
+                        }
+                    }
+                    i++
+                    x += box
+                }
+                j++
+                y += box
+            }
+        }
+        canvas.restore()
+    }
+
+    /**
+     * 上海·水面与倒影：城市底边就是水线，水线以下是一整片江面，文字浮在水面上。
+     *
+     * 为什么这里不用土层：这张图是玻璃幕墙的陆家嘴，把它"从地里整块挖出来"会读成
+     * 一截断头楼坐在土上，很突兀。而真实建筑沙盘就是立在水景台座上的。
+     * 水也顺带解决了土层那个通栏难题 —— 江面本来就比城市宽，铺满组件宽度是成立的；
+     * 土层铺满则会在城市两侧露出"飘在壁纸上的一条草皮"。
+     *
+     * 四层：水体竖向渐变 → 城市下部镜像压扁成倒影 → 横向波纹把倒影打断 → 底部压暗托字。
+     */
+    private fun drawCityWater(
+        canvas: Canvas,
+        outerRect: RectF,
+        artRect: RectF,
+        art: Bitmap?,
+        densityScale: Float,
+        style: WidgetStyle,
+        deepPaint: Paint
+    ) {
+        val left = outerRect.left
+        val right = outerRect.right
+        val bottom = outerRect.bottom
+        val line = artRect.bottom
+        val waterH = bottom - line
+        val alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+        if (waterH <= 1f || alpha <= 0) return
+        val deepColor = deepPaint.color and 0x00FFFFFF
+
+        canvas.save()
+        canvas.clipPath(cityBarPath(outerRect, line - 1f, style.cornerRadiusDp * densityScale))
+
+        // 1. 水体：水线处偏亮的江面 → 组件背景色那池深水
+        val waterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, line, 0f, bottom, WATER_SURFACE_COLOR, deepColor, Shader.TileMode.CLAMP
+            )
+            this.alpha = alpha
+        }
+        canvas.drawRect(left, line, right, bottom, waterPaint)
+
+        // 2. 倒影：城市下部竖压 + 镜像贴在水线下方，只占城市那一档宽度
+        if (art != null && !art.isRecycled) {
+            val span = cityArtDst(art, artRect)
+            val srcH = (art.height * WATER_REFLECT_SRC_RATIO).toInt().coerceIn(1, art.height)
+            val reflectH = outerRect.height() * WATER_REFLECT_RATIO
+            val flip = Matrix().apply {
+                setScale(1f, -1f)
+                postTranslate(0f, srcH.toFloat())
+            }
+            val band = Bitmap.createBitmap(art, 0, art.height - srcH, art.width, srcH, flip, true)
+            try {
+                canvas.drawBitmap(
+                    band, null, RectF(span.left, line, span.right, line + reflectH),
+                    Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                        this.alpha = (WATER_REFLECT_ALPHA * alpha / 255f).toInt()
+                    }
+                )
+                // 倒影向下溶解进水里：再压一层水色渐变，越往下越实
+                val dissolve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = LinearGradient(
+                        0f, line, 0f, line + reflectH,
+                        Color.TRANSPARENT, deepColor, Shader.TileMode.CLAMP
+                    )
+                    this.alpha = alpha
+                }
+                canvas.drawRect(span.left, line, span.right, line + reflectH, dissolve)
+            } finally {
+                if (band !== art && !band.isRecycled) band.recycle()
+            }
+        }
+
+        // 3. 波纹：横向亮线。越往下越宽、越淡、越粗——近处水面才看得清纹理
+        val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = WATER_HILITE_COLOR
+            this.style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        val width = right - left
+        for (k in 0 until WATER_RIPPLE_COUNT) {
+            val t = (k + 1f) / (WATER_RIPPLE_COUNT + 1f)
+            val y = line + waterH * t
+            val cx = (left + right) / 2f +
+                (cityHash(k * 71, WATER_RIPPLE_SALT) - 0.5f) * width * 0.5f
+            val len = width * (0.16f + 0.40f * cityHash(k * 13 + 5, WATER_RIPPLE_SALT))
+            ripplePaint.strokeWidth = WATER_RIPPLE_THIN_DP * densityScale * (1f + t)
+            ripplePaint.alpha = (WATER_RIPPLE_ALPHA * (1f - 0.55f * t) * alpha / 255f).toInt()
+            canvas.drawLine(cx - len / 2f, y, cx + len / 2f, y, ripplePaint)
+        }
+
+        // 4. 水线：城市与江面交界那道亮边，把"贴在图上"变成"浮在水上"
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = WATER_HILITE_COLOR
+            this.alpha = (WATER_LINE_ALPHA * alpha / 255f).toInt()
+            strokeWidth = 1.2f * densityScale
+            this.style = Paint.Style.STROKE
+        }
+        canvas.drawLine(left, line, right, line, linePaint)
+
+        // 5. 底部压暗：深水托住文字，长句也不会和波纹抢对比度
+        val vigTop = line + waterH * 0.35f
+        val vig = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, vigTop, 0f, bottom,
+                Color.TRANSPARENT, Color.argb(WATER_VIGNETTE_ALPHA, 0, 0, 0),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(left, vigTop, right, bottom, vig)
+
+        canvas.restore()
+    }
+
+    /**
+     * 兜底衔接：素材名认不出是哪座城（用户自定义抠图）时，不假造任何材质 ——
+     * 文字栏刷成背景色，城市底边往下压一段柔和暗裙就当它坐在那儿。
+     */
+    private fun drawCityFade(
+        canvas: Canvas,
+        outerRect: RectF,
+        artRect: RectF,
+        densityScale: Float,
+        style: WidgetStyle,
+        deepPaint: Paint
+    ) {
+        val line = artRect.bottom
+        val alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+        if (alpha <= 0) return
+        canvas.save()
+        canvas.clipPath(cityBarPath(outerRect, line - 1f, style.cornerRadiusDp * densityScale))
+        canvas.drawRect(outerRect.left, line, outerRect.right, outerRect.bottom, deepPaint)
+        val bandH = outerRect.height() * CITY_FADE_BAND_RATIO
+        val skirt = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, line, 0f, line + bandH,
+                Color.argb(90, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+            )
+            this.alpha = alpha
+        }
+        canvas.drawRect(outerRect.left, line, outerRect.right, line + bandH, skirt)
+        canvas.restore()
+    }
+
+    /**
+     * 江西·土层：取素材最底一行的颜色拉成一条色带，再向下渐入草皮色。
+     * 城市底边（水面 / 广场 / 道路）与草皮之间的那条硬切就藏在这段过渡里。
+     */
+    private fun drawSoilBottomFade(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        left: Float,
+        top: Float,
+        right: Float,
+        height: Float,
+        alpha: Int
+    ) {
+        val bw = bitmap.width
+        val bh = bitmap.height
+        val w = (right - left).toInt()
+        val h = height.toInt()
+        if (bw < 2 || bh < 2 || w < 2 || h < 1) return
+        val key = System.identityHashCode(bitmap) * 31 + w * 1009 + h
+        var band = soilFadeBitmap
+        if (band == null || soilFadeKey != key) {
+            val row = IntArray(bw)
+            bitmap.getPixels(row, 0, bw, 0, bh - 1, bw, 1)
+            val rowBmp = Bitmap.createBitmap(bw, 1, Bitmap.Config.ARGB_8888)
+            rowBmp.setPixels(row, 0, bw, 0, 0, bw, 1)
+            band = Bitmap.createScaledBitmap(rowBmp, w, h, true)
+            rowBmp.recycle() // 只喂给 createScaledBitmap，没进过 Canvas，可安全回收
+            soilFadeBitmap = band
+            soilFadeKey = key
+        }
+        val fadeBand = band ?: return
+        val dst = RectF(left, top, right, top + h)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            this.alpha = alpha
+        }
+        canvas.drawBitmap(fadeBand, null, dst, paint)
+        val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, top, 0f, top + h,
+                Color.TRANSPARENT, SOIL_GRASS_COLOR, Shader.TileMode.CLAMP
+            )
+            this.alpha = alpha
+        }
+        canvas.drawRect(dst, fade)
+    }
+
+    // 城市微缩：素材等比 contain 进城市矩形之后的**实际落位**——底边贴住衔接线、水平居中。
+    // 土层的水线过渡带要按这个矩形铺，不能按整幅组件宽铺：素材左右留白时，
+    // 把素材底行拉满全宽会让过渡色跑到壁纸上去。
+    private fun cityArtDst(bitmap: Bitmap, rectF: RectF): RectF {
+        val bw = bitmap.width
+        val bh = bitmap.height
+        if (bw <= 0 || bh <= 0 || rectF.width() <= 0f || rectF.height() <= 0f) return rectF
+        val scale = minOf(rectF.width() / bw, rectF.height() / bh)
+        val w = bw * scale
+        val h = bh * scale
+        return RectF(rectF.centerX() - w / 2f, rectF.bottom - h, rectF.centerX() + w / 2f, rectF.bottom)
+    }
+
+    // 城市微缩：把素材**等比 contain** 进城市矩形，底边贴住衔接线、水平居中。
+    //
+    // 为什么不再裁高度：剪影的全部价值在于天际线是不规则的。一旦按宽度铺满、
+    // 把多出来的高度从顶部切平，天线和楼顶就没了，天空抠得再干净也看不出镂空。
+    // 所以素材比例与城市矩形不合时，宁可左右留白交给壁纸（读起来仍是"一座飘着的城市"），
+    // 也不动天际线一根。
+    //
+    // 刻意跳过 detectLightBorder：那个检测器是给"自带白色相框的方形明信片插画"准备的，
+    // 它只看左右边缘中线是否近白(RGB>228)，而剪影素材的边缘就是城市像素，
+    // 一旦某块楼体/广场恰好是浅色就会被判成留白、从两侧往内裁。
+    private fun drawCityArt(canvas: Canvas, bitmap: Bitmap, rectF: RectF, style: WidgetStyle) {
+        val dst = cityArtDst(bitmap, rectF)
+        if (dst.width() <= 0f || dst.height() <= 0f) return
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+            alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+        }
+        canvas.drawBitmap(bitmap, null, dst, paint)
+    }
+
+    // 城市微缩：哪些素材需要"垫平底边"。
+    //
+    // 抠图后素材底边有两种：
+    //   ① 噪声化的半透明软边（棋盘格抠图的残留，北京就是这种）—— 底边不是轮廓，是脏边。
+    //      按像素底边对齐衔接线，这段透明区就在模型与文字栏之间露出一条壁纸，看着像上下没接上。
+    //   ② 真实的轮廓（浙江是一整座飘着的岛，底边就是岛缘）—— 那是造型本身，垫平会把它拉成方块。
+    // 所以只有 ① 走垫平，② 保持悬空。
+    private fun cityNeedsBottomPad(style: WidgetStyle): Boolean =
+        when (style.presetImageResName) {
+            "beijing_city_cutout" -> true
+            else -> false
+        }
+
+    // 城市微缩：把素材底边的透明垫高区垫平——画在模型之下、文字栏之上，
+    // 用文字栏底色把壁纸挡掉，模型底座看起来就直接"坐"在文字栏上。
+    //
+    // 填的是**文字栏底色**而不是逐列取模型底边色：模型底边是噪声软边，
+    // 逐列取色会把底座边缘那条朱红宫墙也一路拉成竖条（一道一道的脏streak），
+    // 反而比缝隙更显眼。统一底色等于让底座边缘直接融进文字栏，正是这个风格要的"无分界"。
+    private fun drawCityBottomPad(canvas: Canvas, bitmap: Bitmap, rectF: RectF, style: WidgetStyle) {
+        val fillColor = if (WidgetStyle.supportsBackgroundColor(style.shape)) {
+            style.backgroundColor
+        } else {
+            Color.TRANSPARENT
+        }
+        if (Color.alpha(fillColor) <= 0) return
+        val pad = cityPadBand(bitmap) ?: return
+        if (pad.isRecycled) return
+        val dst = cityArtDst(bitmap, rectF)
+        if (dst.width() <= 0f || dst.height() <= 0f) return
+        val scale = dst.height() / bitmap.height
+        val top = dst.bottom - pad.height * scale
+        if (top >= dst.bottom - 0.5f) return
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+            alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+            colorFilter = PorterDuffColorFilter(fillColor, PorterDuff.Mode.SRC_IN)
+        }
+        canvas.drawBitmap(pad, null, RectF(dst.left, top, dst.right, dst.bottom), paint)
+    }
+
+    // 城市微缩：生成"底边垫平带"的**形状蒙版**——宽 = 素材宽，
+    // 高 = 整幅最高的一条底边到素材底边的距离。有内容的列整列填白，没内容的列留透明，
+    // 所以带子只覆盖模型所在的横向范围；拉伸后由 paint 的 ColorFilter 统一上色。
+    private fun cityPadBand(bitmap: Bitmap): Bitmap? {
+        val key = System.identityHashCode(bitmap) * 31 + bitmap.width * 1009 + bitmap.height
+        cityPadBitmap?.let { if (!it.isRecycled && cityPadKey == key) return it }
+
+        val bw = bitmap.width
+        val bh = bitmap.height
+        if (bw <= 1 || bh <= 2) return null
+
+        val rowBuf = IntArray(bw)
+        val hasContent = BooleanArray(bw)
+        var remaining = bw
+        var minBottom = -1
+        var y = bh - 1
+        while (y >= 0 && remaining > 0) {
+            bitmap.getPixels(rowBuf, 0, bw, 0, y, bw, 1)
+            var foundThisRow = false
+            for (x in 0 until bw) {
+                if (!hasContent[x] && (rowBuf[x] ushr 24) >= CITY_PAD_ALPHA_MIN) {
+                    hasContent[x] = true
+                    remaining--
+                    foundThisRow = true
+                }
+            }
+            if (foundThisRow) minBottom = y
+            y--
+        }
+        if (minBottom < 0) return null
+
+        // 兜底：个别列只有一根细高物、底边高得离谱时，别把带子撑到半张素材高
+        val padRows = (bh - 1 - minBottom).coerceAtMost(bh / 4)
+        if (padRows <= 0) return null
+
+        val pixels = IntArray(bw * padRows)
+        for (x in 0 until bw) {
+            if (!hasContent[x]) continue
+            for (r in 0 until padRows) {
+                pixels[r * bw + x] = 0xFFFFFFFF.toInt()
+            }
+        }
+
+        val band = Bitmap.createBitmap(bw, padRows, Bitmap.Config.ARGB_8888)
+        band.setPixels(pixels, 0, bw, 0, 0, bw, padRows)
+        cityPadKey = key
+        cityPadBitmap = band
+        return band
     }
 
     /**
@@ -1577,164 +2629,6 @@ object WidgetCanvasRenderer {
 
         canvas.restore()
     }
-
-    // 猫咪卡片：奶白卡上补一层浅粉内描边，并在顶部居中画出猫头头像
-    private fun drawCatCardChrome(
-        canvas: Canvas,
-        outerRect: RectF,
-        outerPath: Path,
-        densityScale: Float,
-        style: WidgetStyle
-    ) {
-        canvas.save()
-        canvas.clipPath(outerPath)
-
-        // 内层浅粉细线：与外层粉色粗描边一起构成双层边
-        val inset = 5f * densityScale
-        val innerRect = RectF(
-            outerRect.left + inset,
-            outerRect.top + inset,
-            outerRect.right - inset,
-            outerRect.bottom - inset
-        )
-        val innerRx = (style.cornerRadiusDp * densityScale - inset).coerceAtLeast(0f)
-        val innerPath = Path().apply {
-            if (innerRx <= 0f) addRect(innerRect, Path.Direction.CW)
-            else addRoundRect(innerRect, innerRx, innerRx, Path.Direction.CW)
-        }
-        val innerLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.style = Paint.Style.STROKE
-            strokeWidth = 1.2f * densityScale
-            color = Color.parseColor("#FBDDE9")
-        }
-        canvas.drawPath(innerPath, innerLinePaint)
-
-        // 猫头头像：顶部居中。尺寸同时受卡宽与卡高约束，避免窄卡/矮卡里比例失调。
-        // cy 取 0.85 倍头高，保证耳尖（cy - 1.4r）落在卡片上沿内侧，不会被圆角裁切
-        val headSize = minOf(outerRect.width() * 0.24f, outerRect.height() * 0.30f)
-        if (headSize > 10f * densityScale) {
-            val cx = outerRect.centerX()
-            val cy = outerRect.top + inset + headSize * 0.85f
-            drawCatHead(canvas, cx, cy, headSize, densityScale)
-        }
-
-        canvas.restore()
-    }
-
-    // 手绘猫头：白脸 + 粉色内耳 + 棕色眼鼻 + 粉腮红 + 胡须
-    private fun drawCatHead(canvas: Canvas, cx: Float, cy: Float, size: Float, densityScale: Float) {
-        val furWhite = Color.parseColor("#FAF5F0")
-        val furPink = Color.parseColor("#F5A8C0")
-        val furPinkLight = Color.parseColor("#FBDDE9")
-        val inkBrown = Color.parseColor("#4A2C2A")
-
-        val r = size / 2f
-        val fill: (Int) -> Paint = { c ->
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = c
-                style = Paint.Style.FILL
-            }
-        }
-        val stroke: (Int, Float) -> Paint = { c, w ->
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = c
-                style = Paint.Style.STROKE
-                strokeWidth = w
-                strokeCap = Paint.Cap.ROUND
-            }
-        }
-
-        // 双耳：外白内粉的三角，坐在头圆上方
-        val earTipY = cy - r * 1.40f
-        val earBaseY = cy - r * 0.40f
-        canvas.drawPath(
-            Path().apply {
-                moveTo(cx - r * 0.92f, earBaseY)
-                lineTo(cx - r * 0.60f, earTipY)
-                lineTo(cx - r * 0.10f, earBaseY)
-                close()
-            },
-            fill(furWhite)
-        )
-        canvas.drawPath(
-            Path().apply {
-                moveTo(cx + r * 0.92f, earBaseY)
-                lineTo(cx + r * 0.60f, earTipY)
-                lineTo(cx + r * 0.10f, earBaseY)
-                close()
-            },
-            fill(furWhite)
-        )
-        canvas.drawPath(
-            Path().apply {
-                moveTo(cx - r * 0.72f, earBaseY - r * 0.05f)
-                lineTo(cx - r * 0.58f, earTipY + r * 0.24f)
-                lineTo(cx - r * 0.32f, earBaseY - r * 0.05f)
-                close()
-            },
-            fill(furPink)
-        )
-        canvas.drawPath(
-            Path().apply {
-                moveTo(cx + r * 0.72f, earBaseY - r * 0.05f)
-                lineTo(cx + r * 0.58f, earTipY + r * 0.24f)
-                lineTo(cx + r * 0.32f, earBaseY - r * 0.05f)
-                close()
-            },
-            fill(furPink)
-        )
-
-        // 脸
-        canvas.drawCircle(cx, cy, r, fill(furWhite))
-        canvas.drawCircle(cx, cy, r, stroke(furPink, 1.6f * densityScale))
-
-        // 眼睛 + 高光
-        val eyeDx = r * 0.42f
-        val eyeY = cy - r * 0.10f
-        val eyeRx = r * 0.15f
-        val eyeRy = r * 0.20f
-        canvas.drawOval(RectF(cx - eyeDx - eyeRx, eyeY - eyeRy, cx - eyeDx + eyeRx, eyeY + eyeRy), fill(inkBrown))
-        canvas.drawOval(RectF(cx + eyeDx - eyeRx, eyeY - eyeRy, cx + eyeDx + eyeRx, eyeY + eyeRy), fill(inkBrown))
-        val hlR = r * 0.055f
-        canvas.drawCircle(cx - eyeDx - eyeRx * 0.35f, eyeY - eyeRy * 0.35f, hlR, fill(Color.WHITE))
-        canvas.drawCircle(cx + eyeDx - eyeRx * 0.35f, eyeY - eyeRy * 0.35f, hlR, fill(Color.WHITE))
-
-        // 腮红
-        val blushR = r * 0.20f
-        val blushY = cy + r * 0.30f
-        canvas.drawCircle(cx - r * 0.62f, blushY, blushR, fill(furPinkLight))
-        canvas.drawCircle(cx + r * 0.62f, blushY, blushR, fill(furPinkLight))
-
-        // 鼻子
-        canvas.drawPath(
-            Path().apply {
-                moveTo(cx - r * 0.11f, cy + r * 0.20f)
-                lineTo(cx + r * 0.11f, cy + r * 0.20f)
-                lineTo(cx, cy + r * 0.36f)
-                close()
-            },
-            fill(furPink)
-        )
-
-        // 嘴：两段下弧拼成 w 形
-        val mouthPaint = stroke(inkBrown, 1.4f * densityScale)
-        val mouthW = r * 0.34f
-        val mouthH = r * 0.26f
-        val mouthTop = cy + r * 0.30f
-        canvas.drawArc(RectF(cx - mouthW, mouthTop, cx, mouthTop + mouthH), 0f, 180f, false, mouthPaint)
-        canvas.drawArc(RectF(cx, mouthTop, cx + mouthW, mouthTop + mouthH), 0f, 180f, false, mouthPaint)
-
-        // 胡须
-        val whiskerPaint = stroke(inkBrown, 1.1f * densityScale).apply { alpha = 150 }
-        val whiskerY = cy + r * 0.24f
-        for (i in 0 until 2) {
-            val dy = i * r * 0.16f
-            canvas.drawLine(cx - r * 1.00f, whiskerY + dy, cx - r * 0.52f, whiskerY + dy - r * 0.06f, whiskerPaint)
-            canvas.drawLine(cx + r * 1.00f, whiskerY + dy, cx + r * 0.52f, whiskerY + dy - r * 0.06f, whiskerPaint)
-        }
-    }
-
-    // 构造居中撕纸信纸矩形路径（四周留出卡片边距，撕纸边缘带轻微锯齿）
     private fun drawFeatherLetterPath(path: Path, width: Float, height: Float, densityScale: Float) {
         val marginX = width * 0.06f
         val marginTop = height * 0.05f
@@ -2167,8 +3061,101 @@ object WidgetCanvasRenderer {
     // 预设插画缓存：桌面组件每次刷新都会渲染，避免重复全尺寸解码。
     // key 必须带上目标尺寸，否则首次按小尺寸解码的位图会被 4×4 大组件复用，
     // 导致桌面显示被放大的模糊图。
-    private val presetImageCache = object : android.util.LruCache<String, Bitmap>(16 * 1024 * 1024) {
+    // 24MB：城市剪影一张全分辨率素材就有 3~8.5MB（1940×409 / 2048×762 / 2048×1038），
+    // 桌面上同时存在 4×2/4×3/4×4 三种尺寸时三张都要驻留，16MB 会把最不常用的那张挤掉、
+    // 每次刷新重新解码一遍 8MB 位图。
+    private val presetImageCache = object : android.util.LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    // 风格缩略图缓存：UI 里「经典/萌宠/明信片/插画」四行一共 20+ 张缩略图，
+    // 每张都是一次完整的 Canvas 渲染（含解码素材、画纹理）。
+    // 没有这层缓存时，每次打开面板所有缩略图一起在 Dispatchers.Default 上从零重画，
+    // 表现为「先空白 1~2 秒再逐个补齐」。
+    //
+    // 缩略图总量只有约 1.2MB（150×80×4B × 约 26 张），远小于下面的容量上限，
+    // 因此**永远不会触发 LruCache 的淘汰**。这不是巧合而是刻意设计：
+    // 缩略图行位于 LazyColumn 内，滑出视口会销毁 composition、回来时 produceState 重跑，
+    // 只要缓存还在就是秒命中，不会再等 1~2 秒。
+    // 正因为条目不会被淘汰，才可以把缓存里的 Bitmap **原图**直接交给调用方（无需 copy），
+    // 避免滚动时反复分配副本被 GC 回收。
+    private val thumbnailCache = object : android.util.LruCache<String, Bitmap>(64 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    /**
+     * 取一张已渲染好的风格缩略图。
+     *
+     * **直接返回缓存里的原图，不做 copy()**：
+     * 缩略图只有 150×80，一条约 48KB，26 张合计约 1.2MB；每次命中都 copy 一份的话，
+     * 列表滚动时会不断分配新位图、旧的被 GC 回收，表现为"滑走再滑回来又要等 1~2 秒"。
+     * 之所以敢直接给原图，是因为本缓存**关闭了 LruCache 的条目回收**
+     * （entryRemoved=false，见 thumbnailCache 定义）：条目只增不减、不会被淘汰，
+     * 原图一旦创建就一直在，调用方持有的引用始终有效。
+     * 代价是这 1.2MB 常驻，换来滚动零重渲染。
+     *
+     * **锁只保护缓存的读写，绝不能把 producer（真正的 Canvas 渲染）也圈进去**：
+     * 一旦整个方法加 @Synchronized，26 张缩略图会被强制串行逐张渲染，
+     * 比并行慢好几倍，表现为"打开面板要等 1~2 秒"。之前踩过这个坑。
+     */
+    private fun thumbnailCacheKey(
+        cacheKey: String,
+        producer: () -> Bitmap?
+    ): Bitmap? {
+        synchronized(thumbnailCache) {
+            thumbnailCache.get(cacheKey)?.let { if (!it.isRecycled) return it }
+        }
+        // 锁外渲染：允许所有缩略图在 Dispatchers.Default 上并行跑满 CPU
+        val fresh = producer() ?: return null
+        synchronized(thumbnailCache) {
+            // 另一个线程可能已经渲染好了同一张：优先用先到的那份，避免重复渲染
+            thumbnailCache.get(cacheKey)?.let { if (!it.isRecycled) return it }
+            thumbnailCache.put(cacheKey, fresh)
+        }
+        return fresh
+    }
+
+
+    /**
+     * 只查缓存、不触发渲染的同步查询。供 UI 侧作为 produceState 的 initialValue：
+     * 命中时该缩略图在首帧就有图（滚动回已渲染过的位置时完全无空白帧），
+     * 未命中返回 null，由 produceState 内部异步渲染并写入缓存。
+     */
+    fun cachedThumbnail(
+        widthDp: Int,
+        heightDp: Int,
+        style: WidgetStyle
+    ): Bitmap? {
+        val key = "${style.presetId ?: style.shape}_${widthDp}x$heightDp"
+        synchronized(thumbnailCache) {
+            thumbnailCache.get(key)?.let { if (!it.isRecycled) return it }
+        }
+        return null
+    }
+
+    /**
+     * 风格缩略图统一入口：供 MainActivity / QuickAdjustActivity 的缩略图列表调用。
+     *
+     * 命中缓存时**同步返回**，因此 UI 侧 `produceState` 的首次赋值也在同一帧完成，
+     * 不会出现"先空白一帧再补上"的闪动；未命中才回落到耗时渲染。
+     */
+    fun renderThumbnail(
+        context: Context,
+        widthDp: Int,
+        heightDp: Int,
+        content: String,
+        style: WidgetStyle
+    ): Bitmap? {
+        // key 用 presetId（缺失时退回形状+尺寸）而不是整个 style.toJson()：
+        // 前者稳定且短，后者会随用户每次微调颜色而变，导致缓存永远不命中。
+        val key = "${style.presetId ?: style.shape}_${widthDp}x$heightDp"
+        return thumbnailCacheKey(key) {
+            try {
+                render(context, widthDp, heightDp, content, style)
+            } catch (t: Throwable) {
+                null
+            }
+        }
     }
 
     @Synchronized

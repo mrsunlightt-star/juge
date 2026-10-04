@@ -32,6 +32,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- 桌面长按图标弹出的快捷方式：一键添加 4×4 / 4×2 组件 -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- 快捷编辑悬浮窗，配置为 Dialog 主题 -->
@@ -41,11 +46,11 @@
             android:theme="@style/Theme.QuickAdjustDialog"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- 桌面 Widget AppWidgetProvider 声明 (4×2 尺寸) -->
+        <!-- 桌面 Widget 主入口：默认落位 4×4，可在 2~4 行之间拖拽缩放 -->
         <receiver
             android:name=".ReminderWidgetProvider"
             android:exported="true"
-            android:label="句阁 4×2">
+            android:label="句阁 4×4">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
@@ -65,18 +70,18 @@
                 android:value="10000" />
         </receiver>
 
-        <!-- 桌面 Widget AppWidgetProvider 声明 (4×4 尺寸) -->
+        <!-- 桌面 Widget 紧凑入口：默认落位 4×2，同样可拖拽放大到 4 行 -->
         <receiver
-            android:name=".ReminderWidgetProvider4x4"
+            android:name=".ReminderWidgetProviderCompact"
             android:exported="true"
-            android:label="句阁 4×4">
+            android:label="句阁 4×2">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_info_4x4" />
+                android:resource="@xml/widget_info_compact" />
             <!-- MIUI/HyperOS Widget 曝光刷新标识 -->
             <meta-data
                 android:name="miuiWidget"

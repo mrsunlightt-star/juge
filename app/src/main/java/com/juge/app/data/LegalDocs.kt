@@ -181,13 +181,17 @@ object LegalDocs {
 版权：Copyright 2018 The MaShanZheng Project Authors (https://github.com/googlefonts/mashanzheng)
 授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
+5. jf open 粉圆 JF Open Huninn
+版权：Copyright 2020-2024 justfont Co., LTD. (https://github.com/justfont/open-huninn-font)，保留字体名 'open huninn'、'huninn'；汉字部分改作自 Kosugi Maru (Copyright 2010 MOTOYA CO.,LTD.)，拉丁部分改作自 Varela Round (Copyright 2011-2016 The Varela Round Project Authors)
+授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
+
 （二）IPA Font License 1.0 授权
 
-5. 霞鹜新致宋 LXGW Neo ZhiSong
+6. 霞鹜新致宋 LXGW Neo ZhiSong
 版权：Copyright(c) 2023-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
 
-6. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
+7. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
 版权：Copyright(c) 2021-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
 

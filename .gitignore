@@ -49,3 +49,8 @@ juge-website-puretxt.zip
 # 厂商开发参考文档（非 APP 源码，避免把数万份 docs 塞进版本控制）
 华为开发者文档/
 小米开发相关文档/
+
+# 素材工作产物（正式资源以 app/src/main/res/drawable 下的 webp 为准）
+generated-images/
+widget-bg/
+widget-city-before-after.png

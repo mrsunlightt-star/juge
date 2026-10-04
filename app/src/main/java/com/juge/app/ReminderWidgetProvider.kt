@@ -331,15 +331,15 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * 获取桌面上所有的小组件 ID (包括 4*2 和 4*4 两种尺寸)
+         * 获取桌面上所有的小组件 ID（4×4 主入口 + 4×2 紧凑入口）
          */
         fun getAllAppWidgetIds(context: Context): IntArray {
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val provider4x2 = android.content.ComponentName(context, ReminderWidgetProvider::class.java)
-            val provider4x4 = android.content.ComponentName(context, ReminderWidgetProvider4x4::class.java)
-            val ids4x2 = appWidgetManager.getAppWidgetIds(provider4x2)
-            val ids4x4 = appWidgetManager.getAppWidgetIds(provider4x4)
-            return (ids4x2 + ids4x4).distinct().toIntArray()
+            val providerMain = android.content.ComponentName(context, ReminderWidgetProvider::class.java)
+            val providerCompact = android.content.ComponentName(context, ReminderWidgetProviderCompact::class.java)
+            val idsMain = appWidgetManager.getAppWidgetIds(providerMain)
+            val idsCompact = appWidgetManager.getAppWidgetIds(providerCompact)
+            return (idsMain + idsCompact).distinct().toIntArray()
         }
 
         // 提供外部刷新方法（异步，渲染在后台队列完成）
