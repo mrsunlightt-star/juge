@@ -286,10 +286,10 @@ object WidgetCanvasRenderer {
     // 整卡设计：米色卡纸（背景颜色绘制）+ 木框雪景宫墙照片（上方、真实比例）
     // + 梅枝（右下角贴边）。两个图层都是带羽化米边的抠图（羽化边与卡纸同色），
     // 任意组件宽高比下都不露接缝。几何比例从原设计稿（1570×1122）实测：
-    private const val WINTER_FRAME_ASPECT = 1280f / 692f      // 相框补丁宽高比（含羽化米边）
+    private const val WINTER_FRAME_ASPECT = 1280f / 648f      // 相框补丁宽高比（含羽化米边）
     private const val WINTER_FRAME_W_FRAC = 0.9324f           // 相框补丁宽 / 卡宽
     private const val WINTER_FRAME_WOOD_TOP_FRAC = 0.0392f    // 木框上沿 / 卡高（定位基准）
-    private const val WINTER_FRAME_WOOD_INSET = 0.03283f      // 木框上沿在补丁内的纵向占比（26/792）
+    private const val WINTER_FRAME_WOOD_INSET = 0.03504f      // 木框上沿在补丁内的纵向占比（26/742）
     private const val WINTER_BRANCH_ASPECT = 945f / 306f      // 梅枝补丁宽高比
     private const val WINTER_BRANCH_W_FRAC = 0.6019f          // 梅枝补丁宽 / 卡宽（右下贴边）
     private const val WINTER_TEXT_MIN_HEIGHT_DP = 24f         // 正文最小净高（扁组件保底一行）
@@ -406,8 +406,8 @@ object WidgetCanvasRenderer {
      * 雪落宫墙：按当前组件尺寸现算三个区域。
      *
      * 相框按真实比例摆上方（宽随组件，超高时按"正文最小净高"收缩并保持居中）；
-     * 梅枝贴右下角（宽随组件，与相框重叠时让位收缩）；文字落在相框下方、
-     * 梅枝以左的留白区。全部随组件比例自适应，4×4 / 4×2 / 缩略图都不变形。
+     * 梅枝贴右下角（宽随组件，与相框重叠时让位收缩）；文字落在相框下方的整幅
+     * 留白带（梅枝虚影极淡，文字直接压上去）。全部随组件比例自适应。
      */
     private data class WinterPalaceLayout(
         val frameRect: RectF,
@@ -443,9 +443,10 @@ object WidgetCanvasRenderer {
         }
         val branchRect = RectF(outerRect.right - branchW, outerRect.bottom - branchH, outerRect.right, outerRect.bottom)
 
-        // —— 文字：相框下方、梅枝以左的留白区 ——
+        // —— 文字：相框下方的整幅留白带。梅枝的浓墨干只在最右下角，
+        // 虚影极淡，文字压上去不影响可读（用户确认不再避让） ——
         val textLeft = outerRect.left + maxOf(14f * densityScale, w * 0.05f)
-        val textRight = outerRect.left + maxOf(textLeft - outerRect.left + 90f * densityScale, branchRect.left - outerRect.left + w * 0.035f)
+        val textRight = outerRect.right - maxOf(12f * densityScale, w * 0.035f)
         val textTop = frameRect.bottom + 3f * densityScale
         val textBottom = outerRect.bottom - maxOf(5f * densityScale, h * 0.025f)
         val textRect = RectF(
