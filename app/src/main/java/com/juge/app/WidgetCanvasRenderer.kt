@@ -316,6 +316,24 @@ object WidgetCanvasRenderer {
         frameShadow = 0x452A3648
     )
 
+    // 夏天的海：浅灰蓝卡纸 + 木框林间海径 + 浪花绿叶（设计稿 1508×1162）
+    private val SUMMER_SEA_SPEC = FramedCardSpec(
+        frameAsset = "summersea_frame", accentAsset = "summersea_accent",
+        frameAspect = 1280f / 677f, frameWFrac = 0.9463f,
+        woodTopFrac = 0.0508f, woodInset = 0.03444f,
+        accentAspect = 875f / 396f, accentWFrac = 0.5802f,
+        frameShadow = 0x43291F15
+    )
+
+    // 夏日荷花：淡紫卡纸 + 木框荷塘 + 荷影（设计稿 1512×1161）
+    private val SUMMER_LOTUS_SPEC = FramedCardSpec(
+        frameAsset = "lotus_frame", accentAsset = "lotus_accent",
+        frameAspect = 1280f / 674f, frameWFrac = 0.9444f,
+        woodTopFrac = 0.0500f, woodInset = 0.03453f,
+        accentAspect = 938f / 398f, accentWFrac = 0.6204f,
+        frameShadow = 0x42282838
+    )
+
     private const val FRAMED_CARD_TEXT_MIN_HEIGHT_DP = 24f   // 正文最小净高（扁组件保底一行）
 
     // ==================== 画框卡片 ====================
@@ -564,7 +582,7 @@ object WidgetCanvasRenderer {
             else style.cornerRadiusDp
 
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE, WidgetShape.DEEP_SEA -> {
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE, WidgetShape.DEEP_SEA, WidgetShape.SUMMER_SEA, WidgetShape.SUMMER_LOTUS -> {
                 val rx = effectiveCornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
@@ -592,7 +610,7 @@ object WidgetCanvasRenderer {
             // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
             WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
-            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE, WidgetShape.DEEP_SEA ->
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE, WidgetShape.DEEP_SEA, WidgetShape.SUMMER_SEA, WidgetShape.SUMMER_LOTUS ->
                 effectiveCornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
@@ -713,7 +731,8 @@ object WidgetCanvasRenderer {
         // 雪落宫墙：相框与梅枝两块图层由下方单独摆放，卡纸由背景色负责
         if (bgBitmap != null && style.shape != WidgetShape.STICKER_SCENE &&
             style.shape != WidgetShape.CITY_CUTOUT && style.shape != WidgetShape.WEATHER_BOX &&
-            style.shape != WidgetShape.WINTER_PALACE && style.shape != WidgetShape.DEEP_SEA
+            style.shape != WidgetShape.WINTER_PALACE && style.shape != WidgetShape.DEEP_SEA &&
+            style.shape != WidgetShape.SUMMER_SEA && style.shape != WidgetShape.SUMMER_LOTUS
         ) {
             canvas.save()
             canvas.clipPath(if (style.shape == WidgetShape.TORN_PAPER) path else outerPath)
@@ -881,9 +900,17 @@ object WidgetCanvasRenderer {
             }
         }
 
-        // 雪落宫墙 / 深海鲸歌：卡纸由背景色铺好（含纸张颗粒），这里叠相框与点缀层
-        if (style.shape == WidgetShape.WINTER_PALACE || style.shape == WidgetShape.DEEP_SEA) {
-            val spec = if (style.shape == WidgetShape.WINTER_PALACE) WINTER_PALACE_SPEC else DEEP_SEA_SPEC
+        // 画框卡片族（雪落宫墙/深海鲸歌/夏天的海/夏日荷花）：卡纸由背景色铺好
+        //（含纸张颗粒），这里叠相框与点缀层
+        if (style.shape == WidgetShape.WINTER_PALACE || style.shape == WidgetShape.DEEP_SEA ||
+            style.shape == WidgetShape.SUMMER_SEA || style.shape == WidgetShape.SUMMER_LOTUS
+        ) {
+            val spec = when (style.shape) {
+                WidgetShape.WINTER_PALACE -> WINTER_PALACE_SPEC
+                WidgetShape.DEEP_SEA -> DEEP_SEA_SPEC
+                WidgetShape.SUMMER_SEA -> SUMMER_SEA_SPEC
+                else -> SUMMER_LOTUS_SPEC
+            }
             val layout = framedCardRects(outerRect, densityScale, spec)
             drawFramedCard(canvas, context, outerPath, spec, layout, targetWidth, targetHeight, densityScale, alpha)
         }
@@ -1128,9 +1155,16 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = cavity.bottom + textPadY
                 cardHeight = (outerRect.bottom - textPadY - cardTop).coerceAtLeast(1f)
-            } else if (style.shape == WidgetShape.WINTER_PALACE || style.shape == WidgetShape.DEEP_SEA) {
+            } else if (style.shape == WidgetShape.WINTER_PALACE || style.shape == WidgetShape.DEEP_SEA ||
+                style.shape == WidgetShape.SUMMER_SEA || style.shape == WidgetShape.SUMMER_LOTUS
+            ) {
                 // 画框卡片：正文落在相框下方的整幅留白带（与绘制层同一套布局）
-                val spec = if (style.shape == WidgetShape.WINTER_PALACE) WINTER_PALACE_SPEC else DEEP_SEA_SPEC
+                val spec = when (style.shape) {
+                    WidgetShape.WINTER_PALACE -> WINTER_PALACE_SPEC
+                    WidgetShape.DEEP_SEA -> DEEP_SEA_SPEC
+                    WidgetShape.SUMMER_SEA -> SUMMER_SEA_SPEC
+                    else -> SUMMER_LOTUS_SPEC
+                }
                 val layout = framedCardRects(outerRect, densityScale, spec)
                 paddingLeft = layout.textRect.left
                 paddingRight = layout.textRect.right

@@ -62,7 +62,9 @@ enum class WidgetShape(val displayName: String) {
     CITY_CUTOUT("城市剪影"),
     WEATHER_BOX("天气盒子"),
     WINTER_PALACE("雪落宫墙"),
-    DEEP_SEA("深海鲸歌")
+    DEEP_SEA("深海鲸歌"),
+    SUMMER_SEA("夏天的海"),
+    SUMMER_LOTUS("夏日荷花")
 }
 
 // 图片缩放模式
@@ -899,7 +901,47 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 presetImageResName = "deepsea_frame",
                 authorSignature = "—— 深海鲸歌"
-            ) // 51. 深海鲸歌 (PRO)
+            ), // 51. 深海鲸歌 (PRO)
+            // 夏天的海 (PRO)：整卡浅灰蓝卡纸，木框林间海径照片按真实比例摆上方，
+            // 浪花与绿叶淡入右下角。画框卡片族，与雪落宫墙共用分层渲染。
+            WidgetStyle(
+                presetId = "p_summer_sea",
+                shape = WidgetShape.SUMMER_SEA,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#DAD8E6"), // 浅灰蓝卡纸，与素材羽化边同色
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#2E4D5E"), // 海色题字：青蓝压灰蓝卡纸
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                textureType = "PAPER",
+                presetImageResName = "summersea_frame",
+                authorSignature = "—— 夏天的海"
+            ), // 52. 夏天的海 (PRO)
+            // 夏日荷花 (PRO)：整卡淡紫卡纸，木框荷塘照片按真实比例摆上方，
+            // 荷影淡入右下角。画框卡片族，与雪落宫墙共用分层渲染。
+            WidgetStyle(
+                presetId = "p_summer_lotus",
+                shape = WidgetShape.SUMMER_LOTUS,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#D7D4EA"), // 淡紫卡纸，与素材羽化边同色
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#6E4557"), // 荷色题字：藕紫压淡紫卡纸
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                textureType = "PAPER",
+                presetImageResName = "lotus_frame",
+                authorSignature = "—— 夏日荷花"
+            ) // 53. 夏日荷花 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -1017,7 +1059,9 @@ data class WidgetStyle(
             "北京微缩" to (PRESETS.firstOrNull { it.presetId == "p_beijing_cutout" } ?: PRESETS[0]),
             "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0]),
             "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0]),
-            "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0])
+            "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0]),
+            "夏天的海" to (PRESETS.firstOrNull { it.presetId == "p_summer_sea" } ?: PRESETS[0]),
+            "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画
