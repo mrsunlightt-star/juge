@@ -61,7 +61,8 @@ enum class WidgetShape(val displayName: String) {
     STICKER_SCENE("贴纸夜景"),
     CITY_CUTOUT("城市剪影"),
     WEATHER_BOX("天气盒子"),
-    WINTER_PALACE("雪落宫墙")
+    WINTER_PALACE("雪落宫墙"),
+    DEEP_SEA("深海鲸歌")
 }
 
 // 图片缩放模式
@@ -878,7 +879,27 @@ data class WidgetStyle(
                 textureType = "PAPER", // 卡纸的细颗粒：与素材羽化边的纸纹衔接
                 presetImageResName = "winter_frame",
                 authorSignature = "—— 雪落宫墙"
-            ) // 50. 雪落宫墙 (PRO)
+            ), // 50. 雪落宫墙 (PRO)
+            // 深海鲸歌 (PRO)：整卡白蓝卡纸，木框日光海面照片按真实比例摆上方，
+            // 鲸影淡入右下角。与雪落宫墙共用「画框卡片」分层渲染：
+            // 相框与鲸影都是带羽化卡纸边的抠图图层，文字落在相框下方整幅留白带。
+            WidgetStyle(
+                presetId = "p_deep_sea",
+                shape = WidgetShape.DEEP_SEA,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#E5E5F8"), // 白蓝卡纸，与素材羽化边同色
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#33475E"), // 深海蓝题字：压白蓝卡纸
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "deepsea_frame",
+                authorSignature = "—— 深海鲸歌"
+            ) // 51. 深海鲸歌 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -995,7 +1016,8 @@ data class WidgetStyle(
             "浙江剪影" to (PRESETS.firstOrNull { it.presetId == "p_zhejiang_cutout" } ?: PRESETS[0]),
             "北京微缩" to (PRESETS.firstOrNull { it.presetId == "p_beijing_cutout" } ?: PRESETS[0]),
             "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0]),
-            "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0])
+            "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0]),
+            "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画
