@@ -60,7 +60,8 @@ enum class WidgetShape(val displayName: String) {
     SUBOR_CONSOLE("小霸王游戏机"),
     STICKER_SCENE("贴纸夜景"),
     CITY_CUTOUT("城市剪影"),
-    WEATHER_BOX("天气盒子")
+    WEATHER_BOX("天气盒子"),
+    WINTER_PALACE("雪落宫墙")
 }
 
 // 图片缩放模式
@@ -855,7 +856,29 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 presetImageResName = "weather_box_cavity",
                 authorSignature = "—— 天气盒子"
-            ) // 49. 天气盒子 (PRO)
+            ), // 49. 天气盒子 (PRO)
+            // 雪落宫墙 (PRO)：整卡米色卡纸，木框雪景宫墙照片按真实比例摆在上方，
+            // 梅枝贴右下角。相框与梅枝都是带羽化米边的抠图图层（羽化边与卡纸同色，
+            // 任意组件比例都不露接缝），卡纸底色由「背景颜色」绘制（默认米白），
+            // 文字落在相框下方、梅枝以左的留白区。
+            WidgetStyle(
+                presetId = "p_winter_palace",
+                shape = WidgetShape.WINTER_PALACE,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#EEE6E2"), // 米色卡纸，与素材羽化边同色
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 16f,
+                fontColor = Color.parseColor("#6B5748"), // 暖棕题字：压米色卡纸，与宫墙红同暖调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                textureType = "PAPER", // 卡纸的细颗粒：与素材羽化边的纸纹衔接
+                presetImageResName = "winter_frame",
+                authorSignature = "—— 雪落宫墙"
+            ) // 50. 雪落宫墙 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -971,7 +994,8 @@ data class WidgetStyle(
         val POSTCARD_RENDERED_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "浙江剪影" to (PRESETS.firstOrNull { it.presetId == "p_zhejiang_cutout" } ?: PRESETS[0]),
             "北京微缩" to (PRESETS.firstOrNull { it.presetId == "p_beijing_cutout" } ?: PRESETS[0]),
-            "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0])
+            "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0]),
+            "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画

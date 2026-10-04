@@ -282,6 +282,20 @@ object WidgetCanvasRenderer {
 
     // ==================== 天气盒子 ====================
 
+    // ==================== 雪落宫墙（WINTER_PALACE） ====================
+    // 整卡设计：米色卡纸（背景颜色绘制）+ 木框雪景宫墙照片（上方、真实比例）
+    // + 梅枝（右下角贴边）。两个图层都是带羽化米边的抠图（羽化边与卡纸同色），
+    // 任意组件宽高比下都不露接缝。几何比例从原设计稿（1570×1122）实测：
+    private const val WINTER_FRAME_ASPECT = 1280f / 692f      // 相框补丁宽高比（含羽化米边）
+    private const val WINTER_FRAME_W_FRAC = 0.9324f           // 相框补丁宽 / 卡宽
+    private const val WINTER_FRAME_WOOD_TOP_FRAC = 0.0392f    // 木框上沿 / 卡高（定位基准）
+    private const val WINTER_FRAME_WOOD_INSET = 0.03283f      // 木框上沿在补丁内的纵向占比（26/792）
+    private const val WINTER_BRANCH_ASPECT = 945f / 306f      // 梅枝补丁宽高比
+    private const val WINTER_BRANCH_W_FRAC = 0.6019f          // 梅枝补丁宽 / 卡宽（右下贴边）
+    private const val WINTER_TEXT_MIN_HEIGHT_DP = 24f         // 正文最小净高（扁组件保底一行）
+
+    // ==================== 雪落宫墙 ====================
+
     /**
      * 内凹腔体在盒体里的矩形，**宽高比恒等于素材比例**。
      *
@@ -388,6 +402,97 @@ object WidgetCanvasRenderer {
         canvas.restore()
     }
 
+    /**
+     * 雪落宫墙：按当前组件尺寸现算三个区域。
+     *
+     * 相框按真实比例摆上方（宽随组件，超高时按"正文最小净高"收缩并保持居中）；
+     * 梅枝贴右下角（宽随组件，与相框重叠时让位收缩）；文字落在相框下方、
+     * 梅枝以左的留白区。全部随组件比例自适应，4×4 / 4×2 / 缩略图都不变形。
+     */
+    private data class WinterPalaceLayout(
+        val frameRect: RectF,
+        val branchRect: RectF,
+        val textRect: RectF
+    )
+
+    private fun winterPalaceRects(outerRect: RectF, densityScale: Float): WinterPalaceLayout {
+        val w = outerRect.width()
+        val h = outerRect.height()
+
+        // —— 相框：宽随组件，超高时为正文让位收缩 ——
+        var frameW = w * WINTER_FRAME_W_FRAC
+        var frameH = frameW / WINTER_FRAME_ASPECT
+        val frameTopBase = maxOf(4f * densityScale, h * WINTER_FRAME_WOOD_TOP_FRAC - WINTER_FRAME_WOOD_INSET * frameH)
+        val maxFrameH = h - frameTopBase - WINTER_TEXT_MIN_HEIGHT_DP * densityScale - 4f * densityScale
+        if (frameH > maxFrameH) {
+            frameH = maxFrameH.coerceAtLeast(10f * densityScale)
+            frameW = frameH * WINTER_FRAME_ASPECT
+        }
+        // 收缩后木框内缩量随补丁变小，顶沿要按最终尺寸重算
+        val frameTop = maxOf(4f * densityScale, h * WINTER_FRAME_WOOD_TOP_FRAC - WINTER_FRAME_WOOD_INSET * frameH)
+        val frameLeft = outerRect.left + (w - frameW) / 2f
+        val frameRect = RectF(frameLeft, frameTop, frameLeft + frameW, frameTop + frameH)
+
+        // —— 梅枝：贴右下角，与相框重叠时让位收缩 ——
+        var branchW = w * WINTER_BRANCH_W_FRAC
+        var branchH = branchW / WINTER_BRANCH_ASPECT
+        val maxBranchH = h - frameRect.bottom - 2f * densityScale
+        if (branchH > maxBranchH) {
+            branchH = maxBranchH.coerceAtLeast(8f * densityScale)
+            branchW = branchH * WINTER_BRANCH_ASPECT
+        }
+        val branchRect = RectF(outerRect.right - branchW, outerRect.bottom - branchH, outerRect.right, outerRect.bottom)
+
+        // —— 文字：相框下方、梅枝以左的留白区 ——
+        val textLeft = outerRect.left + maxOf(14f * densityScale, w * 0.05f)
+        val textRight = outerRect.left + maxOf(textLeft - outerRect.left + 90f * densityScale, branchRect.left - outerRect.left + w * 0.035f)
+        val textTop = frameRect.bottom + 3f * densityScale
+        val textBottom = outerRect.bottom - maxOf(5f * densityScale, h * 0.025f)
+        val textRect = RectF(
+            textLeft,
+            minOf(textTop, textBottom - 18f * densityScale),
+            textRight,
+            textBottom
+        )
+        return WinterPalaceLayout(frameRect, branchRect, textRect)
+    }
+
+    /** 画雪落宫墙：米色卡纸已由背景色铺好，这里叠相框（带投影）与梅枝两层抠图。 */
+    private fun drawWinterPalace(
+        canvas: Canvas,
+        context: Context,
+        outerPath: Path,
+        layout: WinterPalaceLayout,
+        targetWidth: Int,
+        targetHeight: Int,
+        densityScale: Float,
+        alpha: Int
+    ) {
+        val frame = getPresetImage(context, "winter_frame", targetWidth, targetHeight)
+        val branch = getPresetImage(context, "winter_branch", targetWidth, targetHeight)
+
+        val saveCount = canvas.save()
+        canvas.clipPath(outerPath)
+
+        // 相框投影：木框压在卡纸上的落影，向下柔散；补丁的羽化米边会盖住投影内侧
+        if (frame != null && !frame.isRecycled) {
+            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#EEE6E2")
+                setShadowLayer(9f * densityScale, 0f, 5f * densityScale, Color.parseColor("#4D2E241C"))
+            }
+            canvas.drawRect(layout.frameRect, shadowPaint)
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { this.alpha = alpha }
+            canvas.drawBitmap(frame, null, layout.frameRect, paint)
+        }
+
+        if (branch != null && !branch.isRecycled) {
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { this.alpha = alpha }
+            canvas.drawBitmap(branch, null, layout.branchRect, paint)
+        }
+
+        canvas.restoreToCount(saveCount)
+    }
+
     fun render(
         context: Context,
         widthDp: Int,
@@ -432,7 +537,7 @@ object WidgetCanvasRenderer {
             else style.cornerRadiusDp
 
         when (style.shape) {
-            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX -> {
+            WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE, WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.BLUE_NOTE, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE -> {
                 val rx = effectiveCornerRadiusDp * densityScale
                 if (rx <= 0f) {
                     path.addRect(rectF, Path.Direction.CW)
@@ -460,7 +565,7 @@ object WidgetCanvasRenderer {
             // 否则圆角滑条对复古像素 / 萌宠猫咪 / 竹青撕纸等形状完全不生效
             WidgetShape.RECTANGLE, WidgetShape.HANDBOOK_TAPE,
             WidgetShape.SPLIT_CARD, WidgetShape.SPLIT_CARD_HORIZONTAL, WidgetShape.BLUE_NOTE,
-            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX ->
+            WidgetShape.PIXEL_RETRO, WidgetShape.PET_CAT_NAP, WidgetShape.ZHU_QING_SI_ZHI, WidgetShape.NIUPI_SHOUZHANG, WidgetShape.CLASSROOM_BLACKBOARD, WidgetShape.BOOKSHELF, WidgetShape.GIANT_SWORD, WidgetShape.PLUSH_FOREST, WidgetShape.SUBOR_CONSOLE, WidgetShape.STICKER_SCENE, WidgetShape.CITY_CUTOUT, WidgetShape.WEATHER_BOX, WidgetShape.WINTER_PALACE ->
                 effectiveCornerRadiusDp * densityScale
             else -> DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
@@ -578,8 +683,10 @@ object WidgetCanvasRenderer {
         // 贴纸夜景的素材是抠出的人物+路灯，位置/大小由下方贴纸逻辑单独计算，不走这里的整卡铺图
         // 城市剪影的素材要按剪影带单独铺（且必须跳过 detectLightBorder，见 drawCityArt）
         // 天气盒子同理：素材只铺进内凹腔体，盒面留白由背景色负责
+        // 雪落宫墙：相框与梅枝两块图层由下方单独摆放，卡纸由背景色负责
         if (bgBitmap != null && style.shape != WidgetShape.STICKER_SCENE &&
-            style.shape != WidgetShape.CITY_CUTOUT && style.shape != WidgetShape.WEATHER_BOX
+            style.shape != WidgetShape.CITY_CUTOUT && style.shape != WidgetShape.WEATHER_BOX &&
+            style.shape != WidgetShape.WINTER_PALACE
         ) {
             canvas.save()
             canvas.clipPath(if (style.shape == WidgetShape.TORN_PAPER) path else outerPath)
@@ -745,6 +852,12 @@ object WidgetCanvasRenderer {
             if (bgBitmap != null && !bgFromCache && !bgBitmap.isRecycled) {
                 bgBitmap.recycle()
             }
+        }
+
+        // 雪落宫墙：米色卡纸已由背景色铺好（含纸张颗粒），这里叠相框与梅枝两层抠图
+        if (style.shape == WidgetShape.WINTER_PALACE) {
+            val layout = winterPalaceRects(outerRect, densityScale)
+            drawWinterPalace(canvas, context, outerPath, layout, targetWidth, targetHeight, densityScale, alpha)
         }
 
         // 羽毛信纸：使用透自信纸抠图作背景（走上方背景图绘制逻辑），透明区透底色
@@ -987,6 +1100,14 @@ object WidgetCanvasRenderer {
                 textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 cardTop = cavity.bottom + textPadY
                 cardHeight = (outerRect.bottom - textPadY - cardTop).coerceAtLeast(1f)
+            } else if (style.shape == WidgetShape.WINTER_PALACE) {
+                // 雪落宫墙：正文落在相框下方、梅枝以左的米色留白区（与绘制层同一套布局）
+                val layout = winterPalaceRects(outerRect, densityScale)
+                paddingLeft = layout.textRect.left
+                paddingRight = layout.textRect.right
+                textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                cardTop = layout.textRect.top
+                cardHeight = (layout.textRect.bottom - layout.textRect.top).coerceAtLeast(1f)
             } else {
                 paddingLeft = 16f * densityScale
                 paddingRight = targetWidth - 16f * densityScale
