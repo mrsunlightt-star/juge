@@ -1,9 +1,6 @@
 package com.juge.app
 
 import android.graphics.Bitmap
-import com.juge.app.data.ImageScaleMode
-import com.juge.app.data.WidgetShape
-import com.juge.app.data.WidgetStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,32 +21,23 @@ import java.io.File
  *
  * 采用 Robolectric 的 NATIVE 图形模式，走真实 Skia 渲染，因此字体、圆角、
  * 阴影、贴图等效果与真机一致；density 用 xxhdpi 以还原真机的组件宽高比。
+ *
+ * 用例枚举见 [RenderCases]；「渲染结果是否与重构前一致」由
+ * [WidgetRenderBaselineTest] 负责，本测试只负责产出人工可看的图。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WidgetPreviewRenderTest {
 
-    private val sampleText = "生活不止眼前的苟且，还有诗和远方的田野。"
-
-    private val sizes = listOf(
-        "4x2" to (250 to 110),
-        "4x4" to (250 to 250)
-    )
+    private val sizes = RenderCases.SIZES
 
     @Test
     fun renderAllWidgetStylesToPng() {
         val context = RuntimeEnvironment.getApplication()
         val outputDir = File("build/widget-previews").absoluteFile
 
-        val styles = buildList {
-            WidgetStyle.PRESETS.forEachIndexed { index, style ->
-                add((style.presetId ?: "preset_$index") to style)
-            }
-            WidgetStyle.ILLUSTRATION_PRESETS.forEach { (resName, displayName) ->
-                add("插图_$displayName" to illustrationStyle(resName))
-            }
-        }
+        val styles = RenderCases.allStyles()
         assertTrue("预设列表不应为空", styles.isNotEmpty())
 
         var rendered = 0
@@ -62,7 +50,7 @@ class WidgetPreviewRenderTest {
                     context = context,
                     widthDp = widthDp,
                     heightDp = heightDp,
-                    content = sampleText,
+                    content = RenderCases.SAMPLE_TEXT,
                     style = style
                 )
                 try {
@@ -70,7 +58,7 @@ class WidgetPreviewRenderTest {
                     assertTrue("$sizeName/$name 渲染尺寸异常", bitmap.width > 0 && bitmap.height > 0)
                     assertTrue("$sizeName/$name 渲染结果全透明，疑似渲染失败", hasOpaquePixel(bitmap))
 
-                    val file = File(dir, "${sanitize(name)}.png")
+                    val file = File(dir, "${RenderCases.sanitize(name)}.png")
                     file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                     assertTrue("$sizeName/$name 未写出 PNG", file.exists() && file.length() > 0)
                 } finally {
@@ -99,19 +87,4 @@ class WidgetPreviewRenderTest {
         }
         return false
     }
-
-    // 插图类风格与首页一致：套用对应预设（形状/缩放模式随预设），背景图按资源名加载
-    private fun illustrationStyle(resName: String): WidgetStyle {
-        val matched = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-        return matched?.copy(backgroundImagePath = null)
-            ?: WidgetStyle(
-                shape = WidgetShape.SPLIT_CARD,
-                presetImageResName = resName,
-                backgroundImagePath = null,
-                bgImageScaleMode = ImageScaleMode.CENTER_CROP
-            )
-    }
-
-    private fun sanitize(name: String): String =
-        name.replace(Regex("[^\\p{L}\\p{N}_-]"), "_")
 }
