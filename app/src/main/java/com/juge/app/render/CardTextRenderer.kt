@@ -56,172 +56,186 @@ internal object CardTextRenderer {
         val targetHeight = scene.targetHeight.toFloat()
         val outerRect = scene.outerRect
 
-        if (style.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) {
-            val paddingLeft = targetWidth * SPLIT_CARD_HORIZONTAL_RATIO + 12f * densityScale
-            val paddingRight = targetWidth - 12f * densityScale
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            return TextBox(paddingLeft, textWidth, 12f * densityScale, targetHeight - 24f * densityScale)
-        }
-        if (style.shape == WidgetShape.SPLIT_CARD) {
+        // 穷举 when 且不写 else：新增形状时编译器强制在这里给出文字安全区，
+        // 不会静默落进通用布局、把正文压到人物或装饰上。
+        return when (style.shape) {
+            WidgetShape.SPLIT_CARD_HORIZONTAL -> {
+                val paddingLeft = targetWidth * SPLIT_CARD_HORIZONTAL_RATIO + 12f * densityScale
+                val paddingRight = targetWidth - 12f * densityScale
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, 12f * densityScale, targetHeight - 24f * densityScale)
+            }
+            WidgetShape.SPLIT_CARD -> {
+                val paddingLeft = 16f * densityScale
+                val paddingRight = targetWidth - 16f * densityScale
+                val cardTop = targetHeight * SPLIT_CARD_RATIO + 12f * densityScale
+                TextBox(paddingLeft, paddingRight - paddingLeft, cardTop, targetHeight - cardTop - 12f * densityScale)
+            }
+            WidgetShape.FEATHER_LETTER -> {
+                // 羽毛信纸：文字落在信纸留白区（扩大区域，右侧多留避羽毛笔，顶部避开尖角）
+                val verticalInset = targetHeight * 0.16f
+                val leftLateral = targetWidth * 0.10f
+                val rightLateral = targetWidth * 0.20f
+                val paddingLeft = leftLateral
+                val paddingRight = targetWidth - rightLateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = verticalInset // 顶部让出信封尖角
+                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.14f)
+            }
+            WidgetShape.PIXEL_RETRO -> {
+                // 复古像素：文字落在薄荷绿背景区，避开四周深蓝虚线边框与红框
+                val verticalInset = targetHeight * 0.12f
+                val lateral = targetWidth * 0.10f
+                val paddingLeft = lateral
+                val paddingRight = targetWidth - lateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = verticalInset // 顶部让出虚线边框
+                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.12f)
+            }
+            WidgetShape.PET_CAT_NAP -> {
+                // 萌宠猫咪趴：橘猫趴在卡片顶部,文字落在卡片渐变中下部(避开猫)
+                val verticalInset = targetHeight * 0.42f // 顶部让出猫
+                val lateral = targetWidth * 0.12f
+                val paddingLeft = lateral
+                val paddingRight = targetWidth - lateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = verticalInset
+                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.08f)
+            }
+            WidgetShape.BLUE_NOTE -> {
+                // 蓝色便签：顶部让出 NOTE + 信息钮，底部让出米白签条
+                val footerH = targetHeight * (76f / 363f)
+                val headerH = targetHeight * (76f / 363f) * 0.85f
+                val lateral = targetWidth * 0.08f
+                val paddingLeft = lateral
+                val paddingRight = targetWidth - lateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = headerH
+                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - footerH - 8f * densityScale)
+            }
+            WidgetShape.ZHU_QING_SI_ZHI,
+            WidgetShape.NIUPI_SHOUZHANG -> {
+                // 竹青撕纸 / 撕边牛皮手账：纸即主体，文字居中留白避开撕边与右下阴影
+                val verticalInset = targetHeight * 0.11f
+                val lateral = targetWidth * 0.11f
+                val paddingLeft = lateral
+                val paddingRight = targetWidth - lateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = verticalInset
+                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - verticalInset)
+            }
+            WidgetShape.CLASSROOM_BLACKBOARD -> {
+                // 教室黑板：文字写在绿色板面上，四周避开木框，底部让出粉笔槽
+                val lateral = targetWidth * 0.09f
+                val paddingLeft = lateral
+                val paddingRight = targetWidth - lateral
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.12f, targetHeight * 0.70f)
+            }
+            WidgetShape.BOOKSHELF -> {
+                // 书香书架：正文落在底部米色摘录面板内。书籍区高度固定，面板吃掉组件多出来的高度，
+                // 因此组件变高时只有文本区域变大（面板与正文区域用同一个面板矩形，保证文字不越界）
+                val panel = bookshelfPanelRect(outerRect, densityScale)
+                val textPadX = SHELF_PANEL_TEXT_PAD_X_DP * densityScale
+                val textPadY = SHELF_PANEL_TEXT_PAD_Y_DP * densityScale
+                val paddingLeft = panel.left + textPadX
+                val paddingRight = panel.right - textPadX
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = panel.top + textPadY
+                TextBox(paddingLeft, textWidth, cardTop, (panel.bottom - textPadY - cardTop).coerceAtLeast(1f))
+            }
+            WidgetShape.GIANT_SWORD -> {
+                // 巨剑：左侧是扛剑武士，正文只压在右侧剑身金属面上，避开剑柄/护手与上下剑棱。
+                // 剑身纵向只占画面约 1/3，这里把可用高度吃满，保证 4×2 规格下也能排出两行
+                val paddingLeft = targetWidth * 0.33f
+                val paddingRight = targetWidth * 0.93f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.39f, targetHeight * 0.33f)
+            }
+            WidgetShape.PLUSH_FOREST -> {
+                // 毛绒森林：顶部毛绒小树/蘑菇与粉色花边不可压，正文落在奶油色毛绒面板内
+                val paddingLeft = targetWidth * 0.115f
+                val paddingRight = targetWidth * 0.885f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.47f)
+            }
+            WidgetShape.SUBOR_CONSOLE -> {
+                // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
+                // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上
+                val screen = suborScreenRect(outerRect)
+                val textPadX = SUBOR_SCREEN_TEXT_PAD_X_DP * densityScale
+                val textPadY = SUBOR_SCREEN_TEXT_PAD_Y_DP * densityScale
+                val paddingLeft = screen.left + textPadX
+                val paddingRight = screen.right - textPadX
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = screen.top + textPadY
+                TextBox(paddingLeft, textWidth, cardTop, (screen.bottom - textPadY - cardTop).coerceAtLeast(1f))
+            }
+            WidgetShape.STICKER_SCENE -> {
+                // 贴纸夜景：正文落在文本框内，四周留出内边距避免贴边
+                val textBox = stickerTextBoxRect(outerRect)
+                val textPadX = STICKER_TEXT_PAD_X_DP * densityScale
+                val textPadY = STICKER_TEXT_PAD_Y_DP * densityScale
+                val paddingLeft = textBox.left + textPadX
+                val paddingRight = textBox.right - textPadX
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = textBox.top + textPadY
+                TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
+            }
+            WidgetShape.CITY_CUTOUT -> {
+                // 城市微缩：正文落在衔接层之下——土层的轮廓谷底 / 倒影的最下沿。
+                // 取的是这条带的**最低点**，所以文字绝不会压到剖面或倒影上。
+                val junction = cityJunctionOf(style)
+                val artRect = cityArtRect(
+                    outerRect, junction, style, densityScale, scene.bgBitmap?.takeIf { !it.isRecycled })
+                val textBox = cityTextBoxRect(
+                    outerRect, artRect, cityBand(junction, outerRect, densityScale))
+                val textPadX = CITY_TEXT_PAD_X_DP * densityScale
+                val textPadY = CITY_TEXT_PAD_Y_DP * densityScale
+                val paddingLeft = textBox.left + textPadX
+                val paddingRight = textBox.right - textPadX
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = textBox.top + textPadY
+                TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
+            }
+            WidgetShape.WEATHER_BOX -> {
+                // 天气盒子：正文落在腔体下方的白色留白区。留白区从腔体下沿切起，
+                // 因此组件变高时多出来的高度全给正文，腔体本身不会被拉长变形
+                val cavity = weatherBoxCavityRect(outerRect, densityScale)
+                val textPadX = WEATHER_BOX_TEXT_PAD_X_DP * densityScale
+                val textPadY = WEATHER_BOX_TEXT_PAD_Y_DP * densityScale
+                val paddingLeft = outerRect.left + textPadX
+                val paddingRight = outerRect.right - textPadX
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = cavity.bottom + textPadY
+                TextBox(paddingLeft, textWidth, cardTop, (outerRect.bottom - textPadY - cardTop).coerceAtLeast(1f))
+            }
+            WidgetShape.WINTER_PALACE,
+            WidgetShape.DEEP_SEA,
+            WidgetShape.SUMMER_SEA,
+            WidgetShape.SUMMER_LOTUS -> {
+                // 画框卡片：正文落在相框下方的整幅留白带（与绘制层同一套布局）
+                val spec = FramedCardRenderer.specFor(style.shape)
+                val layout = FramedCardRenderer.framedCardRects(outerRect, densityScale, spec)
+                val paddingLeft = layout.textRect.left
+                val paddingRight = layout.textRect.right
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                val cardTop = layout.textRect.top
+                TextBox(paddingLeft, textWidth, cardTop, (layout.textRect.bottom - layout.textRect.top).coerceAtLeast(1f))
+            }
+            // 内容完全按 rectF / outerRect 布局的形状：通用内边距即可
+            WidgetShape.RECTANGLE,
+            WidgetShape.HANDBOOK_TAPE,
+            WidgetShape.TORN_PAPER,
+            WidgetShape.ELLIPSE -> {
+
             val paddingLeft = 16f * densityScale
             val paddingRight = targetWidth - 16f * densityScale
-            val cardTop = targetHeight * SPLIT_CARD_RATIO + 12f * densityScale
-            return TextBox(paddingLeft, paddingRight - paddingLeft, cardTop, targetHeight - cardTop - 12f * densityScale)
+            // 卡片内缩后文字区域同步内缩，避免长文本越过卡片下沿
+            val cardTop = scene.cardInset
+            TextBox(paddingLeft, paddingRight - paddingLeft, cardTop, targetHeight - 2f * scene.cardInset)
+            }
         }
-        if (style.shape == WidgetShape.FEATHER_LETTER) {
-            // 羽毛信纸：文字落在信纸留白区（扩大区域，右侧多留避羽毛笔，顶部避开尖角）
-            val verticalInset = targetHeight * 0.16f
-            val leftLateral = targetWidth * 0.10f
-            val rightLateral = targetWidth * 0.20f
-            val paddingLeft = leftLateral
-            val paddingRight = targetWidth - rightLateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = verticalInset // 顶部让出信封尖角
-            return TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.14f)
-        }
-        if (style.shape == WidgetShape.PIXEL_RETRO) {
-            // 复古像素：文字落在薄荷绿背景区，避开四周深蓝虚线边框与红框
-            val verticalInset = targetHeight * 0.12f
-            val lateral = targetWidth * 0.10f
-            val paddingLeft = lateral
-            val paddingRight = targetWidth - lateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = verticalInset // 顶部让出虚线边框
-            return TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.12f)
-        }
-        if (style.shape == WidgetShape.PET_CAT_NAP) {
-            // 萌宠猫咪趴：橘猫趴在卡片顶部,文字落在卡片渐变中下部(避开猫)
-            val verticalInset = targetHeight * 0.42f // 顶部让出猫
-            val lateral = targetWidth * 0.12f
-            val paddingLeft = lateral
-            val paddingRight = targetWidth - lateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = verticalInset
-            return TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.08f)
-        }
-        if (style.shape == WidgetShape.BLUE_NOTE) {
-            // 蓝色便签：顶部让出 NOTE + 信息钮，底部让出米白签条
-            val footerH = targetHeight * (76f / 363f)
-            val headerH = targetHeight * (76f / 363f) * 0.85f
-            val lateral = targetWidth * 0.08f
-            val paddingLeft = lateral
-            val paddingRight = targetWidth - lateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = headerH
-            return TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - footerH - 8f * densityScale)
-        }
-        if (style.shape == WidgetShape.ZHU_QING_SI_ZHI || style.shape == WidgetShape.NIUPI_SHOUZHANG) {
-            // 竹青撕纸 / 撕边牛皮手账：纸即主体，文字居中留白避开撕边与右下阴影
-            val verticalInset = targetHeight * 0.11f
-            val lateral = targetWidth * 0.11f
-            val paddingLeft = lateral
-            val paddingRight = targetWidth - lateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = verticalInset
-            return TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - verticalInset)
-        }
-        if (style.shape == WidgetShape.CLASSROOM_BLACKBOARD) {
-            // 教室黑板：文字写在绿色板面上，四周避开木框，底部让出粉笔槽
-            val lateral = targetWidth * 0.09f
-            val paddingLeft = lateral
-            val paddingRight = targetWidth - lateral
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            return TextBox(paddingLeft, textWidth, targetHeight * 0.12f, targetHeight * 0.70f)
-        }
-        if (style.shape == WidgetShape.BOOKSHELF) {
-            // 书香书架：正文落在底部米色摘录面板内。书籍区高度固定，面板吃掉组件多出来的高度，
-            // 因此组件变高时只有文本区域变大（面板与正文区域用同一个面板矩形，保证文字不越界）
-            val panel = bookshelfPanelRect(outerRect, densityScale)
-            val textPadX = SHELF_PANEL_TEXT_PAD_X_DP * densityScale
-            val textPadY = SHELF_PANEL_TEXT_PAD_Y_DP * densityScale
-            val paddingLeft = panel.left + textPadX
-            val paddingRight = panel.right - textPadX
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = panel.top + textPadY
-            return TextBox(paddingLeft, textWidth, cardTop, (panel.bottom - textPadY - cardTop).coerceAtLeast(1f))
-        }
-        if (style.shape == WidgetShape.GIANT_SWORD) {
-            // 巨剑：左侧是扛剑武士，正文只压在右侧剑身金属面上，避开剑柄/护手与上下剑棱。
-            // 剑身纵向只占画面约 1/3，这里把可用高度吃满，保证 4×2 规格下也能排出两行
-            val paddingLeft = targetWidth * 0.33f
-            val paddingRight = targetWidth * 0.93f
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            return TextBox(paddingLeft, textWidth, targetHeight * 0.39f, targetHeight * 0.33f)
-        }
-        if (style.shape == WidgetShape.PLUSH_FOREST) {
-            // 毛绒森林：顶部毛绒小树/蘑菇与粉色花边不可压，正文落在奶油色毛绒面板内
-            val paddingLeft = targetWidth * 0.115f
-            val paddingRight = targetWidth * 0.885f
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            return TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.47f)
-        }
-        if (style.shape == WidgetShape.SUBOR_CONSOLE) {
-            // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
-            // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上
-            val screen = suborScreenRect(outerRect)
-            val textPadX = SUBOR_SCREEN_TEXT_PAD_X_DP * densityScale
-            val textPadY = SUBOR_SCREEN_TEXT_PAD_Y_DP * densityScale
-            val paddingLeft = screen.left + textPadX
-            val paddingRight = screen.right - textPadX
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = screen.top + textPadY
-            return TextBox(paddingLeft, textWidth, cardTop, (screen.bottom - textPadY - cardTop).coerceAtLeast(1f))
-        }
-        if (style.shape == WidgetShape.STICKER_SCENE) {
-            // 贴纸夜景：正文落在文本框内，四周留出内边距避免贴边
-            val textBox = stickerTextBoxRect(outerRect)
-            val textPadX = STICKER_TEXT_PAD_X_DP * densityScale
-            val textPadY = STICKER_TEXT_PAD_Y_DP * densityScale
-            val paddingLeft = textBox.left + textPadX
-            val paddingRight = textBox.right - textPadX
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = textBox.top + textPadY
-            return TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
-        }
-        if (style.shape == WidgetShape.CITY_CUTOUT) {
-            // 城市微缩：正文落在衔接层之下——土层的轮廓谷底 / 倒影的最下沿。
-            // 取的是这条带的**最低点**，所以文字绝不会压到剖面或倒影上。
-            val junction = cityJunctionOf(style)
-            val artRect = cityArtRect(
-                outerRect, junction, style, densityScale, scene.bgBitmap?.takeIf { !it.isRecycled })
-            val textBox = cityTextBoxRect(
-                outerRect, artRect, cityBand(junction, outerRect, densityScale))
-            val textPadX = CITY_TEXT_PAD_X_DP * densityScale
-            val textPadY = CITY_TEXT_PAD_Y_DP * densityScale
-            val paddingLeft = textBox.left + textPadX
-            val paddingRight = textBox.right - textPadX
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = textBox.top + textPadY
-            return TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
-        }
-        if (style.shape == WidgetShape.WEATHER_BOX) {
-            // 天气盒子：正文落在腔体下方的白色留白区。留白区从腔体下沿切起，
-            // 因此组件变高时多出来的高度全给正文，腔体本身不会被拉长变形
-            val cavity = weatherBoxCavityRect(outerRect, densityScale)
-            val textPadX = WEATHER_BOX_TEXT_PAD_X_DP * densityScale
-            val textPadY = WEATHER_BOX_TEXT_PAD_Y_DP * densityScale
-            val paddingLeft = outerRect.left + textPadX
-            val paddingRight = outerRect.right - textPadX
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = cavity.bottom + textPadY
-            return TextBox(paddingLeft, textWidth, cardTop, (outerRect.bottom - textPadY - cardTop).coerceAtLeast(1f))
-        }
-        if (scene.traits.family == ShapeFamily.FRAMED_CARD) {
-            // 画框卡片：正文落在相框下方的整幅留白带（与绘制层同一套布局）
-            val spec = FramedCardRenderer.specFor(style.shape)
-            val layout = FramedCardRenderer.framedCardRects(outerRect, densityScale, spec)
-            val paddingLeft = layout.textRect.left
-            val paddingRight = layout.textRect.right
-            val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-            val cardTop = layout.textRect.top
-            return TextBox(paddingLeft, textWidth, cardTop, (layout.textRect.bottom - layout.textRect.top).coerceAtLeast(1f))
-        }
-
-        val paddingLeft = 16f * densityScale
-        val paddingRight = targetWidth - 16f * densityScale
-        // 卡片内缩后文字区域同步内缩，避免长文本越过卡片下沿
-        val cardTop = scene.cardInset
-        return TextBox(paddingLeft, paddingRight - paddingLeft, cardTop, targetHeight - 2f * scene.cardInset)
     }
 
     /**
