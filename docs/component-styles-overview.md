@@ -213,7 +213,7 @@
 
 ### 4.1 界面上怎么分组展示
 
-五个入口列表都定义在 `WidgetStyle` 的 companion object 里，**主界面与快捷面板共用同一份**（不要在两处各写一遍）：
+五个入口列表都定义在 `WidgetStyle` 的 companion object 里，「个性定制」页统一取用（不要在各处再写一遍）：
 
 | 列表 | 界面标题 | 内容 |
 | --- | --- | --- |
@@ -304,7 +304,7 @@
 
 ### 7.2 圆角滑条禁用的形状
 
-在 `MainActivity.kt` 与 `QuickAdjustActivity.kt` **两处**各自维护（内容必须一致）：
+在 `ui/adjust/ShapeBackgroundCard.kt` 一处维护（桌面快捷面板已移除，不再有需要同步的第二处）：
 
 `ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`
 
@@ -395,14 +395,14 @@ WidgetStyle(
 // 并在 WidgetRenderPipeline.drawFamilyChrome 的 when 里挂上
 ```
 
-**④ `MainActivity.kt` + `QuickAdjustActivity.kt`** —— 只有需要禁用圆角滑条时才改（见 7.2）
+**④ `ui/adjust/ShapeBackgroundCard.kt`** —— 只有需要禁用圆角滑条时才改（见 7.2）
 
 ### 8.3 改完自检
 
 - [ ] 免费/会员是否符合预期？（默认新风格都是 PRO，除非加进 `FREE_PRESET_IDS`）
 - [ ] 4×2 和 4×4 下文字都没被裁、没压住主体？
 - [ ] 背景色/不透明度是否符合预期（整卡贴图类应不可设背景色）？
-- [ ] 主界面与快捷面板两处入口都出现了？
+- [ ] 「个性定制」页的分类行里出现了（经典 / 萌宠 / 明信片，见 §8.2 ②）？
 - [ ] 素材四角透明是否正确（`process_component_image.py info`）？
 
 ---
