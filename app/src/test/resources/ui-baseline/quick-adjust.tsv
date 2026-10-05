@@ -1,0 +1,4 @@
+# 句阁 UI 基线 —— 由 QuickAdjustUiBaselineTest 维护
+# 拆 Activity 前后，截图像素与可见语义都应完全一致；删除本文件后重跑可重新生成（须人工确认）。
+# 字段: 场景 \t WxH \t 可见语义节点数 \t sha256[:16](截图) \t sha256[:16](语义摘要)
+quick-adjust	1233x2673	10	62c131905c79bf75	1ed9fc2c6741527a

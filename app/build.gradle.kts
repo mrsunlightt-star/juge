@@ -80,6 +80,8 @@ dependencies {
     testImplementation("org.json:json:20240303")
     // 在 JVM 上以真实图形栈渲染组件预览图（无需连接真机/模拟器）
     testImplementation(libs.robolectric)
+    // 在 JVM 上跑 Compose：UI 基线（截图 + 语义树）用，无需真机/模拟器
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
