@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 主界面顶部薄荷绿，取自 MainScreenBackground 的渐变起点（#5EEAD4）。
+         系统启动画面用它作底色，退场时与主界面顶部同色，不再出现「白底一屏」。 -->
+    <color name="splash_background">#5EEAD4</color>
+
+    <!-- 主界面底板色，与 ui/theme/AppColors.kt 的 darkBg (#EEF2F7) 保持一致。
+         两处必须同步修改，否则 Android 11 及以下的窗口底色会与 Compose 首屏差一档。 -->
+    <color name="app_background">#EEF2F7</color>
+
+</resources>

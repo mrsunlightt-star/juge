@@ -145,6 +145,30 @@ data class WidgetStyle(
     fun withoutUnsupportedBackgroundColor(): WidgetStyle =
         if (supportsBackgroundColor(shape)) this else copy(backgroundColor = Color.TRANSPARENT)
 
+    /**
+     * 渲染指纹：把参与绘制的字段按**固定顺序**拼成一个稳定字符串，用作预览位图的缓存 key。
+     *
+     * 刻意不用 [toJsonString]：org.json 的 key 顺序跨进程不稳定，拿它的哈希当缓存 key，
+     * 同一份样式在两次冷启动之间会算出不同的值，缓存永远不命中。
+     * 这里只依赖字段值本身，因此跨进程、跨版本都稳定。
+     */
+    fun cacheFingerprint(): String = buildString {
+        append(shape.name).append('|').append(presetId ?: "").append('|')
+        append(cornerRadiusDp).append('|').append(backgroundColor).append('|')
+        append(backgroundOpacity).append('|').append(backgroundImagePath ?: "").append('|')
+        append(bgImageScaleMode.name).append('|').append(font.name).append('|')
+        append(fontSizeSp).append('|').append(fontBold).append('|').append(fontItalic).append('|')
+        append(fontColor).append('|').append(textAlign).append('|')
+        append(shadow.enabled).append('|').append(shadow.color).append('|')
+        append(shadow.radius).append('|').append(shadow.dx).append('|').append(shadow.dy).append('|')
+        append(gradientColors?.joinToString(",") ?: "").append('|')
+        append(gradientAngle).append('|').append(bgBlurRadius).append('|')
+        append(bgScrimAlpha).append('|').append(showCardShadow).append('|')
+        append(cardBorderWidthDp).append('|').append(cardBorderColor).append('|')
+        append(textureType).append('|').append(presetImageResName ?: "").append('|')
+        append(lineSpacingMultiplier).append('|').append(letterSpacing)
+    }
+
     fun toJsonString(): String {
         return JSONObject().apply {
             put("shape", shape.name)

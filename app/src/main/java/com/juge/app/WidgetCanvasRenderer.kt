@@ -249,4 +249,94 @@ object WidgetCanvasRenderer {
             }
         }
     }
+
+    // ===== 预览位图磁盘缓存 =====
+    //
+    // 与缩略图同源的问题，只是对象换成了主界面上那张**完整尺寸**的组件预览：
+    // 实测冷启动时界面框架约 0.8s 出现，而预览图要到约 1.6s 才画出来，
+    // 中间这 0.8 秒预览区是空白的，用户感知就是"没真正进到界面里"。
+    //
+    // 磁盘缓存跨进程存活，冷启动时直接读出上次的成品图，首帧即有内容；
+    // 后台仍会按当前样式重新渲染并覆盖，因此不会把过期画面留在屏幕上。
+    //
+    // key 由「配置 + 尺寸 + 样式指纹」组成（刻意不含内容，原因见 previewKey）：
+    // 样式或尺寸一变就自然 miss 并重渲染，所以不需要在保存路径上手动失效缓存。
+    private const val PREVIEW_DISK_DIR = "widget_previews"
+    private const val PREVIEW_DISK_MAX_FILES = 16
+
+    // key 刻意**不含内容**：内容来自数据库、首帧还是空的，把内容算进 key 会让冷启动必然
+    // miss（上次缓存的是"有文字"的图，这次首帧算出的 key 是"空文字"），缓存等于白做。
+    // 只认「配置 + 尺寸 + 样式」后，首帧就能命中上次那张**带文字**的成品图，
+    // 随后按最新内容重渲染并覆盖同一 key，画面自然过渡到最新状态。
+    private fun previewKey(configId: Long, widthDp: Int, heightDp: Int, style: WidgetStyle): String {
+        val styleHash = style.cacheFingerprint().hashCode().toUInt().toString(16)
+        return "c${configId}_${widthDp}x${heightDp}_$styleHash"
+    }
+
+    private fun previewDiskFile(context: Context, key: String): File =
+        File(File(context.applicationContext.cacheDir, PREVIEW_DISK_DIR), "$key.png")
+
+    /**
+     * 只查缓存、不触发渲染。供 UI 侧作为 `produceState` 的 initialValue：
+     * 命中时该预览首帧就有图（冷启动与切换组件都不再空一屏），未命中返回 null。
+     *
+     * 注意这是**同步**解码，调用方应放进 `remember(key)` 里按 key 求值一次，
+     * 直接写在 composable 函数体里会在每次重组时重复读盘。
+     */
+    fun cachedPreview(
+        context: Context,
+        configId: Long,
+        widthDp: Int,
+        heightDp: Int,
+        style: WidgetStyle
+    ): Bitmap? {
+        val file = previewDiskFile(context, previewKey(configId, widthDp, heightDp, style))
+        if (!file.isFile) return null
+        return try {
+            BitmapFactory.decodeFile(file.absolutePath)?.also {
+                // 触碰修改时间，供 trimPreviewCache 按 LRU 淘汰
+                file.setLastModified(System.currentTimeMillis())
+            }
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * 渲染一张预览位图并落盘。绘制逻辑与 [render] 完全一致，只多了一步缓存写入；
+     * 落盘失败只影响下次冷启动的速度，不影响本次显示。
+     */
+    fun renderPreview(
+        context: Context,
+        configId: Long,
+        widthDp: Int,
+        heightDp: Int,
+        content: String,
+        style: WidgetStyle
+    ): Bitmap {
+        val bitmap = render(context, widthDp, heightDp, content, style)
+        try {
+            val file = previewDiskFile(context, previewKey(configId, widthDp, heightDp, style))
+            file.parentFile?.mkdirs()
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            FileOutputStream(tmp).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            if (!tmp.renameTo(file)) tmp.delete()
+            trimPreviewCache(context)
+        } catch (t: Throwable) {
+            Timber.w(t, "savePreviewToDisk failed")
+        }
+        return bitmap
+    }
+
+    /** 预览缓存只保留最近使用的 [PREVIEW_DISK_MAX_FILES] 张，避免长期堆积 */
+    private fun trimPreviewCache(context: Context) {
+        val files = File(context.applicationContext.cacheDir, PREVIEW_DISK_DIR)
+            .listFiles()?.filter { it.isFile && it.name.endsWith(".png") } ?: return
+        if (files.size <= PREVIEW_DISK_MAX_FILES) return
+        files.sortedByDescending { it.lastModified() }
+            .drop(PREVIEW_DISK_MAX_FILES)
+            .forEach { it.delete() }
+    }
 }

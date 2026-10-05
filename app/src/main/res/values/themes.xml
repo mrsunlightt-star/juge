@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 主界面主题。
+         windowBackground 显式设为主界面底板色：Android 11 及以下没有系统启动画面，
+         不设的话冷启动会先闪一帧系统默认白底，再切到薄荷渐变的界面。 -->
+    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+
+    <!-- 冷启动主题。Android 12+ 上由 values-v31 补上系统启动画面的配置
+         （背景取主界面顶部同色、图标透明），退场时与主界面首屏无缝衔接；
+         低版本上它与 Theme.MyApplication 完全一致。 -->
+    <style name="Theme.MyApplication.Starting" parent="Theme.MyApplication" />
 
 </resources>

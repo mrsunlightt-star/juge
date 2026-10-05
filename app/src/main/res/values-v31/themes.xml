@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 12+ 的系统启动画面（SplashScreen）。
+         它由系统强制注入、应用无法移除，但外观可控：
+         背景取主界面顶部的薄荷绿、居中图标换成透明图形（见 @drawable/splash_icon_transparent），
+         退场时直接接上同色的主界面首屏，视觉上不再有独立的一屏「启动页」。
+
+         这里只用框架自带的 windowSplashScreen* 属性，因此不需要引入
+         androidx.core:core-splashscreen 依赖；也不写 postSplashScreenTheme——
+         那是该库提供的属性，框架没有。启动画面结束后系统会回到本主题继承的
+         Theme.MyApplication，窗口底色自然切到 @color/app_background。 -->
+    <style name="Theme.MyApplication.Starting" parent="Theme.MyApplication">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+    </style>
+
+</resources>

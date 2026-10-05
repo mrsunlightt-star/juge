@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -105,14 +106,28 @@ fun WidgetPreviewPager(
             // 显示层用 ContentScale.Fit 等比缩小，预览比例自然正确。
             // previewHeightDp（行数估算）只用于外层显示盒高度防裁切，不参与渲染。
             val renderHeightDp = if (realH > 0) realH else previewHeightDp
+            // 先同步取一张磁盘缓存里的成品图作为初值（remember 保证每个 key 只读一次盘，
+            // 写在下面 produceState 的 initialValue 里会在每次重组时重复解码）。
+            // 冷启动时预览区因此首帧就有内容，不必空等约 0.8s；
+            // 随后的渲染会用当前样式重新画一张并覆盖它。
+            val cachedPreview = remember(pageConfigId, pageStyle, renderHeightDp, realW) {
+                WidgetCanvasRenderer.cachedPreview(
+                    context = context,
+                    configId = pageConfigId,
+                    widthDp = realW,
+                    heightDp = renderHeightDp,
+                    style = pageStyle
+                )
+            }
             val pageBitmap by produceState<Bitmap?>(
-                initialValue = null,
+                initialValue = cachedPreview,
                 pageContent, pageStyle, renderHeightDp, realW
             ) {
                 value = withContext(Dispatchers.Default) {
                     try {
-                        WidgetCanvasRenderer.render(
+                        WidgetCanvasRenderer.renderPreview(
                             context = context,
+                            configId = pageConfigId,
                             widthDp = realW,
                             heightDp = renderHeightDp,
                             content = pageContent,
