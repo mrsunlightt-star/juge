@@ -87,7 +87,7 @@ object WidgetCanvasRenderer {
     // +1 THUMB_DISK_VERSION**：磁盘文件按「版本号 + presetId + 尺寸」寻址，
     // 版本不变就会继续沿用旧图。不把样式 JSON 哈希进 key，是因为 org.json 的
     // key 顺序跨进程不稳定，哈希不可靠。
-    private const val THUMB_DISK_VERSION = 1
+    private const val THUMB_DISK_VERSION = 2
     private const val THUMB_DISK_DIR = "widget_thumbs"
 
     private fun thumbDiskFile(context: Context, ramKey: String): File =

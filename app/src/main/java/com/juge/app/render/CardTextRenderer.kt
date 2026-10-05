@@ -39,8 +39,6 @@ import java.util.Locale
 internal object CardTextRenderer {
 
     const val FONT_SIZE_SCALE = 1.2f
-    const val QUOTE_MARK_FONT_SIZE_SCALE = 3.5f
-    const val QUOTE_ALPHA = 25
 
     /** 正文安全排版区：左上角与可用宽高（宽已按风格收过 100px 下限） */
     class TextBox(val left: Float, val width: Float, val top: Float, val height: Float)
@@ -227,7 +225,7 @@ internal object CardTextRenderer {
     }
 
     /**
-     * 5. 正文：构建 StaticLayout 处理折行与省略号，垂直居中落在安全区里，再补艺术双引号。
+     * 5. 正文：构建 StaticLayout 处理折行与省略号，垂直居中落在安全区里。
      *
      * 新付费规则：预览任意风格、桌面默认免费、仅在"同步到桌面"时弹付费，渲染层不感知会员状态。
      */
@@ -336,26 +334,6 @@ internal object CardTextRenderer {
         val centerY = box.top + (cardHeight - totalContentHeight) / 2f
         canvas.translate(box.left, centerY.coerceAtLeast(box.top + 4f * densityScale))
         staticLayout.draw(canvas)
-
-        // 绘制艺术双引号
-        if (style.showQuoteMark) {
-            val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = style.fontColor
-                setAlpha(QUOTE_ALPHA)
-                textSize = style.fontSizeSp * scale * QUOTE_MARK_FONT_SIZE_SCALE
-                typeface = android.graphics.Typeface.create(style.font.getTypeface(context), android.graphics.Typeface.BOLD)
-            }
-
-            // 左上双引号
-            val leftQuoteX = -12f * densityScale
-            val leftQuoteY = 24f * densityScale
-            canvas.drawText("“", leftQuoteX, leftQuoteY, quotePaint)
-
-            // 右下双引号
-            val rightQuoteX = textWidth - 28f * densityScale
-            val rightQuoteY = totalContentHeight + 8f * densityScale
-            canvas.drawText("”", rightQuoteX, rightQuoteY, quotePaint)
-        }
 
         canvas.restore()
     }

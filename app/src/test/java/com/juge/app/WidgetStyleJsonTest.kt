@@ -52,7 +52,6 @@ class WidgetStyleJsonTest {
             showCardShadow = true,
             cardBorderWidthDp = 2.5f,
             cardBorderColor = 0xFF123456.toInt(),
-            showQuoteMark = true,
             textureType = "PAPER",
             authorSignature = "—— 测试",
             presetImageResName = "bg_illustration_1",

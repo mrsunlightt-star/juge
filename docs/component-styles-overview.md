@@ -51,7 +51,6 @@
 | `bgBlurRadius` / `bgScrimAlpha` | 背景模糊 / 压暗 | 自定义背景图时用 |
 | `showCardShadow` | 卡片投影 | 贴纸夜景只给文本框加投影 |
 | `cardBorderWidthDp` / `cardBorderColor` | 卡片描边 | |
-| `showQuoteMark` | 艺术双引号 | 21 个预设开启 |
 | `textureType` | 纸张纹理 | `PAPER` / `GRAIN` / `NONE`，目前只有「拟物撕纸」用 PAPER |
 | `lineSpacingMultiplier` / `letterSpacing` | 行距 / 字距 | |
 

@@ -129,7 +129,6 @@ data class WidgetStyle(
     val showCardShadow: Boolean = false,
     val cardBorderWidthDp: Float = 0f,
     val cardBorderColor: Int = android.graphics.Color.TRANSPARENT,
-    val showQuoteMark: Boolean = false,
     val textureType: String = "NONE",
     val authorSignature: String? = null,
     val presetImageResName: String? = null,
@@ -175,7 +174,6 @@ data class WidgetStyle(
             put("showCardShadow", showCardShadow)
             put("cardBorderWidthDp", cardBorderWidthDp.toDouble())
             put("cardBorderColor", cardBorderColor)
-            put("showQuoteMark", showQuoteMark)
             put("textureType", textureType)
             put("authorSignature", authorSignature ?: JSONObject.NULL)
             put("presetImageResName", presetImageResName ?: JSONObject.NULL)
@@ -242,7 +240,6 @@ data class WidgetStyle(
                     showCardShadow = json.optBoolean("showCardShadow", false),
                     cardBorderWidthDp = json.optDouble("cardBorderWidthDp", 0.0).toFloat(),
                     cardBorderColor = json.optInt("cardBorderColor", android.graphics.Color.TRANSPARENT),
-                    showQuoteMark = json.optBoolean("showQuoteMark", false),
                     textureType = json.optString("textureType", "NONE"),
                     authorSignature = if (json.has("authorSignature") && !json.isNull("authorSignature")) {
                         json.getString("authorSignature")
@@ -335,7 +332,6 @@ data class WidgetStyle(
                 gradientAngle = 45f,
                 font = WidgetFont.SOURCE_HAN_SERIF,
                 fontColor = Color.parseColor("#1F1F1F"),
-                showQuoteMark = true,
                 authorSignature = "—— 明信片寄语"
             ), // 10. 蓝色画报风格 (PRO)
             WidgetStyle(
@@ -344,7 +340,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
                 fontColor = Color.parseColor("#3A4D5C"),
-                showQuoteMark = true,
                 authorSignature = "—— 晨曦日出",
                 presetImageResName = "bg_illustration_1"
             ), // 12. 晨曦画报风格 (PRO)
@@ -354,7 +349,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
                 fontColor = Color.parseColor("#6B4C4C"),
-                showQuoteMark = true,
                 authorSignature = "—— 治愈落日",
                 presetImageResName = "bg_illustration_2"
             ), // 13. 治愈画报风格 (PRO)
@@ -364,7 +358,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
                 fontColor = Color.parseColor("#1B2845"),
-                showQuoteMark = true,
                 authorSignature = "—— 星空森林",
                 presetImageResName = "bg_illustration_3"
             ), // 14. 星空画报风格 (PRO)
@@ -375,7 +368,6 @@ data class WidgetStyle(
                 backgroundColor = Color.parseColor("#1E6DD0"),
                 font = WidgetFont.SOURCE_HAN_SERIF,
                 fontColor = Color.WHITE,
-                showQuoteMark = true,
                 authorSignature = "—— 天空之蓝",
                 presetImageResName = "rectangle_1"
             ), // 15. 天空蓝风格 (PRO)
@@ -385,7 +377,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 蓝天白云",
                 presetImageResName = "blue_sky_clouds"
             ), // 19. 蓝天白云风格 (PRO)
@@ -395,7 +386,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 搏击俱乐部",
                 presetImageResName = "boji_julebu"
             ), // 21. 搏击俱乐部风格 (PRO)
@@ -405,7 +395,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 绝命毒师",
                 presetImageResName = "breaking_bad"
             ), // 22. 绝命毒师风格 (PRO)
@@ -415,7 +404,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— V字仇杀队",
                 presetImageResName = "v_for_vendetta"
             ), // 23. V字仇杀队风格 (PRO)
@@ -425,7 +413,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 爱乐之城",
                 presetImageResName = "aile_zhi_cheng"
             ), // 24. 爱乐之城风格 (PRO)
@@ -438,7 +425,6 @@ data class WidgetStyle(
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 可爱猫咪",
                 presetImageResName = "cute_cat"
             ), // 可爱猫咪 (PRO)
@@ -448,7 +434,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 毛绒小狗",
                 presetImageResName = "fluffy_dog"
             ), // 毛绒小狗 (PRO)
@@ -459,7 +444,6 @@ data class WidgetStyle(
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 快乐小狗",
                 presetImageResName = "happy_dog"
             ), // 快乐小狗 (PRO)
@@ -469,7 +453,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 毛绒猫咪",
                 presetImageResName = "fluffy_cat"
             ), // 毛绒猫咪 (PRO)
@@ -479,7 +462,6 @@ data class WidgetStyle(
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 天天开心",
                 presetImageResName = "happy_daily"
             ), // 天天开心 (PRO)
@@ -596,7 +578,6 @@ data class WidgetStyle(
                 font = WidgetFont.LXGW_WENKAI,
                 fontSizeSp = 19f,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 showCardShadow = false,
                 cardBorderWidthDp = 0f,
                 presetImageResName = "cute_four_kids",
@@ -663,7 +644,6 @@ data class WidgetStyle(
                 bgImageScaleMode = ImageScaleMode.CENTER_CROP, // 整幅实景照片铺满左栏，无透明抠图
                 font = WidgetFont.LXGW_WENKAI,
                 fontColor = Color.parseColor("#374151"),
-                showQuoteMark = true,
                 authorSignature = "—— 得意doro",
                 presetImageResName = "deyi_doro"
             ), // 35. 得意doro (PRO)
@@ -990,7 +970,6 @@ data class WidgetStyle(
                     it.gradientColors == style.gradientColors &&
                     it.presetImageResName == style.presetImageResName &&
                     it.textureType == style.textureType &&
-                    it.showQuoteMark == style.showQuoteMark &&
                     it.authorSignature == style.authorSignature &&
                     it.cardBorderWidthDp == style.cardBorderWidthDp &&
                     it.cardBorderColor == style.cardBorderColor &&
