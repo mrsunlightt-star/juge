@@ -61,18 +61,18 @@ import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.cardBg
+import com.juge.app.ui.theme.mintInk
+import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textWhite
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 
-private val cardBg = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
-private val accentBlue = androidx.compose.ui.graphics.Color(0xFF0F766E)
-private val borderBlue = androidx.compose.ui.graphics.Color(0xFFE2E8F0)
-private val textWhite = androidx.compose.ui.graphics.Color(0xFF0F172A)
-private val textGray = androidx.compose.ui.graphics.Color(0xFF64748B)
-private val mintInk = androidx.compose.ui.graphics.Color(0xFF134E4A) // 明亮薄荷底上的深色文字/图标，保证对比度
-private val selectBlue = androidx.compose.ui.graphics.Color(0xFF42B8EC) // 按钮/页签选中态填充·取自主界面晴空蓝背景（配白字）
 
 class QuickAdjustActivity : ComponentActivity() {
 
