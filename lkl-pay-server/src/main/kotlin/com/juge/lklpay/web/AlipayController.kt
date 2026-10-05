@@ -173,7 +173,14 @@ class AlipayController(
      * 只会刷日志，因此改以 ERROR 日志 + 订单留档供人工介入。
      */
     @PostMapping("/notify")
-    fun notify(@RequestParam params: Map<String, String>): ResponseEntity<String> {
+    fun notify(@RequestParam params: Map<String, String>, request: HttpServletRequest): ResponseEntity<String> {
+        if (!payApiThrottle.tryConsume("notify", clientIp(request), PayApiThrottle.NOTIFY_LIMIT_PER_MINUTE)) {
+            // 回 "failure" 而不是 429：非 "success" 会让支付宝按官方节奏重投，
+            // 正常通知最多被推迟，不会丢单。真正的防伪靠下面的验签，限流只是防洪。
+            log.warn("异步通知触发限流，已要求支付宝重投")
+            return ResponseEntity.ok("failure")
+        }
+
         if (params.isEmpty()) {
             log.warn("支付宝异步通知参数为空，请检查 Content-Type 是否为 application/x-www-form-urlencoded")
             return ResponseEntity.ok("failure")

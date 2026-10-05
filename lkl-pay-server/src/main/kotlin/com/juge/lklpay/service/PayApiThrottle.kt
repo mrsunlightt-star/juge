@@ -73,6 +73,16 @@ class PayApiThrottle {
         /** 查单限额：支付后轮询间隔通常 2-3 秒、持续十几秒，60 次/分钟覆盖重试场景 */
         const val QUERY_LIMIT_PER_MINUTE = 60
 
+        /**
+         * 异步通知限额。
+         *
+         * notify 是无鉴权公网入口，每次都要跑一次 RSA 验签，是现成的 CPU 放大点。
+         * 但它同时是**唯一**能把订单置为已支付的通路，绝不能因为限流丢单——
+         * 所以这里只做防洪：限额取得极宽（支付宝正常投递远低于此），
+         * 被拦下的请求回 "failure"，支付宝会按官方节奏重投（最长 25 小时），最坏只是延迟到账。
+         */
+        const val NOTIFY_LIMIT_PER_MINUTE = 300
+
         private const val WINDOW_MS = 60_000L
         private const val SWEEP_INTERVAL_MS = 10 * 60_000L
     }

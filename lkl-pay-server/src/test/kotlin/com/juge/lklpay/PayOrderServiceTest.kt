@@ -74,6 +74,35 @@ class PayOrderServiceTest {
     }
 
     @Test
+    fun `并发重复通知也只有一次真正落单`() {
+        // 支付宝会对同一笔订单并发重投；若状态变更仍是「先读后写」，
+        // 多条线程都会读到 CREATED 并各自发货。这里检查 compare-and-set 真的只有一个赢家。
+        val no = "T_CONCURRENT"
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+
+        val threads = 4
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+        val startGate = java.util.concurrent.CountDownLatch(1)
+        val futures = (1..threads).map {
+            pool.submit<PayOrderService.MarkPaidOutcome> {
+                startGate.await()
+                service.markPaid(no, "TRADE_C", "BUYER_C", null, "1.99")
+            }
+        }
+        startGate.countDown()
+        val outcomes = futures.map { it.get(30, java.util.concurrent.TimeUnit.SECONDS) }
+        pool.shutdown()
+
+        assertEquals(1, outcomes.count { it == PayOrderService.MarkPaidOutcome.Marked }, "只能有一个线程真正落单")
+        assertEquals(
+            threads - 1,
+            outcomes.count { it == PayOrderService.MarkPaidOutcome.AlreadyPaid },
+            "其余线程必须被幂等短路",
+        )
+        assertEquals(PayOrder.STATUS_PAID, service.find(no)!!.status)
+    }
+
+    @Test
     fun `关闭未支付订单`() {
         val no = "T_CLOSED"
         service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)

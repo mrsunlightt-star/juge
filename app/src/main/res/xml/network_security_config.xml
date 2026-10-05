@@ -5,21 +5,32 @@
   2. 对 puretxt.cn 显式禁用明文；
   3. debug-overrides 仅供本地联调放行 http（如 10.0.2.2:8081），Release 不生效。
 
-  证书固定（pinning）待办：
-  拿到 puretxt.cn 服务器证书的 SPKI SHA-256 哈希后，在 domain-config 中加入：
-  <pin-set expiration="2027-12-31">
-      <pin digest="SHA-256">服务器证书SPKI哈希</pin>
-      <pin digest="SHA-256">备用证书/中间CA的SPKI哈希</pin>
-  </pin-set>
-  注意必须配置备份 pin 与过期时间，否则证书轮换当天全网用户支付瘫痪。
-  获取方式：openssl s_client -connect puretxt.cn:443 -servername puretxt.cn </dev/null 2>/dev/null \
-    | openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER \
-    | openssl dgst -sha256 -binary | openssl enc -base64
+  证书固定（pinning）：只 pin 链上的 CA（Let's Encrypt 中间 CA + 根），**不 pin 叶子证书**。
+  理由：叶子证书 90 天就要续期一次，pin 叶子等于每次自动续期都把用户挡在门外；
+  pin CA 后换叶子不受影响，只有更换 CA 才需要发版。
+  expiration 到期后 Android 会忽略 pin-set 回落到普通校验，这是「忘了更新也不至于锁死」的保险。
+
+  什么时候需要更新这里：
+   - LE 更换中间 CA（当前 YR2，有效期至 2028-09）
+   - 站点从 Let's Encrypt 换成别的 CA
+  更新前先用下面命令取当前链上所有证书的 SPKI SHA-256，至少保留两个 pin 且必须包含一个备份：
+  openssl s_client -connect puretxt.cn:443 -servername puretxt.cn -showcerts </dev/null 2>/dev/null \
+    | awk '/BEGIN CERT/{n++} n>0{print > (n".pem")}'
+  for f in 1.pem 2.pem 3.pem; do
+    openssl x509 -in "$f" -pubkey -noout | openssl pkey -pubin -outform DER \
+      | openssl dgst -sha256 -binary | openssl enc -base64
+  done
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">puretxt.cn</domain>
+        <!-- Let's Encrypt 中间 CA：YR2（有效期至 2028-09） -->
+        <!-- 备用 pin：签发根 ISRG Root YR -->
+        <pin-set expiration="2027-12-31">
+            <pin digest="SHA-256">nWN7PSep5XDQdge5zK24CnCRXHr3KvzhKEGxsdqCX9E=</pin>
+            <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
+        </pin-set>
     </domain-config>
     <debug-overrides>
         <trust-anchors>

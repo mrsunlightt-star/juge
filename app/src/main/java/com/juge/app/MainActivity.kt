@@ -59,6 +59,7 @@ import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
+import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
@@ -494,13 +495,31 @@ class MainActivity : ComponentActivity() {
         // 已登录时用服务端结论回灌本地 PRO：换机、重装后这是唯一的找回入口。
         // 未登录或网络不可用时静默跳过，不影响本地任何功能。
         LaunchedEffect(Unit) {
-            val serverSaysPro = AccountSync.refresh(this@MainActivity)
             accountName = AccountStore.snapshot(this@MainActivity)?.displayName
-            if (serverSaysPro && !trialManager.isActivated()) {
-                trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
-                isActivatedState = true
-                ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
-                Toast.makeText(this@MainActivity, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+            when (val outcome = AccountSync.refresh(this@MainActivity)) {
+                is AccountSync.Outcome.ServerSays -> {
+                    if (outcome.pro && !trialManager.isActivated()) {
+                        trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                        isActivatedState = true
+                        ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                        Toast.makeText(this@MainActivity, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                    } else if (!outcome.pro && trialManager.isActivated()) {
+                        // 服务端明确说这个账号不是 PRO（盗号、共享账号、退款等），才撤销本地激活，
+                        // 否则激活标记会在本机永久残留。两个例外必须保留：
+                        //   1. 本机直接购买（payMethod=支付宝）——钱是这台机器付的，与账号状态无关；
+                        //   2. 开发开关——保留调试能力。
+                        val grantedByAccount =
+                            trialManager.activationRecord()?.payMethod == TrialManager.PAY_METHOD_ACCOUNT
+                        if (grantedByAccount) {
+                            trialManager.resetActivation()
+                            isActivatedState = false
+                            ReminderWidgetProvider.triggerUpdateAllWidgets(this@MainActivity)
+                            Toast.makeText(this@MainActivity, "该账号的 PRO 已失效，已切换回免费版", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                // 未登录 / 没问成：保持本地状态不变
+                AccountSync.Outcome.NotLoggedIn, AccountSync.Outcome.Unavailable -> Unit
             }
         }
 
@@ -601,24 +620,15 @@ class MainActivity : ComponentActivity() {
             // 无桌面组件可问（wid == -1，App 内预览的常态）时，**按声明的默认落位 4×2 兜底**，
             // 不读数据库里的 sizeType —— 它是建配置那一刻写死的（默认 "4x3"），之后永不更新，
             // 桌面组件撤销后拿它算高度，4×2 的预览就会被按 3 行拉成近正方形。
-            val spanY = liveSpanY ?: 2
-            val sy = spanY.coerceIn(2, 4)
-            val adaptiveHeight = when (shape) {
-                WidgetShape.SPLIT_CARD_HORIZONTAL -> 130
-                else -> 60 + sy * 50
-            }
-            // 预览组件显示区域统一抬高到 180dp（含当前常见的 2 行卡片，使其上下各扩约 5dp）；
-            // 更高的规格（如 4×4 的 260dp）保持自适应值防裁切。此值仅影响页面预览展示，
-            // 不影响桌面小组件的真实栅格尺寸。
-            return adaptiveHeight.coerceAtLeast(180)
+            // 高度映射本身是纯函数，已抽到 PreviewMetrics 并有单测覆盖
+            // （下限 180dp、4×4 上限 268dp、横向分割卡固定 130dp 等规则都在那边）。
+            return PreviewMetrics.previewHeightDp(shape, liveSpanY)
         }
         // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
         // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后
         // 以 ContentScale.Fit 贴顶显示在盒内，4×2 时卡片约 155dp 高、下方自然留白。
         // 渲染比例正确的前提下，盒子只提供"预览区域"的视觉高度，不影响卡片形状。
-        val previewBoxHeightDp = (244)
-            .coerceAtLeast(previewHeightForPage(pagerState.currentPage) + 8)
-            .coerceAtMost(268)
+        val previewBoxHeightDp = PreviewMetrics.previewBoxHeightDp(previewHeightForPage(pagerState.currentPage))
 
         var textContentState by remember(selectedConfig?.id) {
             mutableStateOf(selectedConfig?.content ?: "")
@@ -3334,11 +3344,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (pendingCropUri != null) {
+        // 先取本地快照再判空：pendingCropUri 是 Compose 状态，直接 !! 在重组时序下没有保障
+        val cropUri = pendingCropUri
+        if (cropUri != null) {
             val (widgetWidthDp, widgetHeightDp) = ReminderWidgetProvider.getWidgetSizeDp(this@MainActivity, selectedWidgetId)
             val cropTarget = CropImageHelper.cropTargetForWidget(widgetWidthDp, widgetHeightDp)
             CropImageHelper.ImageCropDialog(
-                uri = pendingCropUri!!,
+                uri = cropUri,
                 onDismiss = { pendingCropUri = null },
                 onCropSuccess = { path ->
                     // 旧背景图不在这里删：延后到新图真正落库时再删，避免用户中途取消后原图已丢

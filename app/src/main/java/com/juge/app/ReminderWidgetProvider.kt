@@ -11,6 +11,7 @@ import android.widget.RemoteViews
 import com.juge.app.data.DbHelper
 import com.juge.app.data.WidgetStyle
 import com.juge.app.data.WidgetConfig
+import com.juge.app.data.WidgetConfigBinding
 import timber.log.Timber
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -20,10 +21,21 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         if (ACTION_MIUI_UPDATE == action) {
+            // 这个自定义 action 任何应用都能发：receiver 必须 exported=true 才能收到系统的
+            // APPWIDGET_UPDATE，而自定义 action 与系统 action 共用同一个入口。
+            // 所以不信任广播里自带的组件 ID，只保留「系统当前确实登记在本应用名下」的那些，
+            // 否则第三方应用就能用伪造/随机 ID 让本应用做无意义的读库与位图渲染。
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
-            if (appWidgetIds != null) {
-                onUpdate(context, appWidgetManager, appWidgetIds)
+            val requested = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+            if (requested != null) {
+                val owned = getAllAppWidgetIds(context).toSet()
+                val ids = requested
+                    .take(MAX_BROADCAST_WIDGET_IDS)
+                    .filter { it in owned }
+                    .toIntArray()
+                if (ids.isNotEmpty()) {
+                    onUpdate(context, appWidgetManager, ids)
+                }
             }
         } else {
             super.onReceive(context, intent)
@@ -57,6 +69,15 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         for (id in appWidgetIds) {
             clearWidgetData(context, id)
+        }
+        // 清绑定后回收留下的孤儿配置行（只回收本 Provider 自动创建的那种，见 pruneOrphanAutoConfigs）
+        val appContext = context.applicationContext
+        renderExecutor.execute {
+            try {
+                pruneOrphanAutoConfigs(appContext)
+            } catch (e: Exception) {
+                Timber.w(e, "pruneOrphanAutoConfigs failed after onDeleted")
+            }
         }
     }
 
@@ -100,6 +121,8 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         private const val BROADCAST_TIMEOUT_MS = 8_000L
         private const val KEY_WIDGET_CONFIG_ID = "widget_config_id_"
         private const val KEY_WIDGET_STYLE = "widget_style_"
+        // 公开广播可能被伪造，限制一次最多处理多少个组件 ID
+        private const val MAX_BROADCAST_WIDGET_IDS = 64
 
         // 单线程队列：多个组件依次渲染，避免并发解码位图导致内存峰值过高
         private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
@@ -168,15 +191,27 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                     )
                 )
             } else {
-                val newId = dbHelper.insertWidgetConfig(
-                    WidgetConfig(
-                        name = "微件 ${appWidgetId}",
-                        content = reminder.content,
-                        // 记录组件实际网格尺寸（getWidgetSizeString 返回 "4*4" 形式，转为配置表使用的 "4x4"）
-                        sizeType = getWidgetSizeString(context, appWidgetId).replace("*", "x"),
-                        styleJson = reminder.styleJson ?: WidgetStyle().toJsonString()
+                // 优先复用一个已没有组件绑定的旧配置（同样是自动建的那种），
+                // 否则每次「把金句推到桌面」都会新增一行，配置行只增不减。
+                val boundIds = getAllAppWidgetIds(context).map { getBoundConfigId(context, it) }.toSet()
+                val reusable = WidgetConfigBinding.findReusableAutoConfig(dbHelper.getAllWidgetConfigs(), boundIds)
+                val styleJson = reminder.styleJson ?: WidgetStyle().toJsonString()
+                val newId = if (reusable != null) {
+                    dbHelper.updateWidgetConfig(
+                        reusable.copy(content = reminder.content, styleJson = styleJson)
                     )
-                )
+                    reusable.id
+                } else {
+                    dbHelper.insertWidgetConfig(
+                        WidgetConfig(
+                            name = "${WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX}$appWidgetId",
+                            content = reminder.content,
+                            // 记录组件实际网格尺寸（getWidgetSizeString 返回 "4*4" 形式，转为配置表使用的 "4x4"）
+                            sizeType = getWidgetSizeString(context, appWidgetId).replace("*", "x"),
+                            styleJson = styleJson
+                        )
+                    )
+                }
                 if (newId != -1L) {
                     bindConfigToWidget(context, appWidgetId, newId)
                 }
@@ -214,6 +249,24 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                 .remove(KEY_WIDGET_CONFIG_ID + appWidgetId)
                 .remove(KEY_WIDGET_STYLE + appWidgetId)
                 .apply()
+        }
+
+        /**
+         * 回收孤儿配置行：名称是本 Provider 自动生成的、且当前没有任何组件绑定。
+         *
+         * 只碰自动生成的行，用户手动创建/旧数据迁移出来的配置一律不动，避免误删内容。
+         * 组件被删除时调用一次，防止「加一个组件再删掉」反复累积无主配置。
+         */
+        private fun pruneOrphanAutoConfigs(context: Context) {
+            val dbHelper = DbHelper.getInstance(context)
+            val boundIds = getAllAppWidgetIds(context)
+                .map { getBoundConfigId(context, it) }
+                .toSet()
+            val orphans = WidgetConfigBinding.orphanIds(dbHelper.getAllWidgetConfigs(), boundIds)
+            for (id in orphans) {
+                dbHelper.deleteWidgetConfig(id)
+                Timber.i("pruned orphan widget config id=%d", id)
+            }
         }
 
         /**

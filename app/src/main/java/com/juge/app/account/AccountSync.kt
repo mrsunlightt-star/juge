@@ -11,25 +11,42 @@ import android.content.Context
 object AccountSync {
 
     /**
-     * 用服务端结论校正本地账号状态，并返回服务端是否确认该账号已购 PRO。
+     * 对账结论。
+     *
+     * 刻意区分「服务端明确说这个账号不是 PRO」与「这次没问成」：
+     * 只有前者才允许撤销本地激活；网络抖动、未登录都必须保持本地状态原样。
+     */
+    sealed interface Outcome {
+        /** 未登录——不登录是正常状态 */
+        data object NotLoggedIn : Outcome
+
+        /** 请求失败（网络不可用、服务端异常等）：本次结论不可用 */
+        data object Unavailable : Outcome
+
+        /** 服务端给出的权威结论 */
+        data class ServerSays(val pro: Boolean) : Outcome
+    }
+
+    /**
+     * 用服务端结论校正本地账号状态。
      *
      * 令牌已失效时顺手清掉本地账号：否则界面会长期停在「已登录」的假象里，
      * 而实际每次请求都被服务端拒绝。
      *
-     * 未登录或网络不可用时返回 false——对账失败不该影响任何本地功能。
+     * 对账失败不影响任何本地功能。
      */
-    suspend fun refresh(context: Context): Boolean {
-        val token = AccountStore.token(context) ?: return false
+    suspend fun refresh(context: Context): Outcome {
+        val token = AccountStore.token(context) ?: return Outcome.NotLoggedIn
         return AccountApi.me(token).fold(
             onSuccess = { account ->
                 AccountStore.updateAccount(context, account.username, account.nickname, account.pro)
-                account.pro
+                Outcome.ServerSays(account.pro)
             },
             onFailure = { e ->
                 if (e is AccountApi.ApiException && e.code == AccountApi.CODE_UNAUTHORIZED) {
                     AccountStore.clear(context)
                 }
-                false
+                Outcome.Unavailable
             },
         )
     }

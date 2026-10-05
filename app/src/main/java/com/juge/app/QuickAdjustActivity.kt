@@ -160,13 +160,23 @@ class QuickAdjustActivity : ComponentActivity() {
                 // 组件面板可从桌面直接拉起，所以这里也要做一次账号对账：
                 // 已登录时用服务端结论回灌本地 PRO，换机后这是唯一的找回入口
                 LaunchedEffect(Unit) {
-                    val serverSaysPro = AccountSync.refresh(this@QuickAdjustActivity)
                     accountName = AccountStore.snapshot(this@QuickAdjustActivity)?.displayName
-                    if (serverSaysPro && !trialManager.isActivated()) {
-                        trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
-                        isActivated = true
-                        ReminderWidgetProvider.triggerUpdateAllWidgets(this@QuickAdjustActivity)
-                        Toast.makeText(applicationContext, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                    // 与 MainActivity 保持同一套规则：只有服务端明确说「不是 PRO」且本地激活
+                    // 是账号授予的，才撤销；未登录/请求失败一律保持原状。
+                    val outcome = AccountSync.refresh(this@QuickAdjustActivity)
+                    if (outcome is AccountSync.Outcome.ServerSays) {
+                        if (outcome.pro && !trialManager.isActivated()) {
+                            trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
+                            isActivated = true
+                            ReminderWidgetProvider.triggerUpdateAllWidgets(this@QuickAdjustActivity)
+                            Toast.makeText(applicationContext, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                        } else if (!outcome.pro && trialManager.isActivated() &&
+                            trialManager.activationRecord()?.payMethod == TrialManager.PAY_METHOD_ACCOUNT
+                        ) {
+                            trialManager.resetActivation()
+                            isActivated = false
+                            ReminderWidgetProvider.triggerUpdateAllWidgets(this@QuickAdjustActivity)
+                        }
                     }
                 }
                 val selectImageLauncher = rememberLauncherForActivityResult(
@@ -1180,11 +1190,13 @@ class QuickAdjustActivity : ComponentActivity() {
                             }
                         }
                         
-                        if (pendingCropUri != null) {
+                        // 先取本地快照再判空：pendingCropUri 是 Compose 状态，直接 !! 在重组时序下没有保障
+                        val cropUri = pendingCropUri
+                        if (cropUri != null) {
                             val (widgetWidthDp, widgetHeightDp) = ReminderWidgetProvider.getWidgetSizeDp(this@QuickAdjustActivity, appWidgetId)
                             val cropTarget = CropImageHelper.cropTargetForWidget(widgetWidthDp, widgetHeightDp)
                             CropImageHelper.ImageCropDialog(
-                                uri = pendingCropUri!!,
+                                uri = cropUri,
                                 onDismiss = { pendingCropUri = null },
                                 onCropSuccess = { path ->
                                     // 只更新临时样式，旧背景图待保存成功后再删除，取消修改时原文件不受影响

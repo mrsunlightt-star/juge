@@ -59,7 +59,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 content TEXT NOT NULL,
-                size_type TEXT NOT NULL DEFAULT '4x3',
+                size_type TEXT NOT NULL DEFAULT '4x2',
                 style_json TEXT
             )
         """.trimIndent())
@@ -89,7 +89,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     content TEXT NOT NULL,
-                    size_type TEXT NOT NULL DEFAULT '4x3',
+                    size_type TEXT NOT NULL DEFAULT '4x2',
                     style_json TEXT
                 )
             """.trimIndent())
@@ -130,7 +130,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 content TEXT NOT NULL,
-                size_type TEXT NOT NULL DEFAULT '4x3',
+                size_type TEXT NOT NULL DEFAULT '4x2',
                 style_json TEXT
             )
         """.trimIndent())
@@ -413,7 +413,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                         val values = ContentValues().apply {
                             put("name", name)
                             put("content", reminder.content)
-                            put("size_type", "4x3")
+                            put("size_type", "4x2")
                             put("style_json", reminder.styleJson ?: WidgetStyle().toJsonString())
                         }
                         db.insert("widget_config", null, values)
@@ -427,7 +427,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 insertWidgetConfig(WidgetConfig(
                     name = "默认卡片1",
                     content = "弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》",
-                    sizeType = "4x3",
+                    sizeType = "4x2",
                     styleJson = WidgetStyle().toJsonString()
                 ))
             }

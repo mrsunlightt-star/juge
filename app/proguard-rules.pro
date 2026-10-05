@@ -2,6 +2,16 @@
 -keep class com.juge.app.data.WidgetStyle { *; }
 -keep class com.juge.app.data.TextShadow { *; }
 
+# WidgetStyle 的 shape / font / bgImageScaleMode / textureType 等枚举，
+# 序列化走 Enum.name()、反序列化走 valueOf()（见 WidgetStyle.safeEnum / fromJsonString）。
+# R8 的 enum unboxing 会把这些枚举压成 int，name() 字符串随之消失——
+# 编译期不会有任何提示，但用户桌面上已保存的组件样式会全部读不回来。
+# 保留 values()/valueOf() 可以阻止 unboxing，是这条字符串协议的兜底。
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
 # 保留 Compose 相关类
 -dontwarn androidx.compose.**
 

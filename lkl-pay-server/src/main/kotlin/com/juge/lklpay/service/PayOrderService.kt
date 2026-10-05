@@ -47,7 +47,8 @@ class PayOrderService(
      * 幂等地把订单置为已支付。异步通知与主动查单共用此入口。
      *
      * 三处防护：
-     *   1. 已是 PAID 直接短路——同一订单支付宝会在 25 小时内重投多次，重复处理会导致重复发货
+     *   1. 状态变更走带条件的 UPDATE（compare-and-set）——同一订单支付宝会在 25 小时内重投多次，
+     *      且可能并发到达；只有 affected rows = 1 的那次才继续发货
      *   2. 金额核对——下单金额由服务端商品目录决定，客户端无法篡改；
      *      金额不符只可能是自身缺陷或伪造通知，一律拒绝置为已支付
      *   3. 开通 PRO 只走一次——账号已是 PRO 直接跳过，避免重投时反复写库
@@ -85,18 +86,30 @@ class PayOrderService(
             return MarkPaidOutcome.AmountMismatch
         }
 
-        order.status = PayOrder.STATUS_PAID
-        order.paidAt = System.currentTimeMillis()
-        if (!tradeNo.isNullOrBlank()) order.tradeNo = tradeNo
-        if (!buyerUserId.isNullOrBlank()) order.buyerUserId = buyerUserId
-        if (!buyerLogonId.isNullOrBlank()) order.buyerLogonId = buyerLogonId
-        if (!notifyRaw.isNullOrBlank()) order.notifyRaw = notifyRaw.take(4000)
+        // compare-and-set：只有把状态从 CREATED 改成 PAID 的那一次才继续发货
+        val affected = orders.markPaidIfCreated(
+            outTradeNo = outTradeNo,
+            paid = PayOrder.STATUS_PAID,
+            created = PayOrder.STATUS_CREATED,
+            paidAt = System.currentTimeMillis(),
+            tradeNo = tradeNo?.takeIf { it.isNotBlank() } ?: order.tradeNo,
+            buyerUserId = buyerUserId?.takeIf { it.isNotBlank() } ?: order.buyerUserId,
+            buyerLogonId = buyerLogonId?.takeIf { it.isNotBlank() } ?: order.buyerLogonId,
+            notifyRaw = notifyRaw?.takeIf { it.isNotBlank() }?.take(4000) ?: order.notifyRaw,
+        )
+        if (affected == 0) {
+            // 并发下另一个请求已先完成置位：幂等短路，绝不重复发货
+            log.info("订单已被并发请求置为已支付，本次幂等忽略 outTradeNo={}", outTradeNo)
+            return MarkPaidOutcome.AlreadyPaid
+        }
 
-        grantProIfBound(order)
+        // 批量 UPDATE 已清掉持久化上下文，这里重新读取本次写入后的行
+        val paidOrder = orders.findById(outTradeNo).orElse(null)
+        if (paidOrder != null) grantProIfBound(paidOrder)
 
         log.info(
             "订单已置为已支付 outTradeNo={} tradeNo={} buyerUserId={} amountFen={}",
-            outTradeNo, order.tradeNo, order.buyerUserId, order.amountFen,
+            outTradeNo, paidOrder?.tradeNo ?: tradeNo, paidOrder?.buyerUserId ?: buyerUserId, order.amountFen,
         )
         return MarkPaidOutcome.Marked
     }
