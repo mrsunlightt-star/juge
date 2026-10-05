@@ -151,6 +151,30 @@ fun MainAppScreen(
         }
     }
 
+    // 「点击桌面组件 → 打开 App」的定位请求（MainActivity 带上被点组件的 config_id）。
+    // 反查绑定关系找到对应的 appWidgetId，选中它并直接落在「个性定制」页——
+    // 用户点组件的目的就是改这个组件，这正是原先快捷面板承担的语义。
+    //
+    // 之所以靠 config_id 而不是 appWidgetId 反查：真正决定显示内容与样式的是配置行，
+    // 而绑定关系（appWidgetId → configId）存在 SharedPreferences 里，可以不依赖数据库就完成定位。
+    //
+    // 一次性消费：消费后立刻置 -1，否则用户在 App 内左右切页时会被反复拉回个性定制页。
+    var pendingTargetConfigId by remember { mutableStateOf(targetEditConfigId) }
+    LaunchedEffect(pendingTargetConfigId) {
+        val target = pendingTargetConfigId
+        if (target == -1L) return@LaunchedEffect
+        pendingTargetConfigId = -1L
+        val index = appWidgetIds.indexOfFirst {
+            ReminderWidgetProvider.getBoundConfigId(context, it) == target
+        }
+        if (index >= 0) {
+            selectedWidgetId = appWidgetIds[index]
+            // 翻预览 Pager：currentPage 变化后会触发上面的 LaunchedEffect 同步 selectedWidgetId
+            if (pagerState.currentPage != index) pagerState.scrollToPage(index)
+        }
+        scope.launch { subTabPagerState.animateScrollToPage(1) }
+    }
+
     val selectedConfigId = remember(selectedWidgetId) {
         if (selectedWidgetId != -1) {
             ReminderWidgetProvider.getBoundConfigId(context, selectedWidgetId)

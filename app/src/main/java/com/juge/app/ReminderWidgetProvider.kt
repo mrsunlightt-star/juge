@@ -342,9 +342,10 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
 
             views.setImageViewBitmap(R.id.widget_image_view, bitmap)
 
-            // 设置点击事件：启动半透明快捷编辑面板 QuickAdjustActivity
-            val clickIntent = Intent(context, QuickAdjustActivity::class.java).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            // 设置点击事件：直接打开 App 主界面，并带上 config_id 让主界面定位到这个组件。
+            // 用 CLEAR_TASK 保证 MainActivity 一定重建：定位逻辑只在 onCreate 消费一次，
+            // 复用已存在的实例不会重新定位，会停在用户上次停留的组件上。
+            val clickIntent = Intent(context, MainActivity::class.java).apply {
                 putExtra("config_id", currentConfigId)
                 // 确保每次 PendingIntent 都是独立的以带入正确参数
                 data = Uri.parse("custom://$appWidgetId")

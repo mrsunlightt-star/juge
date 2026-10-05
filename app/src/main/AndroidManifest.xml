@@ -40,13 +40,6 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- 快捷编辑悬浮窗，配置为 Dialog 主题 -->
-        <activity
-            android:name=".QuickAdjustActivity"
-            android:exported="false"
-            android:theme="@style/Theme.QuickAdjustDialog"
-            android:windowSoftInputMode="adjustResize" />
-
         <!-- 桌面 Widget 主入口：默认落位 4×4，可在 2~4 行之间拖拽缩放 -->
         <receiver
             android:name=".ReminderWidgetProvider"

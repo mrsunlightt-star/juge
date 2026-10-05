@@ -156,7 +156,7 @@ internal object UiSnapshot {
     /**
      * 取真实界面的语义树。
      *
-     * QuickAdjustActivity 在 Robolectric 下会额外注册一个 0x0 的空 Compose 根，`onRoot()`
+     * Compose Dialog 在 Robolectric 下会额外注册一个 0x0 的空 Compose 根，`onRoot()`
      * 会因此报「找到 2 个根」。这里按面积取真实界面那个，并要求非空根唯一——
      * 一旦哪天真的多出一个界面，测试要失败而不是悄悄比错对象。
      */
@@ -215,7 +215,7 @@ internal object UiSnapshot {
 
     /** 取要截图的视图，并保证它真的被测量/布局过 */
     fun snapshotRoot(activity: Activity, compose: ComposeContentTestRule): View {
-        // 快捷面板是「对话框式 Activity」：面板本身画在 Compose Dialog 的窗口里，
+        // 隐私弹窗等 Compose Dialog 画在独立窗口里，
         // Activity 自己的 content 是空的（透明底），截它只会得到一张全透明的图。
         val dialogContent = ShadowDialog.getLatestDialog()
             ?.takeIf { it.isShowing }
@@ -227,9 +227,9 @@ internal object UiSnapshot {
         if (content.width > 0 && content.height > 0) return content
 
         // Robolectric 只在「窗口首次可见」时跑一次布局遍历。MainActivity 的 setContent 发生在
-        // onCreate，赶得上那一次；QuickAdjustActivity 要先读库、晚一步 setContent，此后不会再有
-        // 遍历，视图尺寸永远是 0——截出来是 1x1，懒加载列表也只组合出不确定的一小段。
-        // 这里按屏幕尺寸补一次测量/布局，让两种情况拿到同一套确定的结果。
+        // onCreate，赶得上那一次；若某个界面晚一步 setContent，此后不会再有遍历，
+        // 视图尺寸永远是 0——截出来是 1x1，懒加载列表也只组合出不确定的一小段。
+        // 这里按屏幕尺寸补一次测量/布局，让各种情况拿到同一套确定的结果。
         val metrics = activity.resources.displayMetrics
         val decor = content.rootView
         decor.measure(

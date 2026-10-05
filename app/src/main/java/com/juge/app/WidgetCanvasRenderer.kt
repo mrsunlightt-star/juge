@@ -218,7 +218,7 @@ object WidgetCanvasRenderer {
     }
 
     /**
-     * 风格缩略图统一入口：供 MainActivity / QuickAdjustActivity 的缩略图列表调用。
+     * 风格缩略图统一入口：供主界面的风格列表与小组件预览调用。
      *
      * 命中缓存时**同步返回**，因此 UI 侧 `produceState` 的首次赋值也在同一帧完成，
      * 不会出现"先空白一帧再补上"的闪动；未命中才回落到耗时渲染。
