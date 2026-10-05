@@ -27,6 +27,7 @@ import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 import timber.log.Timber
 import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 import java.util.Random
 
@@ -3262,9 +3263,103 @@ object WidgetCanvasRenderer {
     // 只要缓存还在就是秒命中，不会再等 1~2 秒。
     // 正因为条目不会被淘汰，才可以把缓存里的 Bitmap **原图**直接交给调用方（无需 copy），
     // 避免滚动时反复分配副本被 GC 回收。
-    private val thumbnailCache = object : android.util.LruCache<String, Bitmap>(64 * 1024 * 1024) {
+    // 上限只是安全阀：实际条目 ≈ 预设数 × 3 种缩略图尺寸 × 约 48KB，远达不到这里。
+    // 真到 32MB 说明 key 设计出了问题（例如把样式哈希混进了 key），届时淘汰反而是保护。
+    private val thumbnailCache = object : android.util.LruCache<String, Bitmap>(32 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
+
+    // ===== 缩略图磁盘二级缓存 =====
+    //
+    // 内存缓存随进程死亡而清空，而「桌面组件 → 快捷面板」几乎总是冷进程进入
+    // （面板关闭后 App 进程很快被系统回收）。实测 30 张缩略图冷渲染合计约 12s
+    // CPU，Dispatchers.Default 8 线程并行也要 1.5~2.2s，表现为面板打开后缩略图
+    // 空白 1~2 秒才逐个补齐。磁盘缓存（cacheDir/widget_thumbs/，每张 150×80
+    // PNG 约 10~30KB、全部合计 <1MB）跨进程存活，冷启动退化为毫秒级 PNG 解码。
+    //
+    // **改动预设的视觉定义（颜色/纹理/素材）或本文件的绘制逻辑后必须
+    // +1 THUMB_DISK_VERSION**：磁盘文件按「版本号 + presetId + 尺寸」寻址，
+    // 版本不变就会继续沿用旧图。不把样式 JSON 哈希进 key，是因为 org.json 的
+    // key 顺序跨进程不稳定，哈希不可靠。
+    private const val THUMB_DISK_VERSION = 1
+    private const val THUMB_DISK_DIR = "widget_thumbs"
+
+    private fun thumbDiskFile(context: Context, ramKey: String): File =
+        File(File(context.applicationContext.cacheDir, THUMB_DISK_DIR), "v$THUMB_DISK_VERSION$ramKey.png")
+
+    /** 磁盘命中：解码后顺手回填内存缓存，进程内的后续请求直接走内存。 */
+    private fun loadThumbnailFromDisk(context: Context, ramKey: String): Bitmap? {
+        val file = thumbDiskFile(context, ramKey)
+        if (!file.isFile) return null
+        val bytes = try {
+            file.readBytes()
+        } catch (t: Throwable) {
+            return null
+        }
+        val bmp = try {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (t: Throwable) {
+            null
+        }
+        if (bmp == null) {
+            // 解码失败（文件损坏/被截断）：删掉坏文件，下次重新渲染
+            file.delete()
+            return null
+        }
+        synchronized(thumbnailCache) { thumbnailCache.put(ramKey, bmp) }
+        return bmp
+    }
+
+    private fun saveThumbnailToDisk(context: Context, ramKey: String, bitmap: Bitmap) {
+        val file = thumbDiskFile(context, ramKey)
+        if (file.isFile) return // 同 key 已落盘（并发渲染时先到者写），无需重写
+        try {
+            file.parentFile?.mkdirs()
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            FileOutputStream(tmp).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            if (!tmp.renameTo(file)) tmp.delete()
+        } catch (t: Throwable) {
+            // 落盘失败只影响下次冷启动的速度，不影响本次显示
+            Timber.w(t, "saveThumbnailToDisk failed: $ramKey")
+        }
+    }
+
+    /**
+     * 进程启动后在后台线程调用：把磁盘缓存里的全部缩略图预热进内存，
+     * 让「桌面 → 快捷面板」打开的第一帧就带图（否则首帧后还要等一次
+     * 毫秒级磁盘解码）。顺带清理历史版本残留的旧图。
+     */
+    fun prewarmThumbnailCache(context: Context) {
+        val dir = File(context.applicationContext.cacheDir, THUMB_DISK_DIR)
+        val files = dir.listFiles() ?: return
+        val versionPrefix = "v$THUMB_DISK_VERSION"
+        for (file in files) {
+            val name = file.name
+            if (!name.startsWith(versionPrefix) || !name.endsWith(".png")) {
+                if (file.isFile) file.delete() // 旧版本/临时残留
+                continue
+            }
+            val ramKey = name.removePrefix(versionPrefix).removeSuffix(".png")
+            if (ramKey.isEmpty()) continue
+            val hit = synchronized(thumbnailCache) {
+                thumbnailCache.get(ramKey)?.takeUnless { it.isRecycled }
+            }
+            if (hit != null) continue
+            loadThumbnailFromDisk(context, ramKey)
+        }
+    }
+
+    // 仅供单元测试：清空内存缩略图缓存，模拟「进程刚被系统回收后重启」的冷启动状态
+    @androidx.annotation.VisibleForTesting
+    internal fun clearThumbnailRamCacheForTest() {
+        synchronized(thumbnailCache) { thumbnailCache.evictAll() }
+    }
+
+    // 仅供单元测试：统计真实 Canvas 渲染次数，用于区分「磁盘命中」与「重渲染」
+    @androidx.annotation.VisibleForTesting
+    internal var thumbnailRenderCountForTest: Int = 0
 
     /**
      * 取一张已渲染好的风格缩略图。
@@ -3333,10 +3428,18 @@ object WidgetCanvasRenderer {
         // 前者稳定且短，后者会随用户每次微调颜色而变，导致缓存永远不命中。
         val key = "${style.presetId ?: style.shape}_${widthDp}x$heightDp"
         return thumbnailCacheKey(key) {
-            try {
-                render(context, widthDp, heightDp, content, style)
-            } catch (t: Throwable) {
-                null
+            // 内存未命中 → 先查磁盘缓存（跨进程存活，冷启动毫秒级）；
+            // 磁盘也没有才真正走 Canvas 渲染，并在渲染完成后落盘供下次冷启动使用。
+            val fromDisk = loadThumbnailFromDisk(context, key)
+            if (fromDisk != null) {
+                fromDisk
+            } else {
+                try {
+                    thumbnailRenderCountForTest++
+                    render(context, widthDp, heightDp, content, style)
+                } catch (t: Throwable) {
+                    null
+                }?.also { saveThumbnailToDisk(context, key, it) }
             }
         }
     }
