@@ -58,6 +58,7 @@ import com.juge.app.ui.AddColorPresetButton
 import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.ColorPickerDialog
+import com.juge.app.ui.PresetRow
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.MyApplicationTheme
@@ -297,116 +298,59 @@ class QuickAdjustActivity : ComponentActivity() {
                                                     Text("组件风格", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
                                                 }
 
-                                                // 复用：单个预设横滑列表
-                                                @Composable
-                                                fun QuickPresetRow(presets: List<Pair<String, WidgetStyle>>, title: String?) {
-                                                    if (title != null) {
-                                                        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textGray)
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                    }
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .horizontalScroll(rememberScrollState()),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                    ) {
-                                                        presets.forEachIndexed { index, (name, preset) ->
-                                                            val isLocked = !isActivated && WidgetStyle.isProPreset(preset)
-                                                            val isSelected = currentStyle.shape == preset.shape &&
-                                                                             currentStyle.backgroundColor == preset.backgroundColor &&
-                                                                             currentStyle.gradientColors == preset.gradientColors &&
-                                                                             currentStyle.textureType == preset.textureType &&
-                                                                             currentStyle.presetImageResName == preset.presetImageResName
-
-                                                            val presetText = name
-
-                                                            val presetBitmap by produceState<Bitmap?>(
-                                                                // 缓存已在则同帧就有图：滚动回来看不到空白帧
-                                                                initialValue = WidgetCanvasRenderer.cachedThumbnail(150, if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80, preset),
-                                                                preset, presetText
-                                                            ) {
-                                                                value = withContext(Dispatchers.Default) {
-                                                                    try {
-                                                                        WidgetCanvasRenderer.renderThumbnail(
-                                                                            context = this@QuickAdjustActivity,
-                                                                            widthDp = 150,
-                                                                            heightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80,
-                                                                            content = "",
-                                                                            style = preset
-                                                                        )
-                                                                    } catch (t: Throwable) {
-                                                                        Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            Column(
-                                                                modifier = Modifier.width(150.dp),
-                                                                horizontalAlignment = Alignment.CenterHorizontally
-                                                            ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .width(150.dp)
-                                                                    .height(80.dp)
-                                                                    .clip(RoundedCornerShape(8.dp))
-                                                                    .background(androidx.compose.ui.graphics.Color(0xFFF1F5F9))
-                                                                    .border(
-                                                                        width = if (isSelected) 3.dp else 1.dp,
-                                                                        color = if (isSelected) selectBlue else androidx.compose.ui.graphics.Color(0xFFE2E8F0),
-                                                                        shape = RoundedCornerShape(8.dp)
-                                                                    )
-                                                                    .clickable {
-                                                                        if (isLocked) {
-                                                                            Toast.makeText(this@QuickAdjustActivity, "此高级风格为 PRO 专属，请先一键激活！", Toast.LENGTH_SHORT).show()
-                                                                        } else {
-                                                                            currentStyle = preset
-                                                                        }
-                                                                    }
-                                                            ) {
-                                                                // 图内只放画面；名称以独立文本显示在缩略图下方（与个性定制页统一）
-                                                                if (presetBitmap != null) {
-                                                                    Image(
-                                                                        bitmap = presetBitmap!!.asImageBitmap(),
-                                                                        contentDescription = name,
-                                                                        modifier = Modifier.fillMaxSize(),
-                                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                                                    )
-                                                                }
-
-                                                                // 免费风格角标：当前只有「纯色圆角」一款免费
-                                                                if (!WidgetStyle.isProPreset(preset)) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .align(Alignment.TopStart)
-                                                                            .padding(4.dp)
-                                                                            .background(selectBlue, RoundedCornerShape(4.dp))
-                                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                                                                    ) {
-                                                                        Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
-                                                                    }
-                                                                }
-                                                            }
-                                                            Text(
-                                                                text = name,
-                                                                fontSize = 13.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = if (isSelected) selectBlue else textGray,
-                                                                maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis,
-                                                                modifier = Modifier.padding(top = 4.dp)
-                                                            )
-                                                            }
-                                                        }
-                                                    }
-                                                }
 
                                                 // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
-                                                QuickPresetRow(WidgetStyle.CLASSIC_PRESETS, "经典风格")
+                                                // 与「个性定制」页共用同一份预设行实现，差异只在这里的选中规则与点击行为
+val quickPresetSelected: (WidgetStyle) -> Boolean = { preset ->
+    currentStyle.shape == preset.shape &&
+        currentStyle.backgroundColor == preset.backgroundColor &&
+        currentStyle.gradientColors == preset.gradientColors &&
+        currentStyle.textureType == preset.textureType &&
+        currentStyle.presetImageResName == preset.presetImageResName
+}
+val quickPresetClick: (String, WidgetStyle, Boolean) -> Unit = { _, preset, locked ->
+    if (locked) {
+        Toast.makeText(this@QuickAdjustActivity, "此高级风格为 PRO 专属，请先一键激活！", Toast.LENGTH_SHORT).show()
+    } else {
+        currentStyle = preset
+    }
+}
+                                                PresetRow(
+                                                    presets = WidgetStyle.CLASSIC_PRESETS,
+                                                    title = "经典风格",
+                                                    isLocked = { !isActivated && WidgetStyle.isProPreset(it) },
+                                                    isSelected = quickPresetSelected,
+                                                    onPresetClick = quickPresetClick,
+                                                    titleColor = textGray,
+                                                    // 旧实现里标题、4dp 间隔与预设行都是外层 Column 的直接子节点，
+    // spacedBy(10.dp) 会在每段之间各加 10dp，合起来正是 24dp
+    titleBottomSpacing = 24.dp,
+    nameFontWeight = FontWeight.Bold,
+                                                    itemSpacing = 8.dp,
+                                                    nameTopPadding = 4.dp,
+                                                    showThumbnailBackground = true,
+                                                    nameColor = { _, selected -> if (selected) selectBlue else textGray }
+                                                )
                                                 // 分类之间的额外留白：外层 Column 已有 spacedBy(10.dp)，
                                                 // 这里只再补 2dp 让分组可辨，再多就显得松散
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 // 2. 萌宠风格（位于经典与明信片之间）
-                                                QuickPresetRow(WidgetStyle.PET_PRESETS, "萌宠风格 · 会员专属")
+                                                PresetRow(
+                                                    presets = WidgetStyle.PET_PRESETS,
+                                                    title = "萌宠风格 · 会员专属",
+                                                    isLocked = { !isActivated && WidgetStyle.isProPreset(it) },
+                                                    isSelected = quickPresetSelected,
+                                                    onPresetClick = quickPresetClick,
+                                                    titleColor = textGray,
+                                                    // 旧实现里标题、4dp 间隔与预设行都是外层 Column 的直接子节点，
+    // spacedBy(10.dp) 会在每段之间各加 10dp，合起来正是 24dp
+    titleBottomSpacing = 24.dp,
+    nameFontWeight = FontWeight.Bold,
+                                                    itemSpacing = 8.dp,
+                                                    nameTopPadding = 4.dp,
+                                                    showThumbnailBackground = true,
+                                                    nameColor = { _, selected -> if (selected) selectBlue else textGray }
+                                                )
 
                                                 Spacer(modifier = Modifier.height(2.dp))
 
