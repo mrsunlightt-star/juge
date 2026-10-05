@@ -3,4 +3,4 @@
 # 字段: 场景 \t WxH \t 可见语义节点数 \t sha256[:16](截图) \t sha256[:16](语义摘要)
 main-library	1233x2673	25	edeb1f76ee514893	b23a64dc71dbd095
 main-adjust	1233x2673	19	2d5fcf79f484b772	7059b07e44c6bb8c
-main-adjust-tutorial	1233x2673	14	c9021e7fe13d7bed	b63853fea6428925
+main-adjust-tutorial	1233x2673	15	c9021e7fe13d7bed	27cbb6f868f3c3bf

@@ -28,7 +28,13 @@ internal object UiFingerprint {
     private val NODE_LINE =
         Regex("""Node #\d+ at \(l=([-\d.]+), t=([-\d.]+), r=([-\d.]+), b=([-\d.]+)\)px""")
 
-    private val PROPERTY_LINE = Regex("""^\s*[|\s]*([A-Za-z][A-Za-z0-9]*) = '(.*)'\s*$""")
+    private val PROPERTY_LINE = Regex(
+        """^\s*[|\s]*([A-Za-z][A-Za-z0-9]*) = '(.*)'\s*$""",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
+    /** 属性行的开头（值还未必结束）：`Text = '` 这种 */
+    private val PROPERTY_START = Regex("""^\s*[|\s]*[A-Za-z][A-Za-z0-9]* = '""")
 
     /** 摘要保留的属性：能反映「用户看到什么、能点什么」 */
     private val KEPT_PROPERTIES =
@@ -50,6 +56,10 @@ internal object UiFingerprint {
     /**
      * 把 `printToString()` 的语义树摘成稳定的可见节点摘要：
      * 每行一个「位置 | 属性…」，按行排序，与遍历顺序、视口外条目无关。
+     *
+     * 属性值本身可能带换行（协议正文、多段文案的 `Text` 就常是），所以先把
+     * 这类「跨行属性」折成一条逻辑行再解析——否则它们既匹配不上属性行，又会把
+     * 标签当成新节点，结果是这类文案整段从基线里消失（改错了也不报警）。
      */
     fun visibleDigest(rawTree: String, width: Int, height: Int): String {
         val entries = ArrayList<String>()
@@ -68,7 +78,7 @@ internal object UiFingerprint {
             entries += rect.joinToString(",") + " | " + props.joinToString(" | ")
         }
 
-        rawTree.lineSequence().forEach { line ->
+        logicalLines(rawTree).forEach { line ->
             val node = NODE_LINE.find(line)
             if (node != null) {
                 flush()
@@ -77,7 +87,9 @@ internal object UiFingerprint {
             }
             val property = PROPERTY_LINE.find(line) ?: return@forEach
             if (property.groupValues[1] in KEPT_PROPERTIES) {
-                properties += "${property.groupValues[1]}='${property.groupValues[2]}'"
+                // 换行压成 \n：摘要是「一行一个节点」，跨行值不能把行数搅乱
+                val value = property.groupValues[2].replace("\n", "\\n")
+                properties += "${property.groupValues[1]}='$value'"
             }
         }
         flush()
@@ -86,6 +98,33 @@ internal object UiFingerprint {
         return buildString {
             for (entry in entries) append(entry).append('\n')
         }
+    }
+
+    /**
+     * 把语义树折成逻辑行：属性值跨行时合并成一行，其余行原样保留。
+     * 值以 `'` 收尾即视为结束——`printToString()` 的格式就是这样。
+     */
+    private fun logicalLines(rawTree: String): List<String> {
+        val out = ArrayList<String>()
+        var buffer: StringBuilder? = null
+        for (line in rawTree.lineSequence()) {
+            val pending = buffer
+            if (pending != null) {
+                pending.append('\n').append(line.trim())
+                if (line.trimEnd().endsWith("'")) {
+                    out += pending.toString()
+                    buffer = null
+                }
+                continue
+            }
+            if (PROPERTY_START.containsMatchIn(line) && !line.trimEnd().endsWith("'")) {
+                buffer = StringBuilder(line.trimEnd())
+                continue
+            }
+            out += line
+        }
+        buffer?.let { out += it.toString() }
+        return out
     }
 
     private fun digest(pixels: IntArray): String {
