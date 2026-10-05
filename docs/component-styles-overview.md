@@ -353,7 +353,8 @@
                        └─ 在 cityJunctionOf 里认领一种衔接（SOIL / WATER / FADE），别默认套土层
 ```
 
-特殊到套不进 A/B/C/E 的（整幅透明底、多元素分层、有独立文本框）→ 路线 D，像贴纸夜景那样单独写一段渲染分支。
+特殊到套不进 A/B/C/E 的（整幅透明底、多元素分层、有独立文本框）→ 路线 D，
+像贴纸夜景那样在 `WidgetRenderPipeline.drawFamilyChrome` 里新增一个家族分支。
 
 ### 8.2 改动点（4 个文件）
 
@@ -383,12 +384,16 @@ WidgetStyle(
 // d. 若主体四周透明 → 加进 SHAPES_WITHOUT_BACKGROUND_COLOR
 ```
 
-**③ `WidgetCanvasRenderer.kt`** —— 最多 3 处
+**③ `render/ShapeTraits.kt` + `render/CardTextRenderer.kt`** —— 最多 3 处
 ```kotlin
-// a. 形状裁剪分支 when(style.shape)：定义外轮廓（简单形状加进现有分支即可）
-// b. 强制 0 圆角 / 背景色强制透明的名单（如果整幅是插画）
-// c. 文字安全区 else if (style.shape == NEW_SHAPE) { ... }   ← 见 §6
-// 有专属装饰（NOTE 区、书脊、猫头、光柱…）才需要写新的 drawXxxChrome()
+// a. WidgetShape.family()：穷举 when，给新形状认领一个家族
+//    （不写 else，编译器会强制你为每个新形状选家族）
+// b. ShapeTraits 的名单：INSET_CARD_SHAPES（内容内缩 4dp）/
+//    SQUARE_CORNER_SHAPES（整幅插画强制直角）/ TRANSPARENT_CARD_SHAPES（整幅透明底）/
+//    OWN_BACKGROUND_SHAPES（素材由家族自己摆，不走整卡铺图）
+// c. CardTextRenderer.textBoxFor()：加一个文字安全区分支   ← 见 §6
+// 有专属装饰（NOTE 区、书脊、猫头、光柱…）才需要在 render/ 下新写 drawXxx，
+// 并在 WidgetRenderPipeline.drawFamilyChrome 的 when 里挂上
 ```
 
 **④ `MainActivity.kt` + `QuickAdjustActivity.kt`** —— 只有需要禁用圆角滑条时才改（见 7.2）
@@ -434,7 +439,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | 信纸外一圈黑底 | 底色填充时 `alpha` 被强制成 `backgroundOpacity*255`，透明背景也被画黑 | 透明背景不填充（`Color.alpha(effectiveBgColor) > 0` 才画） |
 | 透明 PNG 解码后变黑 | `BitmapFactory` 采样后透明区变成 RGB_565 | `inPreferredConfig = ARGB_8888` |
 | 桌面组件外有深色卡片框 | widget 根布局用了系统 id `@android:id/background` | 换普通 id；改完布局要**删除并重新添加**组件 |
-| 圆角裁剪切掉主体 | 整幅插画形状继承了上一个风格的圆角值 | 加进「强制 0 圆角」名单 |
+| 圆角裁剪切掉主体 | 整幅插画形状继承了上一个风格的圆角值 | 加进 `render/ShapeTraits.kt` 的 `SQUARE_CORNER_SHAPES` |
 | 背景色在主体外围露一圈 | 透明抠图形状被设了背景色 | 加进 `SHAPES_WITHOUT_BACKGROUND_COLOR` |
 | 宽横幅两侧露白边 | 素材自带近白相框 | `CENTER_CROP` 会自动 `detectLightBorder()` 裁掉（阈值 228，相框 >30% 时回退原图） |
 | 明信片底色叠两遍、不透明度失真 | 图区和文字区各铺了一次底色 | 图区只铺图，文字区单独画（共用 `splitImageRect()`） |
@@ -448,5 +453,6 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 > 一个风格 = **形状（外轮廓）** + **一组参数** + **可能一张素材**；
 > 五条路线决定"图从哪来、文字落哪"；
-> 新增风格只动 `WidgetStyle.kt`（枚举 + PRESETS + 分类 + 名单）和 `WidgetCanvasRenderer.kt`（裁剪分支 + 文字安全区），
+> 新增风格只动 `WidgetStyle.kt`（枚举 + PRESETS + 分类 + 名单）、`render/ShapeTraits.kt`（家族 + 名单）
+> 和 `render/CardTextRenderer.kt`（文字安全区），
 > 有专属装饰才需要新写绘制函数；改完用 `WidgetPreviewRenderTest` 出图肉眼验一遍。
