@@ -1,50 +1,31 @@
 package com.juge.app.ui.main
 
-import android.graphics.Bitmap
+import android.content.Context
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import android.content.Context
-import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
 import com.juge.app.CropImageHelper
 import com.juge.app.ReminderWidgetProvider
-import com.juge.app.WidgetCanvasRenderer
-import com.juge.app.account.AccountDialog
 import com.juge.app.account.AccountStore
 import com.juge.app.account.AccountSync
 import com.juge.app.data.Category
 import com.juge.app.data.DbHelper
-import com.juge.app.data.LegalDocs
 import com.juge.app.data.Reminder
 import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
@@ -53,13 +34,9 @@ import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.adjust.AdjustTabContent
-import com.juge.app.ui.legal.LegalDocDialog
-import com.juge.app.ui.library.LibraryTabContent
 import com.juge.app.ui.theme.darkBg
-import com.juge.app.ui.theme.selectBlue
 import java.io.File
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -325,596 +302,152 @@ fun MainAppScreen(
         SaveOutcome.SAVED
     }
 
-    if (showProDialog) {
-        ProActivationDialog(
+    MainOverlays(
+        showProDialog = showProDialog,
+        isActivated = isActivatedState,
+        isPaying = isPaying,
+        accountName = accountName,
+        activity = activity,
+        trialManager = trialManager,
+        onActivatedChange = { isActivatedState = it },
+        onPayingChange = { isPaying = it },
+        onOpenAccount = { showAccountDialog = true },
+        onProDialogDismiss = { showProDialog = false },
+        showAccountDialog = showAccountDialog,
+        onAccountDismiss = {
+            showAccountDialog = false
+            accountName = AccountStore.snapshot(context)?.displayName
+        },
+        legalDoc = showLegalDoc,
+        onLegalDismiss = { showLegalDoc = null }
+    )
+
+    MainScreenBackground {
+        MainTopBar(
             isActivated = isActivatedState,
-            isPaying = isPaying,
-            accountName = accountName,
-            onActivate = {
-                if (!isPaying) {
-                    isPaying = true
-                    activity.lifecycleScope.launch {
-                        when (val outcome = ProPurchase.purchase(activity)) {
-                            is ProPurchase.Outcome.Paid -> {
-                                trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
-                                isActivatedState = true
-                                showProDialog = false
-                                // 桌面组件上未激活时的提示位图需要重绘
-                                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                                Toast.makeText(context, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
-                            }
-
-                            is ProPurchase.Outcome.Unpaid -> if (outcome.message.isNotEmpty()) {
-                                Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                            }
-
-                            is ProPurchase.Outcome.Failed -> {
-                                Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        isPaying = false
-                    }
-                }
+            dbHelper = dbHelper,
+            trialManager = trialManager,
+            scope = scope,
+            onReloaded = { rems, cats, configs ->
+                reminders = rems
+                categories = cats
+                widgetConfigs = configs
             },
-            onOpenAccount = { showAccountDialog = true },
-            onDismiss = { if (!isPaying) showProDialog = false }
+            onActivatedChange = { isActivatedState = it },
+            onOpenPro = { showProDialog = true }
         )
-    }
-
-    if (showAccountDialog) {
-        AccountDialog(
-            onProConfirmed = {
-                trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
-                isActivatedState = true
-                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                Toast.makeText(context, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
-            },
-            onDismiss = {
-                showAccountDialog = false
-                accountName = AccountStore.snapshot(context)?.displayName
-            },
+        WidgetPreviewPager(
+            pagerState = pagerState,
+            appWidgetIds = appWidgetIds,
+            widgetConfigs = widgetConfigs,
+            selectedWidgetId = selectedWidgetId,
+            currentStyle = currentStyle,
+            textContentState = textContentState,
+            previewBoxHeightDp = previewBoxHeightDp,
+            previewHeightForPage = ::previewHeightForPage,
+            onEditClick = { scope.launch { subTabPagerState.animateScrollToPage(1) } }
         )
-    }
-
-    showLegalDoc?.let { doc ->
-        LegalDocDialog(
-            title = LegalDocs.titleOf(doc),
-            body = LegalDocs.bodyOf(doc),
-            onDismiss = { showLegalDoc = null }
-        )
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = darkBg
-    ) {
+        // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    // 1. 鲜明浓郁的薄荷极光渐变 (从生机深薄荷绿渐变至晴空天蓝)
-                    drawRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFF5EEAD4), // 鲜明深薄荷 (Rich Vibrant Mint)
-                                Color(0xFF38BDF8), // 晴空澄澈天蓝 (Sky Cyan)
-                                Color(0xFFBAE6FD).copy(alpha = 0.50f), // 晨露浅青
-                                darkBg  // 渐入页面底色
-                            ),
-                            start = Offset(0f, 0f),
-                            end = Offset(size.width, size.height * 0.44f)
-                        )
-                    )
-
-                    // 2. 网站同款精细方格网 (Subtle Clean Grid)
-                    val gridSize = 24.dp.toPx()
-                    val gridColor = Color(0xFF0F766E).copy(alpha = 0.12f)
-                    val stroke = 1.dp.toPx()
-
-                    var x = 0f
-                    while (x < size.width) {
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(x, 0f),
-                            end = Offset(x, size.height),
-                            strokeWidth = stroke
-                        )
-                        x += gridSize
-                    }
-
-                    var y = 0f
-                    while (y < size.height) {
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = stroke
-                        )
-                        y += gridSize
-                    }
-                }
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Scaffold(
-                containerColor = Color.Transparent
-            ) { innerPadding ->
-                Column(
+            Text(
+                text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
+                fontSize = 12.sp,
+                color = Color(0xFF0F766E),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 下 2/3 面板容器 (苹果风格大抽屉)
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = darkBg
+            ),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(top = 8.dp)
+            ) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    // 1. 顶部苹果风格导航栏
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "句阁",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF064E3B)
-                            )
-                            Text(
-                                text = "DeskQuotes",
-                                fontSize = 13.sp,
-                                color = Color(0xFF065F46),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    scope.launch(Dispatchers.IO) {
-                                        val rems = dbHelper.getAllReminders()
-                                        val cats = dbHelper.getAllCategories()
-                                        val configs = dbHelper.getAllWidgetConfigs()
-                                        withContext(Dispatchers.Main) {
-                                            reminders = rems
-                                            categories = cats
-                                            widgetConfigs = configs
-                                        }
-                                    }
-                                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                                    Toast.makeText(context, "数据已同步刷新", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .shadow(2.dp, CircleShape)
-                                    .background(Color.White, CircleShape)
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF065F46), modifier = Modifier.size(18.dp))
-                            }
+                        .align(Alignment.CenterHorizontally)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFE2E8F0))
+                )
 
-                            val badgeBg = if (isActivatedState) {
-                                Brush.horizontalGradient(listOf(selectBlue, selectBlue))
-                            } else {
-                                Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706)))
-                            }
+                Spacer(modifier = Modifier.height(14.dp))
 
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(badgeBg)
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)), RoundedCornerShape(20.dp))
-                                    .clickable { showProDialog = true }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 扁平线性图标替代实体 emoji：已激活用认证徽章，未激活用Premium徽章
-                                Icon(
-                                    imageVector = if (isActivatedState) Icons.Filled.Verified else Icons.Filled.WorkspacePremium,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = if (isActivatedState) "PRO" else "激活PRO ${ProPurchase.PRICE_TEXT}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
+                // 苹果风分段控制器 Segmented Control (全动态测量)
+                SubTabSwitcher(
+                    pagerState = subTabPagerState,
+                    onSelectTab = { scope.launch { subTabPagerState.animateScrollToPage(it) } }
+                )
 
-                            // ⚠️ 开发期临时开关：一键在「已激活 / 未激活」之间切换，用于验证付费墙与锁定态。
-                            // 发布前必须整块删除——留着等于把付费墙拆了。
-                            DevProToggle(
-                                activated = isActivatedState,
-                                onToggle = { checked ->
-                                    if (checked) {
-                                        trialManager.activate(TrialManager.PAY_METHOD_DEV)
-                                    } else {
-                                        trialManager.resetActivation()
-                                    }
-                                    isActivatedState = checked
-                                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                                    Toast.makeText(
-                                        context,
-                                        if (checked) "开发开关：已切换到 PRO" else "开发开关：已切换到免费",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                        }
-                    }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // 2. 上 1/3 预览区 — 高度随组件规格自适应，整体仅比原固定高度收紧约一行，
-                    // 让“小组件#N”标签与页签行同步上移一行；封顶 268dp 保证 4×4 不被裁切
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(previewBoxHeightDp.dp),
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(previewBoxHeightDp.dp)
-                                .padding(top = 0.dp),
-                            contentPadding = PaddingValues(horizontal = 36.dp),
-                            pageSpacing = 16.dp
-                        ) { page ->
-                            val pageWidgetId = if (appWidgetIds.isNotEmpty()) appWidgetIds[page] else -1
-                            val pageConfigId = if (pageWidgetId != -1) {
-                                ReminderWidgetProvider.getBoundConfigId(context, pageWidgetId)
-                            } else {
-                                -1L
-                            }
-                            val pageConfig = if (pageConfigId != -1L) {
-                                widgetConfigs.find { it.id == pageConfigId } ?: widgetConfigs.firstOrNull()
-                            } else {
-                                widgetConfigs.firstOrNull()
-                            }
-
-                            val pageStyle = if (pageWidgetId == selectedWidgetId) {
-                                currentStyle
-                            } else if (pageWidgetId != -1) {
-                                ReminderWidgetProvider.getWidgetStyle(context, pageWidgetId, pageConfig?.styleJson)
-                            } else {
-                                WidgetStyle.fromJsonString(pageConfig?.styleJson)
-                            }
-
-                            val pageContent = if (pageWidgetId == selectedWidgetId) {
-                                textContentState
-                            } else {
-                                pageConfig?.content ?: "静静地，坐一会。"
-                            }
-
-                            // 复用与预览盒一致的规格计算，避免渲染高度与盒高度不一致造成裁切/空洞
-                            val previewHeightDp = previewHeightForPage(page)
-                            android.util.Log.d("JugeH", "shape=${pageStyle.shape} h=$previewHeightDp sizeType=${pageConfig?.sizeType}")
-                            // 预览按组件**真实 dp 尺寸**渲染，而不是写死宽度：
-                            // 写死 360dp 会让渲染比例与桌面实际比例脱节（4×2 实际是 250:110≈2.27:1），
-                            // 各类按比例分配的几何（图文卡、天气盒子的腔体等）会算错格子。
-                            val (realW, realH) = if (pageWidgetId != -1) {
-                                ReminderWidgetProvider.getWidgetSizeDp(context, pageWidgetId)
-                            } else 250 to 110
-                            // 渲染高度直接用真实高度：位图比例与桌面组件完全一致，
-                            // 显示层用 ContentScale.Fit 等比缩小，预览比例自然正确。
-                            // previewHeightDp（行数估算）只用于外层显示盒高度防裁切，不参与渲染。
-                            val renderHeightDp = if (realH > 0) realH else previewHeightDp
-                            val pageBitmap by produceState<Bitmap?>(
-                                initialValue = null,
-                                pageContent, pageStyle, renderHeightDp, realW
-                            ) {
-                                value = withContext(Dispatchers.Default) {
-                                    try {
-                                        WidgetCanvasRenderer.render(
-                                            context = context,
-                                            widthDp = realW,
-                                            heightDp = renderHeightDp,
-                                            content = pageContent,
-                                            style = pageStyle
-                                        )
-                                    } catch (t: Throwable) {
-                                        // 极端情况下（如 OOM）返回一个空白位图
-                                        Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
-                                    }
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(previewHeightDp.dp)
-                                    .clickable {
-                                        scope.launch { subTabPagerState.animateScrollToPage(1) }
-                                    },
-                                contentAlignment = Alignment.TopCenter
-                            ) {
-                                // 用 Crossfade 让预览位图在切换风格时平滑过渡，避免颜色/形状突变造成"晃动"感
-                                androidx.compose.animation.Crossfade(
-                                    targetState = pageBitmap,
-                                    modifier = Modifier.fillMaxSize()
-                                ) { bmp ->
-                                    if (bmp != null) {
-                                        Image(
-                                            bitmap = bmp.asImageBitmap(),
-                                            contentDescription = "Style Preview",
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                                        )
-                                    }
-                                }
-                                Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = "Edit Style",
-                                    tint = Color(pageStyle.fontColor).copy(alpha = 0.6f),
-                                    modifier = Modifier
-                                        .padding(8.dp)
-                                        .size(16.dp)
-                                        .align(Alignment.BottomEnd)
-                                )
-                            }
-                        }
-                    }
-
-                    // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
-                            fontSize = 12.sp,
-                            color = Color(0xFF0F766E),
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
+                // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
+                // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
+                HorizontalPager(
+                    state = subTabPagerState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    if (page == 0) {
+                        LibraryPane(
+                            dbHelper = dbHelper,
+                            scope = scope,
+                            categories = categories,
+                            reminders = reminders,
+                            selectedCategory = selectedCategory,
+                            editingReminder = editingReminderForContent,
+                            onEditReminderRequest = { editingReminderForContent = it },
+                            onCategorySelect = { selectedCategory = it },
+                            onCategoriesChanged = { categories = it },
+                            onRemindersChanged = { reminders = it },
+                            onWidgetConfigsChanged = { widgetConfigs = it },
+                            selectedWidgetId = selectedWidgetId,
+                            selectedConfigId = selectedConfigId,
+                            currentStyle = currentStyle,
+                            onContentChanged = { textContentState = it },
+                            onStyleChange = onStyleChange,
+                            onOpenDoc = { showLegalDoc = it }
                         )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // 下 2/3 面板容器 (苹果风格大抽屉)
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = darkBg
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(top = 8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.CenterHorizontally)
-                                    .width(36.dp)
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(Color(0xFFE2E8F0))
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // 苹果风分段控制器 Segmented Control (全动态测量)
-                            BoxWithConstraints(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 24.dp)
-                                    .height(42.dp)
-                                    .background(Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                                    .padding(3.dp)
-                            ) {
-                                val width = maxWidth
-                                val tabKeys = listOf("library", "adjust")
-                                val indicatorWidth = width / 2
-
-                                // 指示器随左右滑动实时跟手，落定后与页签一致
-                                val indicatorPosition = subTabPagerState.currentPage + subTabPagerState.currentPageOffsetFraction
-                                val selectedOffset = indicatorWidth * indicatorPosition
-
-                                // 背景滑块：仅静态到位，不含隐式/显式位移动画
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = selectedOffset)
-                                        .width(indicatorWidth)
-                                        .fillMaxHeight()
-                                        .shadow(2.dp, RoundedCornerShape(10.dp))
-                                        .background(selectBlue, RoundedCornerShape(10.dp))
-                                )
-
-                                // Tab 按钮：扁平线性图标 + 文字，替代实体 emoji
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    listOf(
-                                        Triple("library", "跃然纸上", Icons.AutoMirrored.Filled.MenuBook),
-                                        Triple("adjust", "个性定制", Icons.Filled.Tune)
-                                    ).forEach { (key, label, icon) ->
-                                        val tabTint = if (subTabPagerState.currentPage == tabKeys.indexOf(key)) {
-                                            Color.White
-                                        } else {
-                                            Color(0xFF64748B)
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                                .clickable {
-                                                    scope.launch {
-                                                        subTabPagerState.animateScrollToPage(tabKeys.indexOf(key))
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = icon,
-                                                    contentDescription = null,
-                                                    tint = tabTint,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = tabTint,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
-                            // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
-                            HorizontalPager(
-                                state = subTabPagerState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                beyondViewportPageCount = 1
-                            ) { page ->
-                            if (page == 0) {
-                                LibraryTabContent(
-                                    categories = categories,
-                                    reminders = reminders,
-                                    selectedCategory = selectedCategory,
-                                    editingReminder = editingReminderForContent,
-                                    onEditReminderRequest = { editingReminderForContent = it },
-                                    onCategorySelect = { selectedCategory = it },
-                                    onAddCategory = { name ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.insertCategory(name)
-                                            val cats = dbHelper.getAllCategories()
-                                            withContext(Dispatchers.Main) {
-                                                categories = cats
-                                            }
-                                        }
-                                    },
-                                    onDeleteCategory = { id ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.deleteCategory(id)
-                                            val cats = dbHelper.getAllCategories()
-                                            val rems = dbHelper.getAllReminders()
-                                            withContext(Dispatchers.Main) {
-                                                categories = cats
-                                                reminders = rems
-                                            }
-                                        }
-                                    },
-                                    onRenameCategory = { id, name ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.renameCategory(id, name)
-                                            val cats = dbHelper.getAllCategories()
-                                            withContext(Dispatchers.Main) {
-                                                categories = cats
-                                            }
-                                        }
-                                    },
-                                    onSwapCategoryOrder = { cat1Id, cat1Order, cat2Id, cat2Order ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.swapCategoryOrder(cat1Id, cat1Order, cat2Id, cat2Order)
-                                            val cats = dbHelper.getAllCategories()
-                                            withContext(Dispatchers.Main) {
-                                                categories = cats
-                                            }
-                                        }
-                                    },
-                                    onAddReminder = { content, catId ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.insertReminder(content, catId)
-                                            val rems = dbHelper.getAllReminders()
-                                            withContext(Dispatchers.Main) {
-                                                reminders = rems
-                                            }
-                                        }
-                                    },
-                                    onEditReminderSave = { id, content, catId ->
-                                        scope.launch(Dispatchers.IO) {
-                                            val rem = reminders.find { it.id == id }
-                                            if (rem != null) {
-                                                dbHelper.updateReminder(id, content, catId, rem.isFavorite, rem.styleJson)
-                                                val rems = dbHelper.getAllReminders()
-                                                withContext(Dispatchers.Main) {
-                                                    reminders = rems
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onDeleteReminder = { id ->
-                                        scope.launch(Dispatchers.IO) {
-                                            dbHelper.deleteReminder(id)
-                                            val rems = dbHelper.getAllReminders()
-                                            withContext(Dispatchers.Main) {
-                                                reminders = rems
-                                            }
-                                        }
-                                    },
-                                    onReminderClick = { reminder ->
-                                        textContentState = reminder.content
-                                        if (selectedWidgetId != -1) {
-                                            // 绑定可能新建 widget_config 并写入新绑定关系，
-                                            // 必须在绑定完成后重新读取配置 ID，否则下方保存会命中旧的 -1 配置
-                                            val widgetId = selectedWidgetId
-                                            scope.launch(Dispatchers.IO) {
-                                                ReminderWidgetProvider.bindReminderToWidget(context, widgetId, reminder.id)
-                                                val newConfigId = ReminderWidgetProvider.getBoundConfigId(context, widgetId)
-                                                val newConfig = dbHelper.getWidgetConfigById(newConfigId)
-                                                if (newConfig != null) {
-                                                    dbHelper.updateWidgetConfig(
-                                                        newConfig.copy(
-                                                            content = reminder.content,
-                                                            styleJson = currentStyle.toJsonString()
-                                                        )
-                                                    )
-                                                }
-                                                val configs = dbHelper.getAllWidgetConfigs()
-                                                withContext(Dispatchers.Main) {
-                                                    widgetConfigs = configs
-                                                    textContentState = reminder.content
-                                                }
-                                                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                                            }
-                                        } else {
-                                            onStyleChange(selectedWidgetId, selectedConfigId, reminder.content, currentStyle)
-                                        }
-                                    },
-                                    onOpenDoc = { showLegalDoc = it }
-                                )
-                            } else {
-                                AdjustTabContent(
-                                    widgetConfigs = widgetConfigs,
-                                    isActivated = isActivatedState,
-                                    selectedWidgetId = selectedWidgetId,
-                                    selectedReminderId = selectedReminder?.id ?: -1L,
-                                    selectedStyle = currentStyle,
-                                    selectedContent = textContentState,
-                                    onStyleStateChange = { currentStyle = it },
-                                    onContentStateChange = { textContentState = it },
-                                    onSelectPreset = { wId, rId, newStyle ->
-                                        currentStyle = newStyle
-                                        onStyleChange(wId, rId, textContentState, newStyle)
-                                    },
-                                    onStyleChange = { wId, rId, text, newStyle ->
-                                        onStyleChange(wId, rId, text, newStyle)
-                                    },
-                                    onOpenDoc = { showLegalDoc = it },
-                                    initiallyTutorialExpanded = startTutorialExpanded
-                                )
-                            }
-                            }
-                        }
+                    } else {
+                        AdjustTabContent(
+                            widgetConfigs = widgetConfigs,
+                            isActivated = isActivatedState,
+                            selectedWidgetId = selectedWidgetId,
+                            selectedReminderId = selectedReminder?.id ?: -1L,
+                            selectedStyle = currentStyle,
+                            selectedContent = textContentState,
+                            onStyleStateChange = { currentStyle = it },
+                            onContentStateChange = { textContentState = it },
+                            onSelectPreset = { wId, rId, newStyle ->
+                                currentStyle = newStyle
+                                onStyleChange(wId, rId, textContentState, newStyle)
+                            },
+                            onStyleChange = { wId, rId, text, newStyle ->
+                                onStyleChange(wId, rId, text, newStyle)
+                            },
+                            onOpenDoc = { showLegalDoc = it },
+                            initiallyTutorialExpanded = startTutorialExpanded
+                        )
                     }
                 }
             }
