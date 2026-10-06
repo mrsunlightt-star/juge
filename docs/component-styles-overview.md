@@ -1,11 +1,16 @@
 # 组件风格总览与实现方案
 
 > 这份文档回答两件事：
-> 1. **现有 46 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
+> 1. **现有 40 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
 > 2. **新增一个风格要动哪些地方** —— 一份可照着做的改动清单。
 >
 > 配套文档：`docs/component-style-guide.md`（图片处理脚本 `tools/process_component_image.py` 的用法与踩坑）。
 > 贴纸类素材的生成流程见 `tools/sticker/README.md`。
+>
+> **与代码对齐核对：2026-10-06** —— `PRESETS` 40 条、`WidgetShape` 25 个取值。
+> §4 / §5 的清单是**用脚本从 `WidgetStyle.kt` / `ShapeTraits.kt` 反查生成**的，不要手抄；
+> 改动预设或形状后请重跑核对脚本（在 `.scratch/style-doc-drift/issues/01-resync-style-overview.md`），
+> 并更新这一行的日期。
 
 ---
 
@@ -16,7 +21,7 @@
 | 要素 | 说明 | 取值 |
 | --- | --- | --- |
 | **① 路线** | 这个风格靠什么画出来 | A 纯代码卡片 / B 整卡贴图 / C 图文明信片 / D 贴纸场景 / E 城市微缩（见 §3） |
-| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 20 个取值之一（见 §5） |
+| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 25 个取值之一（见 §5） |
 | **③ 素材** | 有没有图、图的透明处理方式 | 无素材 / 整幅抠图 / 实景照片不抠 |
 | **④ 文字落点** | 正文压在哪个区域 | 留白区、避开装饰（见 §6） |
 
@@ -51,7 +56,7 @@
 | `bgBlurRadius` / `bgScrimAlpha` | 背景模糊 / 压暗 | 自定义背景图时用 |
 | `showCardShadow` | 卡片投影 | 贴纸夜景只给文本框加投影 |
 | `cardBorderWidthDp` / `cardBorderColor` | 卡片描边 | |
-| `textureType` | 纸张纹理 | `PAPER` / `GRAIN` / `NONE`，目前只有「拟物撕纸」用 PAPER |
+| `textureType` | 纸张纹理 | `PAPER` / `GRAIN` / `NONE`；用 `PAPER` 的有 4 条：拟物撕纸、雪落宫墙、夏天的海、夏日荷花 |
 | `lineSpacingMultiplier` / `letterSpacing` | 行距 / 字距 | |
 
 ### 2.2 免费与会员
@@ -77,10 +82,10 @@
 | 拟物撕纸 | `generateTornPath()` 用固定种子 `TORN_SEED=42` 生成锯齿边 + `PAPER` 纹理 |
 | 复古手账 | 内缩卡片 + `drawTape()` 在左上/右下角画两条半透明胶带 |
 | 蓝色画报 | `SPLIT_CARD` + `LinearGradient` 渐变填充图片区 |
-| 白底黑字 / 深夜模式 / 磨砂玻璃 | 纯参数差异：底色、不透明度、描边、阴影 |
 | 蓝色便签 | `drawBlueNoteChrome()`：顶部 NOTE 区 + 右上信息钮 + 底部米白手写签条 |
 | 书香书架 | `drawBookshelfChrome()`：顶部彩色书脊立在横板上 + 底部米色摘录面板 |
-| 猫咪卡片 | `drawCatCardChrome()`：奶白卡 + 粉色内描边 + `drawCatHead()` 画猫头 |
+
+> 路线 A 的完整名单见 §4 表里「路线 = A」的行（当前 5 条）。
 
 ### 路线 B：整卡贴图（图即主体）
 
@@ -99,18 +104,24 @@
 | 巨剑 | `GIANT_SWORD` | `giant_sword` | 文字只压右侧剑身，加暗描边保可读性 |
 | 毛绒森林 | `PLUSH_FOREST` | `plush_forest` | |
 | 小霸王游戏机 | `SUBOR_CONSOLE` | `subor_console` | 素材是**未通电**的深灰玻璃屏，代码叠绿色荧光底 + 扫描线 + 暗角 + 玻璃反光 |
+| 春天与小狗 | `SPRING_DOG` | `spring_dog` | 绿框白卡 + 上沿草丛麦穗粉花 + 右上角探头柯基；四周抠成透明（卡外透壁纸）。与毛绒森林同一套设计语言，素材同为 1.79:1，同样走 `STRETCH` |
 | 天空之蓝 | `RECTANGLE` | `rectangle_1`（矢量 XML） | 代码额外画一个 "NOTE" 标签 |
-| 浙江全景 | `RECTANGLE` | `zhejiang_city_cutout` | 唯一一个用**透明抠图 + `CENTER_CROP`** 铺满整卡的：图铺满四边、无透明边缘，所以形状仍是 `RECTANGLE`、可以设背景色；文字压在城景上，靠 `bgScrimAlpha` 压暗 + 白字暗描边保可读 |
+| 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
+| 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充） |
+
+> 例外：`WEATHER_BOX`（盒面）与 `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS`（卡纸）
+> 虽然也吃一整张素材，但素材只占画面的一部分，**背景色就是它们的盒面 / 卡纸底色**，因此可以设
+> （见 §7.1 名单）——它们的素材由家族绘制自己摆放，不走整卡铺图。
 
 ### 路线 C：图文明信片（图占一半，代码画另一半）
 
 **特征**：图只占一部分，剩下的是**代码绘制**的文字区（底色 = `backgroundColor`，受 `backgroundOpacity` 控制）。
 **两种朝向**：
 
-| 形状 | 图占 | 文字区 | 预设 |
+| 形状 | 图占 | 文字区 | 预设（当前） |
 | --- | --- | --- | --- |
-| `SPLIT_CARD` | 上半 **48%** | 下半 | 蓝色画报、晨曦日出、治愈落日、星空森林、鲁迅画报、咕嘎与doro、53号机车、蓝天白云、天天向上、搏击俱乐部、绝命毒师、V字仇杀队、爱乐之城、浙江明信片 |
-| `SPLIT_CARD_HORIZONTAL` | 左半 **33.3%** | 右半 | 可爱猫咪、毛绒小狗、快乐小狗、毛绒猫咪、天天开心、可爱四小只、得意doro |
+| `SPLIT_CARD` | 上半 **48%** | 下半 | 蓝色画报、晨曦日出、治愈落日、星空森林、蓝天白云、搏击俱乐部、绝命毒师、V字仇杀队、爱乐之城（9 条） |
+| `SPLIT_CARD_HORIZONTAL` | 左半 **33.3%** | 右半 | 可爱猫咪、毛绒小狗、快乐小狗、毛绒猫咪、天天开心、可爱四小只、得意doro（7 条） |
 
 **素材分两种**，直接决定 `bgImageScaleMode`：
 
@@ -137,7 +148,7 @@
 - **一个风格一张素材**：没有"按尺寸换素材"那套机制。`drawCityArt` 用「等比 contain + 底边贴住衔接线」落位，**绝不切天际线**（切平就没有剪影了）。
 - **城市高度怎么定**（`cityArtRect`）：`SOIL`/`WATER` 按组件高度取固定比例；`FADE` 则**反推"铺满整宽需要多高"**（`fadeArtHeight`）——素材宽高比越小（城市越"高"），同样的宽度就要占越多高度。所以给这道高度加了下限：**至少放得下一行正文**（按字号 + 上下内边距估算）。够，城市就顶满整宽、与文字栏左右对齐；不够，才退回等比留白（两侧露壁纸）。同时不会比原来的 55% 更矮，4×4 这类高组件不受影响。
   > 例：北京素材比例 2.81，比浙江（3.52）更"高"。按老的固定 55% 摆，4×2 上只画到组件宽的 ~78%；改成反推后铺满 ~95%+。
-- **衔接材质**（`CityJunction`）：`SOIL` 江西「城市剪影」走土层剖面（草皮→浅壤→深土）；`WATER` 上海「上海微缩」走江面倒影与波纹；`FADE` 不假造任何材质，只把城市底边柔进背景色——浙江「浙江剪影」（飘着的岛，底边本就不规则）与北京「北京微缩」（底边是模型底座的一条平直边，且文字栏已取底座同色）都走它。
+- **衔接材质**（`CityJunction`）：`FADE` 不假造任何材质，只把城市底边柔进背景色——浙江「浙江剪影」（飘着的岛，底边本就不规则）与北京「北京微缩」（底边是模型底座的一条平直边，且文字栏已取底座同色）都走它。另外两条 `SOIL`（土层剖面：草皮→浅壤→深土）与 `WATER`（江面倒影与波纹）当前无风格使用（见下表后的说明）。
 - **底边垫平**（`cityNeedsBottomPad` + `drawCityBottomPad`）：抠图后素材底边有两种——① 棋盘格抠图留下的**噪声化半透明软边**（北京），它不是轮廓、是脏边，按像素底边对齐衔接线时这段透明区会在模型与文字栏之间**露出一条壁纸，看着像上下两块没接上**；② 真实的轮廓（浙江的岛缘），那是造型本身，垫平会把它拉成方块。所以只有 ① 走垫平：量出素材里**最高的一条底边**到素材底边的距离（`cityPadBand`），在该横向范围内用**文字栏底色**画一条垫平带，画在模型之下、文字栏之上——模型实体盖住多余部分，只把该露的透明处补齐。垫平色**统一取文字栏底色**而不是逐列取模型底边色：模型底边夹着朱红宫墙，逐列取色会把它拉成一道道竖条，比缝隙更显眼。
 - **圆角滑条**作用在**文字栏底部两角**（不在禁用名单里）。
 - **文字落点**：落在衔接层之下——取那条带的**最低点**（`cityTextBoxRect` + `cityBand`），所以文字绝不会压到剖面或倒影上。
@@ -145,10 +156,13 @@
 
 | 风格 | presetId | 素材 | 衔接 | 文字栏底色 |
 | --- | --- | --- | --- | --- |
-| 城市剪影 | `p_city_cutout` | `jiangxi_city_cutout` | `SOIL` 土层剖面 | 深土层 `#4E3E2F` |
-| 上海微缩 | `p_shanghai_cutout` | `shanghai_city_cutout` | `WATER` 江面倒影 | 深水色 `#0E2A38` |
 | 浙江剪影 | `p_zhejiang_cutout` | `zhejiang_city_cutout` | `FADE` 柔和暗裙 | 青黛色 `#1E3A32` |
 | 北京微缩 | `p_beijing_cutout` | `beijing_city_cutout` | `FADE` 柔和暗裙 | 米杏色 `#FAF0D9`（**取自模型底座本身**，底座与文字栏连成一片） |
+
+> **当前只有这 2 个风格走路线 E**（城市剪影/上海微缩那两款已随重构移除）。
+> `cityJunctionOf` 里仍保留 `SOIL`（土层剖面）与 `WATER`（江面倒影）两条分支，
+> 以及 `cityNeedsBottomPad` 对 `beijing_city_cutout` 的垫平开关——**它们目前没有风格在用**，
+> 是留给「城市微缩」这一族的扩展位：新增城市素材时可直接认领，不必重写渲染。
 
 > **浙江素材为什么走 `FADE`**：它是一整座**飘着的岛**，底边本来就是不规则轮廓，没有"城 ↔ 地/水"的平直接缝；硬接土层或倒影反而会在岛底两侧造出假材质。只把岛底柔进文字栏底色，读起来就是一座浮在夜色里的微缩浙江。
 >
@@ -158,70 +172,73 @@
 
 ---
 
-## 4. 全部 46 个风格清单
+## 4. 全部 40 个风格清单
 
-`PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。
+`PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。名称取自五个分类清单，
+完整清单由脚本从 `WidgetStyle.kt` 反查生成，不要手抄。
 
 | # | 名称 | presetId | 形状 | 路线 | 素材 | 会员 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 | 纯色圆角 | `p_pure_round` | RECTANGLE | A | — | **免费** |
 | 1 | 拟物撕纸 | `p_torn_paper` | TORN_PAPER | A | — | PRO |
 | 2 | 复古手账 | `p_handbook_tape` | HANDBOOK_TAPE | A | — | PRO |
-| 3 | 蓝色画报 | `p_postcard_note` | SPLIT_CARD | C | 渐变代码绘制 | PRO |
+| 3 | 蓝色画报 | `p_postcard_note` | SPLIT_CARD | C | — | PRO |
 | 4 | 晨曦日出 | `p_dawn_sunrise` | SPLIT_CARD | C | `bg_illustration_1` | PRO |
 | 5 | 治愈落日 | `p_healing_sunset` | SPLIT_CARD | C | `bg_illustration_2` | PRO |
 | 6 | 星空森林 | `p_starry_forest` | SPLIT_CARD | C | `bg_illustration_3` | PRO |
-| 7 | 天空之蓝 | `p_sky_blue` | RECTANGLE | B | `rectangle_1`（矢量） | PRO |
-| 8 | 鲁迅画报 | `p_luxun_poster` | SPLIT_CARD | C | `bg_illustration_luxun` | PRO |
-| 9 | 咕嘎与doro | `p_guga_doro` | SPLIT_CARD | C | `guga_doro` | PRO |
-| 10 | 53号机车 | `p_motorcycle_53` | SPLIT_CARD | C | `motorcycle_53` | PRO |
-| 11 | 蓝天白云 | `p_blue_sky_clouds` | SPLIT_CARD | C | `blue_sky_clouds` | PRO |
-| 12 | 天天向上 | `p_tiantian_xiangshang` | SPLIT_CARD | C | `tiantian_xiangshang` | PRO |
-| 13 | 搏击俱乐部 | `p_fight_club` | SPLIT_CARD | C | `boji_julebu` | PRO |
-| 14 | 绝命毒师 | `p_breaking_bad` | SPLIT_CARD | C | `breaking_bad` | PRO |
-| 15 | V字仇杀队 | `p_v_for_vendetta` | SPLIT_CARD | C | `v_for_vendetta` | PRO |
-| 16 | 爱乐之城 | `p_la_la_land` | SPLIT_CARD | C | `aile_zhi_cheng` | PRO |
-| 17 | 可爱猫咪 | `p_cute_cat` | SPLIT_CARD_HORIZONTAL | C | `cute_cat`（`CENTER_FIT`） | PRO |
-| 18 | 毛绒小狗 | `p_fluffy_dog` | SPLIT_CARD_HORIZONTAL | C | `fluffy_dog` | PRO |
-| 19 | 快乐小狗 | `p_happy_dog` | SPLIT_CARD_HORIZONTAL | C | `happy_dog`（`CENTER_FIT`） | PRO |
-| 20 | 毛绒猫咪 | `p_fluffy_cat` | SPLIT_CARD_HORIZONTAL | C | `fluffy_cat` | PRO |
-| 21 | 天天开心 | `p_happy_daily` | SPLIT_CARD_HORIZONTAL | C | `happy_daily` | PRO |
-| 22 | 白底黑字 | `p_white_black` | RECTANGLE | A | — | **免费** |
-| 23 | 深夜模式 | `p_dark_night` | RECTANGLE | A | — | **免费** |
-| 24 | 磨砂玻璃 | `p_frosted_glass` | RECTANGLE | A | — | PRO |
-| 25 | 羽毛信纸 | `p_feather_letter` | FEATHER_LETTER | B | `feather_letter` | PRO |
-| 26 | 复古像素 | `p_pixel_retro` | PIXEL_RETRO | B | `pixel_retro` | PRO |
-| 27 | 萌宠猫咪趴 | `p_pet_cat_nap` | PET_CAT_NAP | B | `cute_cat_lying`（`CENTER_CROP_TOP`） | PRO |
-| 28 | 可爱四小只 | `p_cute_four_kids` | SPLIT_CARD_HORIZONTAL | C | `cute_four_kids`（`CENTER_FIT`） | PRO |
-| 29 | 蓝色便签 | `p_blue_note` | BLUE_NOTE | A | — | PRO |
-| 30 | 竹青撕纸 | `p_zhu_qing_si_zhi` | ZHU_QING_SI_ZHI | B | `zhu_qing_si_zhi` | PRO |
-| 31 | 撕边牛皮手账 | `p_niupi_shouzhang` | NIUPI_SHOUZHANG | B | `niupi_shouzhang` | PRO |
-| 32 | 得意doro | `p_deyi_doro` | SPLIT_CARD_HORIZONTAL | C | `deyi_doro`（实景 `CENTER_CROP`） | PRO |
-| 33 | 教室黑板 | `p_classroom_blackboard` | CLASSROOM_BLACKBOARD | B | `classroom_blackboard` | PRO |
-| 34 | 书香书架 | `p_bookshelf` | BOOKSHELF | A | — | PRO |
-| 35 | 猫咪卡片 | `p_cat_card` | CAT_CARD | A | — | PRO |
-| 36 | 巨剑 | `p_giant_sword` | GIANT_SWORD | B | `giant_sword` | PRO |
-| 37 | 毛绒森林 | `p_plush_forest` | PLUSH_FOREST | B | `plush_forest` | PRO |
-| 38 | 小霸王游戏机 | `p_subor_console` | SUBOR_CONSOLE | B | `subor_console` | PRO |
-| 39 | 贴纸夜景 | `p_sticker_lalaland` | STICKER_SCENE | D | `sticker_lalaland` | PRO |
-| 40 | 城市剪影 | `p_city_cutout` | CITY_CUTOUT | E | `jiangxi_city_cutout` | PRO |
-| 41 | 上海微缩 | `p_shanghai_cutout` | CITY_CUTOUT | E | `shanghai_city_cutout` | PRO |
-| 42 | 浙江明信片 | `p_zhejiang_postcard` | SPLIT_CARD | C | `zhejiang_city_cutout`（`CENTER_FIT`） | PRO |
-| 43 | 浙江剪影 | `p_zhejiang_cutout` | CITY_CUTOUT | E | `zhejiang_city_cutout` | PRO |
-| 44 | 浙江全景 | `p_zhejiang_fullcard` | RECTANGLE | B | `zhejiang_city_cutout`（`CENTER_CROP`） | PRO |
-| 45 | 北京微缩 | `p_beijing_cutout` | CITY_CUTOUT | E | `beijing_city_cutout` | PRO |
+| 7 | 天空之蓝 | `p_sky_blue` | RECTANGLE | B | `rectangle_1` | PRO |
+| 8 | 蓝天白云 | `p_blue_sky_clouds` | SPLIT_CARD | C | `blue_sky_clouds` | PRO |
+| 9 | 搏击俱乐部 | `p_fight_club` | SPLIT_CARD | C | `boji_julebu` | PRO |
+| 10 | 绝命毒师 | `p_breaking_bad` | SPLIT_CARD | C | `breaking_bad` | PRO |
+| 11 | V字仇杀队 | `p_v_for_vendetta` | SPLIT_CARD | C | `v_for_vendetta` | PRO |
+| 12 | 爱乐之城 | `p_la_la_land` | SPLIT_CARD | C | `aile_zhi_cheng` | PRO |
+| 13 | 可爱猫咪 | `p_cute_cat` | SPLIT_CARD_HORIZONTAL | C | `cute_cat` | PRO |
+| 14 | 毛绒小狗 | `p_fluffy_dog` | SPLIT_CARD_HORIZONTAL | C | `fluffy_dog` | PRO |
+| 15 | 快乐小狗 | `p_happy_dog` | SPLIT_CARD_HORIZONTAL | C | `happy_dog` | PRO |
+| 16 | 毛绒猫咪 | `p_fluffy_cat` | SPLIT_CARD_HORIZONTAL | C | `fluffy_cat` | PRO |
+| 17 | 天天开心 | `p_happy_daily` | SPLIT_CARD_HORIZONTAL | C | `happy_daily` | PRO |
+| 18 | 羽毛信纸 | `p_feather_letter` | FEATHER_LETTER | B | `feather_letter` | PRO |
+| 19 | 复古像素 | `p_pixel_retro` | PIXEL_RETRO | B | `pixel_retro` | PRO |
+| 20 | 萌宠猫咪趴 | `p_pet_cat_nap` | PET_CAT_NAP | B | `cute_cat_lying` | PRO |
+| 21 | 可爱四小只 | `p_cute_four_kids` | SPLIT_CARD_HORIZONTAL | C | `cute_four_kids` | PRO |
+| 22 | 蓝色便签 | `p_blue_note` | BLUE_NOTE | A | — | PRO |
+| 23 | 竹青撕纸 | `p_zhu_qing_si_zhi` | ZHU_QING_SI_ZHI | B | `zhu_qing_si_zhi` | PRO |
+| 24 | 撕边牛皮手账 | `p_niupi_shouzhang` | NIUPI_SHOUZHANG | B | `niupi_shouzhang` | PRO |
+| 25 | 得意doro | `p_deyi_doro` | SPLIT_CARD_HORIZONTAL | C | `deyi_doro` | PRO |
+| 26 | 教室黑板 | `p_classroom_blackboard` | CLASSROOM_BLACKBOARD | B | `classroom_blackboard` | PRO |
+| 27 | 书香书架 | `p_bookshelf` | BOOKSHELF | A | — | PRO |
+| 28 | 巨剑 | `p_giant_sword` | GIANT_SWORD | B | `giant_sword` | PRO |
+| 29 | 毛绒森林 | `p_plush_forest` | PLUSH_FOREST | B | `plush_forest` | PRO |
+| 30 | 小霸王游戏机 | `p_subor_console` | SUBOR_CONSOLE | B | `subor_console` | PRO |
+| 31 | 贴纸夜景 | `p_sticker_lalaland` | STICKER_SCENE | D | `sticker_lalaland` | PRO |
+| 32 | 浙江剪影 | `p_zhejiang_cutout` | CITY_CUTOUT | E | `zhejiang_city_cutout` | PRO |
+| 33 | 北京微缩 | `p_beijing_cutout` | CITY_CUTOUT | E | `beijing_city_cutout` | PRO |
+| 34 | 天气盒子 | `p_weather_box` | WEATHER_BOX | B | `weather_box_cavity` | PRO |
+| 35 | 雪落宫墙 | `p_winter_palace` | WINTER_PALACE | B | `winter_frame` | PRO |
+| 36 | 深海鲸歌 | `p_deep_sea` | DEEP_SEA | B | `deepsea_frame` | PRO |
+| 37 | 夏天的海 | `p_summer_sea` | SUMMER_SEA | B | `summersea_frame` | PRO |
+| 38 | 夏日荷花 | `p_summer_lotus` | SUMMER_LOTUS | B | `lotus_frame` | PRO |
+| 39 | 春天与小狗 | `p_spring_dog` | SPRING_DOG | B | `spring_dog` | PRO |
 
 ### 4.1 界面上怎么分组展示
 
 五个入口列表都定义在 `WidgetStyle` 的 companion object 里，「个性定制」页统一取用（不要在各处再写一遍）：
 
-| 列表 | 界面标题 | 内容 |
+| 列表 | 界面标题 | 内容（当前） |
 | --- | --- | --- |
-| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、天天开心、羽毛信纸、复古像素、蓝色便签、竹青撕纸、撕边牛皮手账、教室黑板、猫咪卡片、巨剑、小霸王游戏机、贴纸夜景、城市剪影、上海微缩 |
-| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、咕嘎与doro、可爱猫咪、毛绒小狗、快乐小狗、毛绒猫咪、萌宠猫咪趴、可爱四小只、毛绒森林 |
-| `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 蓝色画报、书香书架 |
-| `POSTCARD_RENDERED_PRESETS` | 明信片风格（微缩城市） | 浙江明信片、浙江剪影、浙江全景、北京微缩 |
-| `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 12 张插图的 `资源名 → 展示名` 映射 |
+| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、天天开心、羽毛信纸、复古像素、蓝色便签、竹青撕纸、撕边牛皮手账、教室黑板、巨剑、小霸王游戏机、贴纸夜景、春天与小狗（14 条） |
+| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、可爱猫咪、毛绒小狗、快乐小狗、毛绒猫咪、萌宠猫咪趴、可爱四小只、毛绒森林（8 条） |
+| `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 蓝色画报、书香书架（2 条） |
+| `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 浙江剪影、北京微缩、天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花（7 条） |
+| `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 9 张插图的 `资源名 → 展示名` 映射 |
+
+> 五份清单合计覆盖**全部 40 条**预设。
+>
+> 2026-10-06 删掉了 3 条「没登记进任何分类行、界面上点不到」的预设：白底黑字（p_white_black）、
+> 深夜模式（p_dark_night）、磨砂玻璃（p_frosted_glass）。这三条**已不在代码里**，所以在本段按普通文字书写、
+> 不加反引号——§4 的核对脚本会把「反引号里的 presetId」一律当作必须存在的引用。
+> 旧存档里若仍带着这三个 presetId，样式字段本身完整保存在 JSON 里，渲染与「是否 PRO」的判定
+> 都不受影响（付费按 presetId 身份判定，不查预设列表）。
 
 > 萌宠/角色类素材刻意**不放进 `ILLUSTRATION_PRESETS`**，避免同一批图在明信片行重复出现。
 >
@@ -231,32 +248,38 @@
 
 ## 5. 形状清单（`WidgetShape`）
 
-20 个取值，其中 **`ELLIPSE` 是历史遗留，没有任何预设使用**。
+25 个取值，其中 **`ELLIPSE` 是历史遗留，没有任何预设使用**。
+「内缩 / 强制直角 / 整幅透明底 / 素材自己摆放」四列直接对应 `ShapeTraits.kt` 的四张名单。
 
 | 形状 | 外轮廓怎么来的 | 内缩 4dp | 备注 |
 | --- | --- | --- | --- |
 | `RECTANGLE` | 圆角矩形 | ✅ | |
-| `ELLIPSE` | 椭圆 | ✅ | 无预设使用 |
-| `HANDBOOK_TAPE` | 圆角矩形 | ✅ | 角上叠胶带 |
-| `TORN_PAPER` | `generateTornPath()` 固定种子锯齿 | ❌ | 圆角不可调 |
-| `SPLIT_CARD` | 圆角矩形 | ✅ | 图占上 48% |
-| `SPLIT_CARD_HORIZONTAL` | 圆角矩形 | ✅ | 图占左 33.3% |
-| `FEATHER_LETTER` | `drawFeatherLetterPath()` | ❌ | 信纸居中、四周留边 |
+| `ELLIPSE` | 椭圆 | ❌ | |
+| `HANDBOOK_TAPE` | 圆角矩形 | ✅ | |
+| `TORN_PAPER` | `generateTornPath()` 固定种子锯齿 | ❌ | |
+| `SPLIT_CARD` | 圆角矩形 | ✅ | |
+| `SPLIT_CARD_HORIZONTAL` | 圆角矩形 | ✅ | |
+| `FEATHER_LETTER` | `drawFeatherLetterPath()` | ❌ | |
 | `PIXEL_RETRO` | 圆角矩形 | ❌ | |
 | `PET_CAT_NAP` | 圆角矩形 | ❌ | |
 | `BLUE_NOTE` | 圆角矩形 | ❌ | |
 | `ZHU_QING_SI_ZHI` | 圆角矩形 | ❌ | |
 | `NIUPI_SHOUZHANG` | 圆角矩形 | ❌ | |
 | `CLASSROOM_BLACKBOARD` | 圆角矩形 | ❌ | |
-| `BOOKSHELF` | 圆角矩形 | ❌ | 自身就是组件，无外框 |
-| `CAT_CARD` | 圆角矩形 | ❌ | |
+| `BOOKSHELF` | 圆角矩形（**自身即组件**，无外框） | ❌ | 圆角滑条不生效 |
 | `GIANT_SWORD` | 圆角矩形（**强制 0 圆角**） | ❌ | |
 | `PLUSH_FOREST` | 圆角矩形（**强制 0 圆角**） | ❌ | |
 | `SUBOR_CONSOLE` | 圆角矩形（**强制 0 圆角**） | ❌ | |
-| `STICKER_SCENE` | 整幅透明（不画外框） | ❌ | 圆角滑条作用于**文本框**四角（见 §7.3） |
-| `CITY_CUTOUT` | 整幅透明（不画外框），只画下方文字栏 | ❌ | 圆角滑条作用于**文字栏底部两角**；城市天空透明处露出壁纸（见 §3 路线 E） |
+| `STICKER_SCENE` | 整幅透明（不画外框） | ❌ | 整幅透明底，背景色只作用于文本框/文字栏；素材由家族自己摆放 |
+| `CITY_CUTOUT` | 整幅透明（只画下方文字栏） | ❌ | 整幅透明底，背景色只作用于文本框/文字栏；素材由家族自己摆放 |
+| `WEATHER_BOX` | 圆角矩形（白盒 + 内凹腔体） | ✅ | 素材由家族自己摆放 |
+| `WINTER_PALACE` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 素材由家族自己摆放 |
+| `DEEP_SEA` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 素材由家族自己摆放 |
+| `SUMMER_SEA` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 素材由家族自己摆放 |
+| `SUMMER_LOTUS` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 素材由家族自己摆放 |
+| `SPRING_DOG` | 圆角矩形（**强制 0 圆角**） | ❌ | 绿框与圆角都在素材里 |
 
-**「内缩 4dp」（`CARD_INSET_DP`）**：只对 `RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` 生效，让卡片四周留一点透明边。其余形状有各自按整幅位图绘制的装饰，保持满幅以免错位。
+**「内缩 4dp」（`CARD_INSET_DP`）**：只对 `ShapeTraits.kt` 里 `INSET_CARD_SHAPES` 名单的形状生效——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX`，让卡片四周留一点透明边（天气盒子开了投影，不内缩的话阴影会被位图边界裁掉，盒体看起来是"贴平"的）。其余形状有各自按整幅位图绘制的装饰，保持满幅以免错位。
 
 **未列入「跟随用户圆角」名单的形状**，外框圆角统一用 `DEFAULT_OUTER_CORNER_RADIUS_DP = 16dp`（即 `TORN_PAPER` / `FEATHER_LETTER` / `ELLIPSE`）。
 
@@ -267,7 +290,7 @@
 文字区不是写死的像素，而是**按比例算出来的矩形**（`cardTop` / `cardHeight` / `paddingLeft` / `paddingRight`），这样 4×2 和 4×4 都不会错位。
 超出可容纳行数时用省略号（`TruncateAt.END`），不会被画布硬裁。
 
-| 形状 | 上边 | 下边 | 左 | 右 | 说明 |
+| 形状 | 上边 | 下边 / 可用高 | 左 | 右 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | RECTANGLE / HANDBOOK_TAPE / TORN_PAPER | 卡片内缩 | 卡片内缩 | 16dp | 16dp | 默认分支 |
 | SPLIT_CARD | 48% + 12dp | 12dp | 16dp | 16dp | 落下半 |
@@ -277,14 +300,16 @@
 | PET_CAT_NAP | 42% | 8% | 12% | 12% | 避顶部的猫 |
 | BLUE_NOTE | 高度×76/363×0.85 | 高度×76/363 | 8% | 8% | 避 NOTE 与底部签条 |
 | ZHU_QING_SI_ZHI / NIUPI_SHOUZHANG | 11% | 11% | 11% | 11% | 避撕边 |
-| CLASSROOM_BLACKBOARD | 12% | 高 70% | 9% | 9% | 避木框与粉笔槽 |
+| CLASSROOM_BLACKBOARD | 12% | 高 58%（止于 70%） | 9% | 9% | 避木框与粉笔槽 |
 | BOOKSHELF | 面板内 + 6dp | 面板内 − 6dp | 面板内 + 14dp | 面板内 − 14dp | 与摘录面板同一矩形 |
-| CAT_CARD | 50% | 10% | 11% | 11% | 避猫头 |
 | GIANT_SWORD | 39% | 高 33% | 33% | 93% | 只压右侧剑身 |
 | PLUSH_FOREST | 40% | 高 47% | 11.5% | 88.5% | 避顶部毛绒小树 |
+| SPRING_DOG | 40% | 高 54.5% | 4.5% | 95.5% | 避绿框（比例取自素材实测：框内白卡 x 46~1767 / y 388~964，素材 1812×1012） |
 | SUBOR_CONSOLE | 屏幕内 + 4dp | 屏幕内 − 4dp | 屏幕内 + 6dp | 屏幕内 − 6dp | 屏幕矩形相对 `CENTER_FIT` 模型算 |
 | STICKER_SCENE | 60% + 8dp | 90% − 8dp | 5% + 12dp | 95% − 12dp | 文本框内 |
 | CITY_CUTOUT | 衔接带最低点 + `CITY_TEXT_PAD_Y_DP` | 文字栏底 − `CITY_TEXT_PAD_Y_DP` | 文字栏 + `CITY_TEXT_PAD_X_DP` | 文字栏 − `CITY_TEXT_PAD_X_DP` | 落在衔接层（土层/倒影/暗裙）**之下**，取那条带的最低点，绝不压到剖面或倒影 |
+| WEATHER_BOX | 腔体下沿 + 8dp | 盒底 − 8dp | 16dp | 16dp | 腔体下方的白留白区，组件变高只加文字不加腔体 |
+| WINTER_PALACE / DEEP_SEA / SUMMER_SEA / SUMMER_LOTUS | 相框下沿 + 3dp | 底 − max(5dp, 高×2.5%) | max(14dp, 宽×5%) | max(12dp, 宽×3.5%) | 相框下方整幅留白带（与 `FramedCardRenderer` 同一份布局） |
 
 > **素材内固定位置**（小霸王屏幕）用 `centerFitRect()` 先算出 `CENTER_FIT` 的实际落位，再按比例取屏幕矩形 —— 这样组件是 4×3 还是 4×4，文字都贴在屏幕上。
 
@@ -298,7 +323,7 @@
 
 主体四周透明、插画不铺满整幅位图 —— 设了背景色会在主体外围露出一圈圆角卡片。
 
-`FEATHER_LETTER`、`PET_CAT_NAP`、`ZHU_QING_SI_ZHI`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`
+`FEATHER_LETTER`、`PET_CAT_NAP`、`ZHU_QING_SI_ZHI`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`
 
 > 判定入口是 `WidgetStyle.supportsBackgroundColor(shape)`；渲染时也会强制按透明处理，所以**旧组件不用重新保存**也不会露出包裹卡片。
 
@@ -306,7 +331,7 @@
 
 在 `ui/adjust/ShapeBackgroundCard.kt` 一处维护（桌面快捷面板已移除，不再有需要同步的第二处）：
 
-`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`
+`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`
 
 滑条**永远渲染**（只是置灰 + 文案变「外框圆角（此形状无需调整）」），避免切换形状时控件消失导致列表高度突变、页面自动上滑。
 
@@ -314,9 +339,9 @@
 
 ### 7.3 渲染层强制外框圆角为 0 的形状
 
-`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`
+`GIANT_SWORD`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`CITY_CUTOUT`、`SPRING_DOG`
 
-原因：整幅插画被圆角裁剪会切掉剑身/毛绒小树/实物模型。预设套用时会继承上一个风格的圆角值，所以这里统一强制，防止旧数据或跨风格套用后画面被裁。
+原因：整幅插画被圆角裁剪会切掉剑身/毛绒小树/实物模型/框角。预设套用时会继承上一个风格的圆角值，所以这里统一强制，防止旧数据或跨风格套用后画面被裁。
 
 > **`STICKER_SCENE` 不在这份名单里**：它整幅透明、不画外框，圆角滑条转而作用于**文本框**——`paperCutBoxPath(rect, snip, cornerRadiusDp)` 里，滑条为 0 时四角保持「斜切一刀」的剪纸直角，大于 0 时四角改走圆弧，半径 = 剪纸口幅度 + 滑条值（上限为文本框短边的一半）。所以贴纸夜景的圆角滑条是**生效的**，也不需要加进 7.2 的禁用名单。
 >
@@ -329,7 +354,7 @@
 | 模式 | 什么时候用 |
 | --- | --- |
 | `STRETCH` | 图就是按组件比例设计的（整卡贴图类），直接铺满 |
-| `CENTER_CROP` | 实景照片，铺满、多余裁掉；会先自动裁掉素材四周的近白相框（浙江全景是**透明抠图**也用它的少数例外：就是要铺满四边、不留透明边） |
+| `CENTER_CROP` | 实景照片，铺满、多余裁掉；会先自动裁掉素材四周的近白相框（`detectLightBorder()`，阈值 228，相框占比 >30% 时回退原图） |
 | `CENTER_FIT` | **透明抠图**（宠物头像、贴纸），等比完整显示，绝不裁主体 |
 | `CENTER_CROP_TOP` | 主体在**顶部**、不能被裁（萌宠猫咪趴），多余高度从底部裁 |
 | `TILE` | 平铺 |
@@ -342,7 +367,7 @@
 
 ```
 新风格有素材吗？
-├─ 没有 → 路线 A：写绘制代码（参考 drawBookshelfChrome / drawCatCardChrome）
+├─ 没有 → 路线 A：写绘制代码（参考 drawBookshelfChrome / drawBlueNoteChrome / drawStickerRoses）
 └─ 有 → 图铺满整卡吗？
          ├─ 铺满整卡（图即主体）→ 路线 B
          │    └─ 主体是透明抠图？ → CENTER_FIT；是实景？ → CENTER_CROP

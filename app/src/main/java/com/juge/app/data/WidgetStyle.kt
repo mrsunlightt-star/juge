@@ -64,7 +64,9 @@ enum class WidgetShape(val displayName: String) {
     WINTER_PALACE("雪落宫墙"),
     DEEP_SEA("深海鲸歌"),
     SUMMER_SEA("夏天的海"),
-    SUMMER_LOTUS("夏日荷花")
+    SUMMER_LOTUS("夏日荷花"),
+    // 春天与小狗：绿框白卡 + 上沿草丛花枝 + 右上角探头柯基（整幅抠图素材）
+    SPRING_DOG("春天与小狗")
 }
 
 // 图片缩放模式
@@ -490,51 +492,6 @@ data class WidgetStyle(
                 presetImageResName = "happy_daily"
             ), // 天天开心 (PRO)
 
-            // 免费预设：极简风格（扩大免费用户吸引力）
-            WidgetStyle(
-                presetId = "p_white_black",
-                shape = WidgetShape.RECTANGLE,
-                cornerRadiusDp = 8f,
-                backgroundColor = Color.parseColor("#FFFFFF"),
-                fontColor = Color.parseColor("#1F2937"),
-                font = WidgetFont.DEFAULT,
-                fontSizeSp = 21f,
-                fontBold = false,
-                cardBorderWidthDp = 0.5f,
-                cardBorderColor = Color.parseColor("#E5E7EB"),
-                showCardShadow = false,
-                textAlign = "CENTER"
-            ), // 24. 白底黑字 (免费)
-            WidgetStyle(
-                presetId = "p_dark_night",
-                shape = WidgetShape.RECTANGLE,
-                cornerRadiusDp = 12f,
-                backgroundColor = Color.parseColor("#1E293B"),
-                backgroundOpacity = 0.92f,
-                fontColor = Color.parseColor("#E2E8F0"),
-                font = WidgetFont.DEFAULT,
-                fontSizeSp = 19f,
-                showCardShadow = false,
-                textAlign = "CENTER"
-            ), // 25. 深夜模式 (免费)
-
-            // 磨砂玻璃预设 (PRO)
-            WidgetStyle(
-                presetId = "p_frosted_glass",
-                shape = WidgetShape.RECTANGLE,
-                cornerRadiusDp = 16f,
-                backgroundColor = Color.parseColor("#FFFFFF"),
-                backgroundOpacity = 0.55f,
-                fontColor = Color.parseColor("#1E293B"),
-                font = WidgetFont.DEFAULT,
-                fontSizeSp = 19f,
-                fontBold = false,
-                showCardShadow = true,
-                cardBorderWidthDp = 0.5f,
-                cardBorderColor = Color.parseColor("#A0C4FF"),
-                authorSignature = "—— 磨砂玻璃"
-            ), // 27. 磨砂玻璃 (PRO)
-
             // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
             WidgetStyle(
                 presetId = "p_feather_letter",
@@ -945,7 +902,28 @@ data class WidgetStyle(
                 textureType = "PAPER",
                 presetImageResName = "lotus_frame",
                 authorSignature = "—— 夏日荷花"
-            ) // 53. 夏日荷花 (PRO)
+            ), // 53. 夏日荷花 (PRO)
+            // 春天与小狗 (PRO)：整幅抠图素材——绿框白卡 + 上沿草丛麦穗粉花 + 右上角探头柯基。
+            // 与「毛绒森林」同一套设计语言（素材比例 1.79:1），同样按 STRETCH 铺满：
+            // 4×2 上横向只多铺 27%，是这个系列一贯的表现；4×4 的观感也与毛绒森林一致。
+            // 卡外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
+            WidgetStyle(
+                presetId = "p_spring_dog",
+                shape = WidgetShape.SPRING_DOG,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#2F6B45"), // 深绿题字：压白卡面，与绿框同调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "spring_dog",
+                authorSignature = "—— 春天与小狗"
+            ) // 54. 春天与小狗 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -966,7 +944,10 @@ data class WidgetStyle(
             WidgetShape.BOOKSHELF,
             WidgetShape.GIANT_SWORD,
             WidgetShape.PLUSH_FOREST,
-            WidgetShape.SUBOR_CONSOLE
+            WidgetShape.SUBOR_CONSOLE,
+            // 春天与小狗：绿框白卡是素材本身的一部分，卡外透明处透出壁纸；
+            // 再铺一层背景色会在卡外露出一圈色块
+            WidgetShape.SPRING_DOG
         )
 
         /** 该形状是否支持设置背景色 */
@@ -1034,6 +1015,7 @@ data class WidgetStyle(
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
             "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
             "贴纸夜景" to (PRESETS.firstOrNull { it.shape == WidgetShape.STICKER_SCENE } ?: PRESETS[0]),
+            "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，

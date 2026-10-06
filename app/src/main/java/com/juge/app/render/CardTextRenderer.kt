@@ -159,6 +159,15 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.47f)
             }
+            WidgetShape.SPRING_DOG -> {
+                // 春天与小狗：绿框白卡在素材里，正文落在绿框以内的白卡面上。
+                // 比例取自素材实测（素材 1812×1012：框内白卡 x 46~1767 / y 388~964），
+                // 再各留一点余量，文字不贴框；素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.045f
+                val paddingRight = targetWidth * 0.955f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.545f)
+            }
             WidgetShape.SUBOR_CONSOLE -> {
                 // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
                 // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上

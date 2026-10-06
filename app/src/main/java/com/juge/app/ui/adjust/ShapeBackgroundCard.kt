@@ -88,7 +88,9 @@ internal fun ShapeBackgroundCard(
                                   // 巨剑/毛绒森林/小霸王游戏机是整幅插画，裁剪圆角会切掉剑身、毛绒小树与实物模型
                                   selectedStyle.shape != WidgetShape.GIANT_SWORD &&
                                   selectedStyle.shape != WidgetShape.PLUSH_FOREST &&
-                                  selectedStyle.shape != WidgetShape.SUBOR_CONSOLE
+                                  selectedStyle.shape != WidgetShape.SUBOR_CONSOLE &&
+                                  // 春天与小狗：圆角与绿框都在素材里（渲染层同样强制直角），滑条无落点
+                                  selectedStyle.shape != WidgetShape.SPRING_DOG
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

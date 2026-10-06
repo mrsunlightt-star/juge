@@ -104,6 +104,8 @@ private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.PLUSH_FOREST,
     WidgetShape.SUBOR_CONSOLE,
     WidgetShape.CITY_CUTOUT,
+    // 春天与小狗：圆角与绿框都在素材里，再裁一次会切掉框角
+    WidgetShape.SPRING_DOG,
 )
 
 /** 整幅透明底：贴纸夜景的背景色只作用于文本框，城市剪影的只作用于文字栏 */
@@ -148,7 +150,9 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.NIUPI_SHOUZHANG,
     WidgetShape.CLASSROOM_BLACKBOARD,
     WidgetShape.GIANT_SWORD,
-    WidgetShape.PLUSH_FOREST -> ShapeFamily.ROUND_RECT
+    WidgetShape.PLUSH_FOREST,
+    // 春天与小狗：素材自带绿框与卡面，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
+    WidgetShape.SPRING_DOG -> ShapeFamily.ROUND_RECT
 
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER
