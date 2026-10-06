@@ -72,21 +72,22 @@ internal fun StylePresetCard(
 
             // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
             // 间距统一交给外层 Column 的 spacedBy(10.dp)，这里不再叠加 Spacer/分割线
-            val widgetSizeStr = ReminderWidgetProvider.getWidgetSizeString(context, selectedWidgetId)
-            // 分类标题尾部统一附加默认卡片尺寸，如 4×2 / 4×4
+            // 分类标题尾部统一附加卡片尺寸（如 4×2 / 4×4），取组件**声明的默认尺寸**：
+            // 与上方预览区同一来源，用户拉伸过桌面组件时标题才不会与预览比例对不上
+            val widgetSizeStr = ReminderWidgetProvider.getWidgetDeclaredSizeString(context, selectedWidgetId)
             val sizeLabel = widgetSizeStr.replace("x", "×").replace("*", "×")
                     // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
                     PresetRow(
                         presets = WidgetStyle.CLASSIC_PRESETS,
                         title = "经典风格 · $sizeLabel",
-                        isLocked = { !isActivated && WidgetStyle.isProPreset(it) },
-                        onPresetClick = { _, preset, locked ->
+                        onPresetClick = { _, preset ->
                             val newPresetStyle = preset.copy(
                                 backgroundOpacity = selectedStyle.backgroundOpacity,
                                 cornerRadiusDp = selectedStyle.cornerRadiusDp
                             )
-                            if (locked) onStyleStateChange(newPresetStyle)
-                            else onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                            previewOrApplyPreset(newPresetStyle, isActivated, onStyleStateChange) {
+                                onSelectPreset(selectedWidgetId, selectedReminderId, it)
+                            }
                         },
                         showSelectionBorder = false,
                         contentScale = ContentScale.Fit,
@@ -96,14 +97,14 @@ internal fun StylePresetCard(
                     PresetRow(
                         presets = WidgetStyle.PET_PRESETS,
                         title = "萌宠风格 · 会员专属 · $sizeLabel",
-                        isLocked = { !isActivated && WidgetStyle.isProPreset(it) },
-                        onPresetClick = { _, preset, locked ->
+                        onPresetClick = { _, preset ->
                             val newPresetStyle = preset.copy(
                                 backgroundOpacity = selectedStyle.backgroundOpacity,
                                 cornerRadiusDp = selectedStyle.cornerRadiusDp
                             )
-                            if (locked) onStyleStateChange(newPresetStyle)
-                            else onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                            previewOrApplyPreset(newPresetStyle, isActivated, onStyleStateChange) {
+                                onSelectPreset(selectedWidgetId, selectedReminderId, it)
+                            }
                         },
                         showSelectionBorder = false,
                         contentScale = ContentScale.Fit,

@@ -1020,6 +1020,27 @@ data class WidgetStyle(
             "aile_zhi_cheng" to "爱乐之城"
         )
 
+        /**
+         * 插图素材 → 套用后的风格：形状、配色、字体一律取**素材自己的预设定义**，
+         * 背景图改由素材资源名提供（自定义背景图路径清空）。
+         *
+         * 刻意不从当前样式 copy：上一个风格的底色会被带过来，明信片下半的
+         * 文字显示区就会跟着变成深墨/黑色，与素材缩略图（预设原样渲染）完全对不上。
+         * 明信片类预设的底色都声明为白色，只有素材本身设计成别的颜色时（如天空蓝）才不是。
+         *
+         * 圆角与背景不透明度仍沿用用户当前设置（与其他预设行一致），由调用方 copy 覆盖。
+         */
+        fun illustrationStyle(resName: String, current: WidgetStyle): WidgetStyle {
+            val preset = PRESETS.firstOrNull { it.presetImageResName == resName }
+                ?: return current.copy(
+                    shape = WidgetShape.SPLIT_CARD,
+                    presetImageResName = resName,
+                    backgroundImagePath = null,
+                    bgImageScaleMode = ImageScaleMode.CENTER_CROP
+                )
+            return preset.copy(backgroundImagePath = null)
+        }
+
         // 首页与快捷面板共用的推荐预设（按风格分类）。
         // 插图类按资源名定位而不是按下标，避免在 PRESETS 中新增预设时索引漂移导致展示错位。
         val CLASSIC_PRESETS: List<Pair<String, WidgetStyle>> = listOf(

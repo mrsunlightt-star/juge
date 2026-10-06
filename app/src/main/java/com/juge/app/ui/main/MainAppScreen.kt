@@ -216,21 +216,15 @@ fun MainAppScreen(
         val shape = if (wid == selectedWidgetId) currentStyle.shape
             else if (wid != -1) ReminderWidgetProvider.getWidgetStyle(context, wid, cfg?.styleJson).shape
             else WidgetStyle.fromJsonString(cfg?.styleJson).shape
-        // 行数一律以**系统上报的实时尺寸**为准，不读库里的 sizeType。
-        // 原因：sizeType 只在新建配置那一刻写一次（ReminderWidgetProvider:177），
-        // 之后用户在桌面拉伸组件、或者组件被桌面重新分配格子，库里那份都不更新，
-        // 于是 4×2 的组件会一直按陈旧的 "4x3"/"4x4" 渲染，预览被拉成近正方形。
-        // getWidgetSizeString 读的是 OPTION_APPWIDGET_MIN_WIDTH/HEIGHT，是当前真实落位。
-        val liveSpanY = if (wid != -1) {
-            ReminderWidgetProvider.getWidgetSizeString(context, wid)
-                .split("*").getOrNull(1)?.toIntOrNull()
-        } else null
-        // 无桌面组件可问（wid == -1，App 内预览的常态）时，**按声明的默认落位 4×2 兜底**，
-        // 不读数据库里的 sizeType —— 它是建配置那一刻写死的（默认 "4x3"），之后永不更新，
-        // 桌面组件撤销后拿它算高度，4×2 的预览就会被按 3 行拉成近正方形。
+        // 行数取自组件**声明的默认尺寸**（4×4 入口 250×250、4×2 入口 250×110），
+        // 与渲染用尺寸同一来源，预览图与显示盒不会各算一套；没有桌面组件时同样按 4×2 兜底。
+        // 不读库里的 sizeType：它只在新建配置那一刻写一次（ReminderWidgetProvider），
+        // 之后用户在桌面拉伸组件、或组件被桌面重新分配格子，库里那份都不更新。
+        // 也不读桌面实时尺寸：同一组件会因此时高时低，预览在「方形」和「圆角矩形」之间跳。
         // 高度映射本身是纯函数，已抽到 PreviewMetrics 并有单测覆盖
         // （下限 180dp、4×4 上限 268dp、横向分割卡固定 130dp 等规则都在那边）。
-        return PreviewMetrics.previewHeightDp(shape, liveSpanY)
+        val declaredHeightDp = ReminderWidgetProvider.getWidgetDeclaredSizeDp(context, wid).second
+        return PreviewMetrics.previewHeightDp(shape, PreviewMetrics.spanYForHeightDp(declaredHeightDp))
     }
     // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
     // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后

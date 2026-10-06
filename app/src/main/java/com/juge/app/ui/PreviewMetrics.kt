@@ -28,9 +28,18 @@ object PreviewMetrics {
     const val DEFAULT_SPAN_Y = 2
 
     /**
-     * 预览高度：行数一律以**系统上报的实时尺寸**为准，不读库里那份建配置时写死的 sizeType。
+     * 组件声明高度（dp）→ 网格行数：与桌面按 dp 推行数的换算一致。
+     * 4×4 入口声明 250dp → 4 行；4×2 入口声明 110dp → 2 行。
+     */
+    fun spanYForHeightDp(heightDp: Int): Int = ((heightDp + 30) / 70).coerceIn(2, 4)
+
+    /**
+     * 预览高度：行数来自组件**声明的默认尺寸**（见 spanYForHeightDp），
+     * 不读库里那份建配置时写死的 sizeType，也不读桌面实时尺寸——两者都会让
+     * 同一个组件的预览在「方形」与「圆角矩形」之间来回跳。
      *
-     * @param spanY 桌面组件当前占用的网格行数；null 表示问不到（App 内预览的常态）
+     * @param spanY 组件声明尺寸对应的网格行数（见 [spanYForHeightDp]）；
+     *   null 按 [DEFAULT_SPAN_Y] 兜底，纯函数的兜底分支，调用方现在总能拿到声明尺寸
      */
     fun previewHeightDp(shape: WidgetShape, spanY: Int?): Int {
         val rows = (spanY ?: DEFAULT_SPAN_Y).coerceIn(2, 4)

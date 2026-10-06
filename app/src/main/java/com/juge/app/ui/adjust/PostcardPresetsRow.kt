@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.juge.app.WidgetCanvasRenderer
-import com.juge.app.data.ImageScaleMode
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.SaveOutcome
@@ -108,7 +107,9 @@ internal fun PostcardPresetsRow(
                             backgroundOpacity = selectedStyle.backgroundOpacity,
                             cornerRadiusDp = selectedStyle.cornerRadiusDp
                         )
-                        onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                        previewOrApplyPreset(newPresetStyle, isActivated, onStyleStateChange) {
+                            onSelectPreset(selectedWidgetId, selectedReminderId, it)
+                        }
                     }
             ) {
                 if (codeBitmap != null) {
@@ -143,7 +144,6 @@ internal fun PostcardPresetsRow(
         // 若像插图那样裁原图，几张会长得一模一样、分不出方案。
         WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
             val isRenderedSelected = selectedStyle.presetId == preset.presetId
-            val isRenderedLocked = !isActivated && WidgetStyle.isProPreset(preset)
             // 缩略图统一按 150×80 渲染：天气盒子（4×4）等方版风格
             // 在缩略图中与明信片同宽，组件内容按画布自适应重排
             val renderedW = codePreviewWidthDp
@@ -181,10 +181,8 @@ internal fun PostcardPresetsRow(
                             backgroundOpacity = selectedStyle.backgroundOpacity,
                             cornerRadiusDp = selectedStyle.cornerRadiusDp
                         )
-                        if (isRenderedLocked) {
-                            onStyleStateChange(newPresetStyle)
-                        } else {
-                            onSelectPreset(selectedWidgetId, selectedReminderId, newPresetStyle)
+                        previewOrApplyPreset(newPresetStyle, isActivated, onStyleStateChange) {
+                            onSelectPreset(selectedWidgetId, selectedReminderId, it)
                         }
                     }
             ) {
@@ -219,9 +217,10 @@ internal fun PostcardPresetsRow(
 
                         IllustrationPresetItems(
                             selectedStyle = selectedStyle,
+                            selectedContent = selectedContent,
+                            isActivated = isActivated,
                             selectedWidgetId = selectedWidgetId,
                             selectedReminderId = selectedReminderId,
-                            selectedContent = selectedContent,
                             onStyleStateChange = onStyleStateChange,
                             onStyleChange = onStyleChange
                         )
@@ -233,6 +232,7 @@ internal fun PostcardPresetsRow(
 private fun IllustrationPresetItems(
     selectedStyle: WidgetStyle,
     selectedContent: String,
+    isActivated: Boolean,
     selectedWidgetId: Int,
     selectedReminderId: Long,
     onStyleStateChange: (WidgetStyle) -> Unit,
@@ -261,17 +261,15 @@ private fun IllustrationPresetItems(
                     shape = RoundedCornerShape(8.dp)
                 )
                 .clickable {
-                     val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-                     val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
-                     val newStyle = selectedStyle.copy(
-                         shape = targetShape,
-                         presetImageResName = resName,
-                         backgroundImagePath = null,
-                         bgImageScaleMode = matchingPreset?.bgImageScaleMode ?: ImageScaleMode.CENTER_CROP,
-                         authorSignature = matchingPreset?.authorSignature ?: selectedStyle.authorSignature
+                     // 形状与配色都取自素材预设（不继承上一个风格的底色，见 illustrationStyle 注释），
+                     // 圆角与不透明度沿用用户当前设置，与经典/萌宠/明信片行的预设行为一致
+                     val newStyle = WidgetStyle.illustrationStyle(resName, selectedStyle).copy(
+                         backgroundOpacity = selectedStyle.backgroundOpacity,
+                         cornerRadiusDp = selectedStyle.cornerRadiusDp
                      )
-                    onStyleStateChange(newStyle)
-                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                    previewOrApplyPreset(newStyle, isActivated, onStyleStateChange) {
+                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, it)
+                    }
                 }
         ) {
             // 图内只放画面；名称以独立文本显示在缩略图下方（与其他风格行统一）

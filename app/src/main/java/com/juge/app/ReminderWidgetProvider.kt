@@ -124,6 +124,11 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         // 公开广播可能被伪造，限制一次最多处理多少个组件 ID
         private const val MAX_BROADCAST_WIDGET_IDS = 64
 
+        // 两个入口声明的默认尺寸（dp）：与 xml 里的 minWidth/minHeight 保持一致。
+        // 4 列 = 4×70-30 = 250dp，2 行 = 110dp，4 行 = 250dp
+        private val DECLARED_COMPACT_SIZE_DP = 250 to 110
+        private val DECLARED_BIG_SIZE_DP = 250 to 250
+
         // 单线程队列：多个组件依次渲染，避免并发解码位图导致内存峰值过高
         private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
             Thread(r, "widget-render").apply { isDaemon = true }
@@ -165,6 +170,53 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             } catch (e: Exception) {
                 250 to 110
             }
+        }
+
+        /**
+         * 组件**声明的默认尺寸**（dp）：主入口 4×4 → 250×250，紧凑入口 4×2 → 250×110，
+         * 与 widget_info.xml / widget_info_compact.xml 里的 minWidth/minHeight 一致。
+         *
+         * App 内预览按这个尺寸出图，而不是按 [getWidgetSizeDp] 的实时尺寸：
+         * 实时尺寸会随用户在桌面拉伸组件、切换机型（同一网格在不同机器上 dp 不同）
+         * 而变化，同一个组件的预览就会在「圆角矩形」与「方形」之间来回跳。
+         * 声明尺寸只由组件是从哪个入口添加的决定，添加后不再变化。
+         */
+        fun getWidgetDeclaredSizeDp(context: Context, appWidgetId: Int): Pair<Int, Int> {
+            if (appWidgetId == -1) return DECLARED_COMPACT_SIZE_DP
+            // 问不到入口归属（系统查询失败、组件刚添加还没登记）时按实时行数猜：
+            // 3 行及以上当作 4×4 入口
+            val fromCompactEntry = isCompactEntryWidget(context, appWidgetId)
+                ?: (liveSpanY(context, appWidgetId) < 3)
+            return if (fromCompactEntry) DECLARED_COMPACT_SIZE_DP else DECLARED_BIG_SIZE_DP
+        }
+
+        /**
+         * 组件来自哪个入口：两个入口的已放置组件列表由系统分别维护，
+         * 按 ID 落在哪个列表里即可判定；两个列表都没有这个 ID 时返回 null。
+         */
+        private fun isCompactEntryWidget(context: Context, appWidgetId: Int): Boolean? = try {
+            val manager = AppWidgetManager.getInstance(context)
+            val compactIds = manager.getAppWidgetIds(
+                android.content.ComponentName(context, ReminderWidgetProviderCompact::class.java)
+            )
+            when {
+                compactIds.contains(appWidgetId) -> true
+                manager.getAppWidgetIds(android.content.ComponentName(context, ReminderWidgetProvider::class.java))
+                    .contains(appWidgetId) -> false
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        /** 组件在桌面上的实时行数；问不到按 2 行（4×2 的声明落位） */
+        private fun liveSpanY(context: Context, appWidgetId: Int): Int =
+            getWidgetSizeString(context, appWidgetId).split("*").getOrNull(1)?.toIntOrNull() ?: 2
+
+        /** 组件声明尺寸的网格写法（"4*2" / "4*4"），与 [getWidgetSizeString] 同一套换算 */
+        fun getWidgetDeclaredSizeString(context: Context, appWidgetId: Int): String {
+            val (w, h) = getWidgetDeclaredSizeDp(context, appWidgetId)
+            return "${(w + 30) / 70}*${(h + 30) / 70}"
         }
 
         // 绑定组件对应的微件配置 ID

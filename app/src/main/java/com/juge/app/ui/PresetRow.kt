@@ -47,8 +47,8 @@ import kotlinx.coroutines.withContext
  * 两处的容器、选中规则与点击行为本就不同，因此这些差异以参数形式显式表达；
  * 真正重复的部分（150×80 缩略图渲染与缓存、免费角标、名称排版）只保留这一份实现。
  *
- * @param isLocked 是否锁住（PRO 专属且未激活）；由调用方决定锁定时是预览还是提示
- * @param onPresetClick 点击回调，拿到原始 preset 与是否锁定，由调用方决定保存/预览/提示
+ * @param onPresetClick 点击回调，只拿到原始 preset；是「仅预览」还是「套用并落库」
+ *   （含会员拦截）由调用方决定，统一走 `previewOrApplyPreset`
  * @param showSelectionBorder 是否画选中描边（个性定制页不做选中高亮，只有免费角标与名称配色）
  * @param showThumbnailBackground 缩略图底色（快捷面板会先铺一层浅灰，避免无图时露黑）
  * @param imageContentDescription 缩略图的无障碍描述；两处文案不同，故由调用方给定
@@ -58,9 +58,8 @@ import kotlinx.coroutines.withContext
 fun PresetRow(
     presets: List<Pair<String, WidgetStyle>>,
     title: String? = null,
-    onPresetClick: (presetName: String, preset: WidgetStyle, isLocked: Boolean) -> Unit,
+    onPresetClick: (presetName: String, preset: WidgetStyle) -> Unit,
     modifier: Modifier = Modifier,
-    isLocked: (WidgetStyle) -> Boolean = { false },
     isSelected: (WidgetStyle) -> Boolean = { false },
     showSelectionBorder: Boolean = true,
     showThumbnailBackground: Boolean = false,
@@ -92,7 +91,6 @@ fun PresetRow(
         ) {
             presets.forEachIndexed { index, (presetName, preset) ->
                 val isProPreset = WidgetStyle.isProPreset(preset)
-                val locked = isLocked(preset)
                 val selected = isSelected(preset)
                 // 横向分割卡缩略图更矮：按 60dp 出图，显示盒仍是 80dp，保证一行内高度一致
                 val thumbHeightDp = if (preset.shape == WidgetShape.SPLIT_CARD_HORIZONTAL) 60 else 80
@@ -138,7 +136,7 @@ fun PresetRow(
                                 color = if (showSelectionBorder && selected) selectBlue else Color(0xFFE2E8F0),
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .clickable { onPresetClick(presetName, preset, locked) }
+                            .clickable { onPresetClick(presetName, preset) }
                     ) {
                         if (presetBitmap != null) {
                             Image(

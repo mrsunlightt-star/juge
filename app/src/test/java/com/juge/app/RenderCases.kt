@@ -1,7 +1,5 @@
 package com.juge.app
 
-import com.juge.app.data.ImageScaleMode
-import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 
 /**
@@ -37,17 +35,10 @@ internal object RenderCases {
         }
     }
 
-    // 插图类风格与首页一致：套用对应预设（形状/缩放模式随预设），背景图按资源名加载
-    fun illustrationStyle(resName: String): WidgetStyle {
-        val matched = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
-        return matched?.copy(backgroundImagePath = null)
-            ?: WidgetStyle(
-                shape = WidgetShape.SPLIT_CARD,
-                presetImageResName = resName,
-                backgroundImagePath = null,
-                bgImageScaleMode = ImageScaleMode.CENTER_CROP
-            )
-    }
+    // 插图类风格与首页一致：直接走主界面点击插图预设时用的同一份换算，
+    // 形状/配色随预设（明信片预设的文字区底色就是这里的白色），背景图按资源名加载
+    fun illustrationStyle(resName: String): WidgetStyle =
+        WidgetStyle.illustrationStyle(resName, WidgetStyle())
 
     fun sanitize(name: String): String = name.replace(Regex("[^\\p{L}\\p{N}_-]"), "_")
 }

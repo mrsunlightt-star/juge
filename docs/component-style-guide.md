@@ -76,6 +76,11 @@ WidgetStyle(
 "羽毛信纸" to (PRESETS.firstOrNull { it.shape == WidgetShape.FEATHER_LETTER } ?: PRESETS[0])
 ```
 
+**明信片类（图文分割）预设**：文字显示区（下半/右半）的底色就是 `backgroundColor`，
+在预设里显式声明（现有明信片预设都是白色，只有素材本身设计成别的颜色时才另给，如天空蓝）。
+插图素材的预设行由 `WidgetStyle.illustrationStyle()` 换算，**整份样式取自预设**——
+不要写成从当前样式 `copy()`，否则用户在颜色面板选过深色后，文字区会跟着变黑。
+
 ### 3.2 渲染侧：回答 4 个问题
 
 渲染逻辑已按「形状家族」拆开，不再集中在一个文件。**按问题找落点，不要按文件找**：
@@ -112,7 +117,7 @@ WidgetShape.FEATHER_LETTER -> {
 
 把图放在 `app/src/main/res/drawable/`，名字匹配 `presetImageResName`。
 
-## 4. 三个必避的 bug（都要检查）
+## 4. 四个必避的 bug（都要检查）
 
 1. **黑底**（信纸外一团黑的根因）：渲染器填底色时 `bgPaint.alpha` 被强制成 `backgroundOpacity*255`，
    透明背景也会被画成黑色。
@@ -127,6 +132,10 @@ WidgetShape.FEATHER_LETTER -> {
    改普通 id（如 `@+id/widget_root`）。
    **落点**：`res/layout/widget_layout.xml`。
    **注意**：改布局后，**桌面已放置的组件要删除、重新添加**才生效。
+
+4. **预览里明信片文字区变黑**：这是样式换算问题，不是渲染问题——插图预设若从当前样式
+   `copy()`，用户选过的深色底（如「深墨」）会被带进文字显示区。
+   **落点**：`data/WidgetStyle.kt` 的 `illustrationStyle()`（预设行统一走它，见 §3.1）。
 
 ## 5. 验证流程
 
@@ -143,6 +152,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 - **App 预览**：色块、文字区、无遮挡、无黑框（预览卡背景若非白色，信纸外会透预览背景色，正常）。
+  预览按组件**声明尺寸**出图（4×4 入口 250×250、4×2 入口 250×110），与桌面上的实时拉伸无关；
+  4×2 / 4×4 两种规格都要看（不连真机时跑 `WidgetPreviewRenderTest`，两个尺寸各出一份 PNG）。
 - **桌面真实验证**：删除旧组件 → 重新添加，看信纸外是否透出壁纸、不规则形状是否呈现。
 
 改动**绘制逻辑**后还要跑一次渲染基线，确认既有风格没有被连带改到：
