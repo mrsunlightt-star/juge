@@ -260,7 +260,13 @@ object WidgetCanvasRenderer {
     // 后台仍会按当前样式重新渲染并覆盖，因此不会把过期画面留在屏幕上。
     //
     // key 由「配置 + 尺寸 + 样式指纹」组成（刻意不含内容，原因见 previewKey）：
-    // 样式或尺寸一变就自然 miss 并重渲染，所以不需要在保存路径上手动失效缓存。
+    // 样式或尺寸一变就自然 miss 并重渲染。
+    //
+    // ⚠️ 但**样式指纹只覆盖样式字段**：改绘制代码、换素材本身都不会改变它，旧图会被一直命中，
+    // 界面看起来就是"改了没生效"（今天就踩到了：WATER 衔接改了接缝，App 内预览仍显示旧图）。
+    // 所以文件名前缀必须带版本号，**改动绘制逻辑 / 预设视觉定义 / 素材后 +1** ——
+    // 与缩略图缓存那条 THUMB_DISK_VERSION 是同一个规矩。
+    private const val PREVIEW_DISK_VERSION = 2
     private const val PREVIEW_DISK_DIR = "widget_previews"
     private const val PREVIEW_DISK_MAX_FILES = 16
 
@@ -270,7 +276,7 @@ object WidgetCanvasRenderer {
     // 随后按最新内容重渲染并覆盖同一 key，画面自然过渡到最新状态。
     private fun previewKey(configId: Long, widthDp: Int, heightDp: Int, style: WidgetStyle): String {
         val styleHash = style.cacheFingerprint().hashCode().toUInt().toString(16)
-        return "c${configId}_${widthDp}x${heightDp}_$styleHash"
+        return "v$PREVIEW_DISK_VERSION-c${configId}_${widthDp}x${heightDp}_$styleHash"
     }
 
     private fun previewDiskFile(context: Context, key: String): File =
