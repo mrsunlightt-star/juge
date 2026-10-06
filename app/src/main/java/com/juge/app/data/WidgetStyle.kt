@@ -923,7 +923,28 @@ data class WidgetStyle(
                 cardBorderWidthDp = 0f,
                 presetImageResName = "spring_dog",
                 authorSignature = "—— 春天与小狗"
-            ) // 54. 春天与小狗 (PRO)
+            ), // 54. 春天与小狗 (PRO)
+            // 上海微缩 (PRO)：微缩上海（外滩 + 黄浦江 + 陆家嘴）整块抠图，
+            // 走路线 E 的 **WATER** 衔接（cityJunctionOf 按素材名认领）——
+            // 城市底边就是水线，下面接倒影 + 波纹 + 渐入深水，文字浮在江面上。
+            // 文字栏底色 = 那池"深水"（素材水体是深蓝，这里取同色系更深的蓝）。
+            WidgetStyle(
+                presetId = "p_shanghai_cutout",
+                shape = WidgetShape.CITY_CUTOUT,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.parseColor("#16293D"), // 深水色：与素材水体同色系
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#E6EEF6"), // 冷白题字：压深水江面
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "shanghai_city_cutout",
+                authorSignature = "—— 上海微缩"
+            ) // 55. 上海微缩 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -1046,7 +1067,8 @@ data class WidgetStyle(
             "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0]),
             "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0]),
             "夏天的海" to (PRESETS.firstOrNull { it.presetId == "p_summer_sea" } ?: PRESETS[0]),
-            "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0])
+            "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0]),
+            "上海微缩" to (PRESETS.firstOrNull { it.presetId == "p_shanghai_cutout" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画

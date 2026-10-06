@@ -55,22 +55,17 @@ internal object CityRenderer {
 
     const val CITY_NOISE_SEED = 2026f // 固定种子：每次渲染必须同一条曲线，否则桌面组件会抖
 
-    // —— 上海·水面与倒影 ——
-    // 城市底边就是水线。水线以下：先一段被压暗、竖向压缩、模糊过的**镜像倒影**，
-    // 再叠横向波纹高光，最后向下渐进"小组件背景颜色"那池深水，文字浮在水面上。
-    // 现代玻璃楼群做土层剖面会读成"城市被挖出来"，很突兀；立在水面上才是陆家嘴。
-    const val WATER_ART_RATIO = 0.52f // 水线在组件高度上的位置（城市占这个高度）
+    // —— 上海·水面 ——
+    // 城市底边就是水线。水线以下叠横向波纹高光，并向下渐进"小组件背景颜色"那池深水，
+    // 文字浮在水面上。现代玻璃楼群做土层剖面会读成"城市被挖出来"，很突兀；
+    // 立在水面上才是陆家嘴。
+    //
+    // **这里刻意不画镜像倒影**：倒影正好落在正文区，字压在上面又花又乱，
+    // 用户明确不要（2026-10-06）。要恢复的话，`git log -p` 里能找到原来的四层画法。
+    const val WATER_ART_RATIO = 0.30f // 城市占组件高度的**下限**（见 waterArtHeight）
 
-    const val WATER_REFLECT_RATIO = 0.16f // 倒影画多高（占组件高）
-
-    const val WATER_REFLECT_SRC_RATIO = 0.42f // 取城市下部多少高度做倒影源
-
-    // 文字只让出组件高的 7%，其余压给倒影的尾巴：倒影本来就靠向下溶解收尾，
-    // 文字落在它淡掉的那段上正好，不必为它单独腾出一整条带 ——
-    // 腾多了 4×2 就只剩一行字的位置（18sp 一行约 100px，扁组件根本经不起让）。
-    const val WATER_TEXT_BAND_RATIO = 0.07f
-
-    const val WATER_REFLECT_ALPHA = 74 // 倒影本体透明度
+    // 文字只让出组件高的 5%：文字区每省 1dp，城市就能多占一截宽度（见 waterArtHeight）。
+    const val WATER_TEXT_BAND_RATIO = 0.05f
 
     const val WATER_RIPPLE_COUNT = 7 // 波纹条数
 
@@ -80,13 +75,31 @@ internal object CityRenderer {
 
     const val WATER_RIPPLE_SALT = 41f // cityHash 的盐：与土层的轮廓噪声分开
 
-    val WATER_SURFACE_COLOR = 0xFF2C5C72.toInt() // 水线处偏亮的江面
+    // 水线处的江面色**由文字栏底色提亮而来**，而不是写死一个亮青色：
+    // 素材底边本身就是一块水体切面（上海的深蓝），文字栏又是同色系，写死的亮青会在
+    // 接缝处跳色，看起来像两块拼起来的（用户反馈"过渡不自然"）。提亮 12% 后，
+    // 江面从"贴着岛底的浅一号水色"往下渐深，接缝几乎消失 —— 和 FADE 那条暗裙同理。
+    const val WATER_SURFACE_LIGHTEN = 0.12f
+
+    /** 把文字栏底色提亮一档当作水线处的江面色（各通道向 255 按比例靠拢） */
+    fun waterSurfaceColor(deepColor: Int): Int {
+        fun lift(c: Int) = (c + (255 - c) * WATER_SURFACE_LIGHTEN).toInt().coerceIn(0, 255)
+        return Color.rgb(lift(Color.red(deepColor)), lift(Color.green(deepColor)), lift(Color.blue(deepColor)))
+    }
+
+    // 城市底边往下柔进江面的暗裙带高（占水面的比例）。岛底是一刀平切，
+    // 没有这层柔化就是一条硬边；FADE 靠同一个手法把底座"坐"进文字栏。
+    const val WATER_SKIRT_RATIO = 0.10f
+
+    const val WATER_SKIRT_ALPHA = 90
 
     val WATER_HILITE_COLOR = 0xFFBFE3F0.toInt() // 波纹高光
 
-    const val WATER_LINE_ALPHA = 70 // 水线本身那道亮边
-
     const val WATER_VIGNETTE_ALPHA = 70 // 底部压暗，把文字从水面里托出来
+
+    // WATER 的正文高度估算单独用一组更省的内边距：文字区每省 1dp，
+    // 城市就能多占一截宽度（扁组件上城市铺得越满，"上下两半对不齐"越不明显）。
+    const val WATER_TEXT_PAD_Y_DP = 3f
 
     // —— 各衔接共用 ——
     const val CITY_TEXT_PAD_X_DP = 16f
@@ -140,10 +153,37 @@ internal object CityRenderer {
     ): RectF {
         val artH = when (junction) {
             CityJunction.SOIL -> outerRect.height() * SOIL_ART_RATIO
-            CityJunction.WATER -> outerRect.height() * WATER_ART_RATIO
+            CityJunction.WATER -> waterArtHeight(outerRect, style, densityScale, artBitmap)
             CityJunction.FADE -> fadeArtHeight(outerRect, style, densityScale, artBitmap)
         }.coerceAtLeast(1f)
         return RectF(outerRect.left, outerRect.top, outerRect.right, outerRect.top + artH)
+    }
+
+    /**
+     * WATER 衔接：城市矩形要多高，素材才能按原始宽高比**铺满整宽**（与 `fadeArtHeight` 同理）。
+     *
+     * 上海素材是很宽的横幅（2.215:1），如果像原来那样把城市高度**写死**在组件高的 52%，
+     * 扁组件上按高度 contain 之后城市只能占中间一小截，而文字栏是满宽的 ——
+     * 上下两半宽度对不上，看着像两块拼起来的（用户反馈）。改成反推之后：
+     * 够高就铺满整宽（4×4 上城市正好顶满左右），不够才退回等比留白。
+     *
+     * 上限留给"水线以下还得放得下一行正文"（按当前字号 + 上下内边距估算），
+     * 下限则保证超扁的组件上城市不至于缩成一条。
+     */
+    fun waterArtHeight(
+        outerRect: RectF,
+        style: WidgetStyle,
+        densityScale: Float,
+        artBitmap: Bitmap?
+    ): Float {
+        val h = outerRect.height()
+        val floor = h * WATER_ART_RATIO
+        if (artBitmap == null || artBitmap.height <= 0 || outerRect.width() <= 0f) return floor
+        val need = outerRect.width() / (artBitmap.width.toFloat() / artBitmap.height)
+        val oneLine = style.fontSizeSp * densityScale * FADE_LINE_HEIGHT_FACTOR +
+            2f * WATER_TEXT_PAD_Y_DP * densityScale
+        val cap = (h - h * WATER_TEXT_BAND_RATIO - oneLine).coerceAtLeast(floor)
+        return need.coerceIn(floor, cap)
     }
 
     // FADE 衔接：城市矩形要多高，素材才能按原始宽高比**铺满整宽**。
@@ -215,20 +255,20 @@ internal object CityRenderer {
     }
 
     /**
-     * 上海·水面与倒影：城市底边就是水线，水线以下是一整片江面，文字浮在水面上。
+     * 上海·水面：城市底边就是水线，水线以下是一整片江面，文字浮在水面上。
      *
      * 为什么这里不用土层：这张图是玻璃幕墙的陆家嘴，把它"从地里整块挖出来"会读成
      * 一截断头楼坐在土上，很突兀。而真实建筑沙盘就是立在水景台座上的。
      * 水也顺带解决了土层那个通栏难题 —— 江面本来就比城市宽，铺满组件宽度是成立的；
      * 土层铺满则会在城市两侧露出"飘在壁纸上的一条草皮"。
      *
-     * 四层：水体竖向渐变 → 城市下部镜像压扁成倒影 → 横向波纹把倒影打断 → 底部压暗托字。
+     * 三层：水体竖向渐变 → 横向波纹 → 底部压暗托字。
+     * （不再画镜像倒影：它正好落在正文区，用户明确不要，见文件上方注释。）
      */
     fun drawCityWater(
         canvas: Canvas,
         outerRect: RectF,
         artRect: RectF,
-        art: Bitmap?,
         densityScale: Float,
         style: WidgetStyle,
         deepPaint: Paint
@@ -240,50 +280,36 @@ internal object CityRenderer {
         val waterH = bottom - line
         val alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
         if (waterH <= 1f || alpha <= 0) return
-        val deepColor = deepPaint.color and 0x00FFFFFF
+        // deepPaint 的颜色不带 alpha（管线里"不透明度"由 paint 的 alpha 通道表达），
+        // 但这里的颜色是喂给 LinearGradient 的：不补回不透明 alpha，渐变末端就是全透明，
+        // 整条文字栏会半透明、把桌面壁纸透出来（这条分支长期没有风格使用，此 bug 一直没暴露）。
+        val deepColor = (deepPaint.color and 0x00FFFFFF) or 0xFF000000.toInt()
 
         canvas.save()
         canvas.clipPath(cityBarPath(outerRect, line - 1f, style.cornerRadiusDp * densityScale))
 
-        // 1. 水体：水线处偏亮的江面 → 组件背景色那池深水
+        // 1. 水体：水线处"比文字栏底色浅一号"的江面 → 文字栏底色那池深水。
+        //    起点色与素材水体同色系，所以岛底与江面之间没有跳色。
         val waterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, line, 0f, bottom, WATER_SURFACE_COLOR, deepColor, Shader.TileMode.CLAMP
+                0f, line, 0f, bottom, waterSurfaceColor(deepColor), deepColor, Shader.TileMode.CLAMP
             )
             this.alpha = alpha
         }
         canvas.drawRect(left, line, right, bottom, waterPaint)
 
-        // 2. 倒影：城市下部竖压 + 镜像贴在水线下方，只占城市那一档宽度
-        if (art != null && !art.isRecycled) {
-            val span = cityArtDst(art, artRect)
-            val srcH = (art.height * WATER_REFLECT_SRC_RATIO).toInt().coerceIn(1, art.height)
-            val reflectH = outerRect.height() * WATER_REFLECT_RATIO
-            val flip = Matrix().apply {
-                setScale(1f, -1f)
-                postTranslate(0f, srcH.toFloat())
-            }
-            val band = Bitmap.createBitmap(art, 0, art.height - srcH, art.width, srcH, flip, true)
-            try {
-                canvas.drawBitmap(
-                    band, null, RectF(span.left, line, span.right, line + reflectH),
-                    Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                        this.alpha = (WATER_REFLECT_ALPHA * alpha / 255f).toInt()
-                    }
-                )
-                // 倒影向下溶解进水里：再压一层水色渐变，越往下越实
-                val dissolve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    shader = LinearGradient(
-                        0f, line, 0f, line + reflectH,
-                        Color.TRANSPARENT, deepColor, Shader.TileMode.CLAMP
-                    )
-                    this.alpha = alpha
-                }
-                canvas.drawRect(span.left, line, span.right, line + reflectH, dissolve)
-            } finally {
-                if (band !== art && !band.isRecycled) band.recycle()
-            }
+        // 2. 暗裙：城市底边往下柔进江面。素材底边是一刀平切，没有这层就是一条硬边
+        //   （FADE 用同一个手法把北京底座"坐"进文字栏，这也是那边过渡自然的原因）。
+        val skirtH = waterH * WATER_SKIRT_RATIO
+        val skirt = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, line, 0f, line + skirtH,
+                Color.argb(WATER_SKIRT_ALPHA, 0, 0, 0), Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+            this.alpha = alpha
         }
+        canvas.drawRect(left, line, right, line + skirtH, skirt)
 
         // 3. 波纹：横向亮线。越往下越宽、越淡、越粗——近处水面才看得清纹理
         val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -303,16 +329,7 @@ internal object CityRenderer {
             canvas.drawLine(cx - len / 2f, y, cx + len / 2f, y, ripplePaint)
         }
 
-        // 4. 水线：城市与江面交界那道亮边，把"贴在图上"变成"浮在水上"
-        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = WATER_HILITE_COLOR
-            this.alpha = (WATER_LINE_ALPHA * alpha / 255f).toInt()
-            strokeWidth = 1.2f * densityScale
-            this.style = Paint.Style.STROKE
-        }
-        canvas.drawLine(left, line, right, line, linePaint)
-
-        // 5. 底部压暗：深水托住文字，长句也不会和波纹抢对比度
+        // 4. 底部压暗：深水托住文字，长句也不会和波纹抢对比度
         val vigTop = line + waterH * 0.35f
         val vig = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(

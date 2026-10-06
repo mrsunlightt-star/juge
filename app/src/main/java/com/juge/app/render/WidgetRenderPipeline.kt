@@ -470,7 +470,7 @@ internal object WidgetRenderPipeline {
             CityJunction.SOIL -> drawSoilStrata(
                 canvas, outerRect, artRect, art, densityScale, style, scene.bgPaint)
             CityJunction.WATER -> drawCityWater(
-                canvas, outerRect, artRect, art, densityScale, style, scene.bgPaint)
+                canvas, outerRect, artRect, densityScale, style, scene.bgPaint)
             CityJunction.FADE -> drawCityFade(
                 canvas, outerRect, artRect, densityScale, style, scene.bgPaint)
         }
