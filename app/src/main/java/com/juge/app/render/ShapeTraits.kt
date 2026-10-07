@@ -37,12 +37,6 @@ internal enum class ShapeFamily {
     /** 小霸王游戏机：素材本体 + 屏幕绿荧光底 + 压在正文上的 CRT 叠加层 */
     SUBOR_CONSOLE,
 
-    /** 贴纸夜景：整幅透明，只有文本框与抠图人物 */
-    STICKER_SCENE,
-
-    /** 城市剪影：剪影带 + 衔接层 + 文字栏 */
-    CITY_CUTOUT,
-
     /** 天气盒子：白盒挖内凹腔体，腔下留白放正文 */
     WEATHER_BOX,
 
@@ -103,21 +97,21 @@ private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.GIANT_SWORD,
     WidgetShape.PLUSH_FOREST,
     WidgetShape.SUBOR_CONSOLE,
-    WidgetShape.CITY_CUTOUT,
     // 春天与小狗：圆角与绿框都在素材里，再裁一次会切掉框角
     WidgetShape.SPRING_DOG,
 )
 
-/** 整幅透明底：贴纸夜景的背景色只作用于文本框，城市剪影的只作用于文字栏 */
-private val TRANSPARENT_CARD_SHAPES = setOf(
-    WidgetShape.STICKER_SCENE,
-    WidgetShape.CITY_CUTOUT,
-)
+/**
+ * 整幅透明底：背景色只作用于各自的文本框 / 文字栏。
+ *
+ * 当前**没有形状在用**（原本占位的贴纸夜景 / 城市剪影 / 毛玻璃都已下线）。名单与
+ * [ShapeTraits.transparentCard] 一并保留，是留给这一类形状的扩展位——新形状归入时加一行即可，
+ * 管线里「不铺整卡底色」「投影跟着文本框走」两条分支不用重写。
+ */
+private val TRANSPARENT_CARD_SHAPES = emptySet<WidgetShape>()
 
 /** 素材由家族自己摆放的形状：整卡铺图会与家族布局打架 */
 private val OWN_BACKGROUND_SHAPES = setOf(
-    WidgetShape.STICKER_SCENE,
-    WidgetShape.CITY_CUTOUT,
     WidgetShape.WEATHER_BOX,
     WidgetShape.WINTER_PALACE,
     WidgetShape.DEEP_SEA,
@@ -146,7 +140,6 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.RECTANGLE,
     WidgetShape.PIXEL_RETRO,
     WidgetShape.PET_CAT_NAP,
-    WidgetShape.ZHU_QING_SI_ZHI,
     WidgetShape.NIUPI_SHOUZHANG,
     WidgetShape.CLASSROOM_BLACKBOARD,
     WidgetShape.GIANT_SWORD,
@@ -163,8 +156,6 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.BLUE_NOTE -> ShapeFamily.BLUE_NOTE
     WidgetShape.BOOKSHELF -> ShapeFamily.BOOKSHELF
     WidgetShape.SUBOR_CONSOLE -> ShapeFamily.SUBOR_CONSOLE
-    WidgetShape.STICKER_SCENE -> ShapeFamily.STICKER_SCENE
-    WidgetShape.CITY_CUTOUT -> ShapeFamily.CITY_CUTOUT
     WidgetShape.WEATHER_BOX -> ShapeFamily.WEATHER_BOX
     WidgetShape.WINTER_PALACE,
     WidgetShape.DEEP_SEA,

@@ -13,31 +13,11 @@ import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 import com.juge.app.render.BlueNoteRenderer.drawBlueNoteChrome
 import com.juge.app.render.BookshelfRenderer.drawBookshelfChrome
-import com.juge.app.render.CityRenderer.CityJunction
-import com.juge.app.render.CityRenderer.cityArtRect
-import com.juge.app.render.CityRenderer.cityJunctionOf
-import com.juge.app.render.CityRenderer.cityNeedsBottomPad
-import com.juge.app.render.CityRenderer.drawCityArt
-import com.juge.app.render.CityRenderer.drawCityBottomPad
-import com.juge.app.render.CityRenderer.drawCityFade
-import com.juge.app.render.CityRenderer.drawCityWater
 import com.juge.app.render.FeatherRenderer.drawFeatherLetterPath
 import com.juge.app.render.PaperRenderer.drawPaperTexture
-import com.juge.app.render.PaperRenderer.paperCutBoxPath
-import com.juge.app.render.PaperRenderer.paperGrainPaint
-import com.juge.app.render.SoilRenderer.drawSoilStrata
 import com.juge.app.render.SplitCardRenderer.SPLIT_CARD_HORIZONTAL_RATIO
 import com.juge.app.render.SplitCardRenderer.SPLIT_CARD_RATIO
 import com.juge.app.render.SplitCardRenderer.splitImageRect
-import com.juge.app.render.StickerRenderer.STICKER_TEXT_EDGE_DP
-import com.juge.app.render.StickerRenderer.STICKER_TEXT_SNIP_DP
-import com.juge.app.render.StickerRenderer.drawStickerContactShadow
-import com.juge.app.render.StickerRenderer.drawStickerLampHalo
-import com.juge.app.render.StickerRenderer.drawStickerLightBeam
-import com.juge.app.render.StickerRenderer.drawStickerLightOnArt
-import com.juge.app.render.StickerRenderer.drawStickerRoses
-import com.juge.app.render.StickerRenderer.stickerArtRect
-import com.juge.app.render.StickerRenderer.stickerTextBoxRect
 import com.juge.app.render.SuborRenderer.drawSuborCrtOverlay
 import com.juge.app.render.SuborRenderer.drawSuborScreenGlow
 import com.juge.app.render.SuborRenderer.suborScreenRect
@@ -106,7 +86,7 @@ internal class RenderScene(
     val effectiveBgColor: Int =
         if (WidgetStyle.supportsBackgroundColor(style.shape)) style.backgroundColor else Color.TRANSPARENT
 
-    /** 整卡底色画笔；城市剪影的衔接层会复用它来取同一份底色/透明度 */
+    /** 整卡底色画笔 */
     val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     /** 本次渲染加载到的背景图（自定义路径或内置预设），由加载它的阶段负责回收 */
@@ -186,11 +166,15 @@ internal object WidgetRenderPipeline {
                 if (Color.alpha(scene.effectiveBgColor) < 255) {
                     color = scene.effectiveBgColor or 0xFF000000.toInt()
                 }
+                // 环境光式的柔影：模糊大、下移小、色浅。
+                // 原先 6dp / 下移 3dp / 25% 黑把黑度全挤在卡下沿 1~2dp 里，而内缩只有 4dp，
+                // 阴影在组件边界还留着约 10% 黑度就被硬切——浅色壁纸上一圈硬边，看着"重"。
+                // 改成大模糊 + 浅色后，到边界只剩 2~3%，切痕看不出来（幅度参照效果图量得的约 8%）
                 setShadowLayer(
-                    6f * densityScale,
+                    10f * densityScale,
                     0f,
-                    3f * densityScale,
-                    Color.parseColor("#40000000")
+                    1.5f * densityScale,
+                    Color.parseColor("#24000000")
                 )
             }
             canvas.drawPath(if (traits.fillsAlongTornPath) scene.path else scene.outerPath, shadowPaint)
@@ -271,7 +255,7 @@ internal object WidgetRenderPipeline {
         }
 
         // 绘制背景图片（若有）。
-        // 贴纸夜景 / 城市剪影 / 天气盒子 / 画框卡片族的素材由家族绘制单独摆放，不走这里的整卡铺图
+        // 天气盒子 / 画框卡片族的素材由家族绘制单独摆放，不走这里的整卡铺图
         val bg = scene.bgBitmap
         if (bg != null && !traits.drawsOwnBackground) {
             canvas.save()
@@ -308,8 +292,6 @@ internal object WidgetRenderPipeline {
             ShapeFamily.SUBOR_CONSOLE -> drawSuborScreenGlow(
                 scene.canvas, suborScreenRect(scene.outerRect), scene.densityScale
             )
-            ShapeFamily.STICKER_SCENE -> drawStickerChrome(scene)
-            ShapeFamily.CITY_CUTOUT -> drawCityChrome(scene)
             // 蓝色便签：在蓝色大底上追加顶部 NOTE 区域与底部米白签条
             ShapeFamily.BLUE_NOTE -> drawBlueNoteChrome(
                 scene.canvas, scene.targetWidth.toFloat(), scene.targetHeight.toFloat(),
@@ -375,108 +357,6 @@ internal object WidgetRenderPipeline {
             canvas.drawRect(rightRect, panelPaint)
         }
         canvas.restore()
-    }
-
-    /**
-     * 贴纸夜景：文本框（直角剪边）→ 贴纸（人物+路灯站在纸上，带白色描边）→ 花枝垂在文本框下沿。
-     * 组件整幅透明，只有文本框是实体色块，背景色/不透明度都只作用于文本框。
-     */
-    private fun drawStickerChrome(scene: RenderScene) {
-        val canvas = scene.canvas
-        val style = scene.style
-        val outerRect = scene.outerRect
-        val densityScale = scene.densityScale
-        val alpha = scene.alpha
-
-        val artRect = stickerArtRect(outerRect)
-        // 光柱在人物之下：人是站在光里的剪影，而不是被光糊住
-        drawStickerLightBeam(canvas, outerRect, artRect, densityScale, alpha)
-
-        val textBox = stickerTextBoxRect(outerRect)
-        // 纸张剪纸：默认四角剪掉一小块；圆角滑条调大后四角改为圆弧（半径见 paperCutBoxPath）
-        val snip = STICKER_TEXT_SNIP_DP * densityScale
-        val borderPath = paperCutBoxPath(textBox, snip, style.cornerRadiusDp * densityScale)
-        if (style.showCardShadow) {
-            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = style.backgroundColor
-                setShadowLayer(6f * densityScale, 0f, 3f * densityScale, Color.parseColor("#40000000"))
-            }
-            canvas.drawPath(borderPath, shadowPaint)
-        }
-        val textBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = style.backgroundColor
-            this.alpha = alpha
-        }
-        canvas.drawPath(borderPath, textBoxPaint)
-
-        // 纸纹：只铺在纸面里，让底色不再是一块干净的单色
-        val grain = paperGrainPaint(alpha)
-        val grainLayer = canvas.save()
-        canvas.clipPath(borderPath)
-        canvas.drawRect(textBox, grain)
-        canvas.restoreToCount(grainLayer)
-
-        // 剪纸白边：与贴纸的白色描边呼应，让文本框也像"剪下来贴上去"的纸片
-        val edgeStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            this.alpha = alpha
-            strokeWidth = STICKER_TEXT_EDGE_DP * densityScale
-            this.style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-        }
-        canvas.drawPath(borderPath, edgeStroke)
-
-        // 接触阴影：人物与路灯是踩在这张纸上的，脚下压一层软阴影才站得住
-        drawStickerContactShadow(canvas, textBox, borderPath, artRect, alpha)
-
-        val art = scene.bgBitmap
-        if (art != null) {
-            val artPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
-                this.alpha = alpha
-            }
-            canvas.drawBitmap(art, null, artRect, artPaint)
-            drawStickerLightOnArt(canvas, outerRect, artRect, art, densityScale, alpha)
-            if (!scene.bgFromCache && !art.isRecycled) {
-                art.recycle()
-            }
-        }
-        drawStickerLampHalo(canvas, artRect)
-        // 玫瑰画在最后：垂在文本框下沿
-        drawStickerRoses(canvas, textBox, densityScale, alpha)
-    }
-
-    /**
-     * 城市微缩：先把抠掉天空的城市按原比例铺上（天空透明处露出壁纸），
-     * 再按**这个风格自己的**衔接把城市底边接进文字栏。
-     */
-    private fun drawCityChrome(scene: RenderScene) {
-        val canvas = scene.canvas
-        val style = scene.style
-        val outerRect = scene.outerRect
-        val densityScale = scene.densityScale
-        val art = scene.bgBitmap
-
-        val junction = cityJunctionOf(style)
-        val artRect = cityArtRect(outerRect, junction, style, densityScale, art)
-        if (art != null && !art.isRecycled) {
-            // 先垫平素材底边的透明垫高区，再画城市：垫平带画在模型之下，
-            // 被模型实体盖住的部分不可见，只有露在衔接线上方的那截把壁纸挡掉。
-            if (cityNeedsBottomPad(style)) {
-                drawCityBottomPad(canvas, art, artRect, style)
-            }
-            drawCityArt(canvas, art, artRect, style)
-        }
-        when (junction) {
-            CityJunction.SOIL -> drawSoilStrata(
-                canvas, outerRect, artRect, art, densityScale, style, scene.bgPaint)
-            CityJunction.WATER -> drawCityWater(
-                canvas, outerRect, artRect, densityScale, style, scene.bgPaint)
-            CityJunction.FADE -> drawCityFade(
-                canvas, outerRect, artRect, densityScale, style, scene.bgPaint)
-        }
-        if (art != null && !scene.bgFromCache && !art.isRecycled) {
-            art.recycle()
-        }
     }
 
     /**

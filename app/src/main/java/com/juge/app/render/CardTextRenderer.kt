@@ -10,17 +10,8 @@ import com.juge.app.data.WidgetShape
 import com.juge.app.render.BookshelfRenderer.SHELF_PANEL_TEXT_PAD_X_DP
 import com.juge.app.render.BookshelfRenderer.SHELF_PANEL_TEXT_PAD_Y_DP
 import com.juge.app.render.BookshelfRenderer.bookshelfPanelRect
-import com.juge.app.render.CityRenderer.CITY_TEXT_PAD_X_DP
-import com.juge.app.render.CityRenderer.CITY_TEXT_PAD_Y_DP
-import com.juge.app.render.CityRenderer.cityArtRect
-import com.juge.app.render.CityRenderer.cityBand
-import com.juge.app.render.CityRenderer.cityJunctionOf
-import com.juge.app.render.CityRenderer.cityTextBoxRect
 import com.juge.app.render.SplitCardRenderer.SPLIT_CARD_HORIZONTAL_RATIO
 import com.juge.app.render.SplitCardRenderer.SPLIT_CARD_RATIO
-import com.juge.app.render.StickerRenderer.STICKER_TEXT_PAD_X_DP
-import com.juge.app.render.StickerRenderer.STICKER_TEXT_PAD_Y_DP
-import com.juge.app.render.StickerRenderer.stickerTextBoxRect
 import com.juge.app.render.SuborRenderer.SUBOR_GLOW_RADIUS_DP
 import com.juge.app.render.SuborRenderer.SUBOR_SCREEN_TEXT_PAD_X_DP
 import com.juge.app.render.SuborRenderer.SUBOR_SCREEN_TEXT_PAD_Y_DP
@@ -113,7 +104,6 @@ internal object CardTextRenderer {
                 val cardTop = headerH
                 TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - footerH - 8f * densityScale)
             }
-            WidgetShape.ZHU_QING_SI_ZHI,
             WidgetShape.NIUPI_SHOUZHANG -> {
                 // 竹青撕纸 / 撕边牛皮手账：纸即主体，文字居中留白避开撕边与右下阴影
                 val verticalInset = targetHeight * 0.11f
@@ -179,33 +169,6 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 val cardTop = screen.top + textPadY
                 TextBox(paddingLeft, textWidth, cardTop, (screen.bottom - textPadY - cardTop).coerceAtLeast(1f))
-            }
-            WidgetShape.STICKER_SCENE -> {
-                // 贴纸夜景：正文落在文本框内，四周留出内边距避免贴边
-                val textBox = stickerTextBoxRect(outerRect)
-                val textPadX = STICKER_TEXT_PAD_X_DP * densityScale
-                val textPadY = STICKER_TEXT_PAD_Y_DP * densityScale
-                val paddingLeft = textBox.left + textPadX
-                val paddingRight = textBox.right - textPadX
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                val cardTop = textBox.top + textPadY
-                TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
-            }
-            WidgetShape.CITY_CUTOUT -> {
-                // 城市微缩：正文落在衔接层之下——土层的轮廓谷底 / 倒影的最下沿。
-                // 取的是这条带的**最低点**，所以文字绝不会压到剖面或倒影上。
-                val junction = cityJunctionOf(style)
-                val artRect = cityArtRect(
-                    outerRect, junction, style, densityScale, scene.bgBitmap?.takeIf { !it.isRecycled })
-                val textBox = cityTextBoxRect(
-                    outerRect, artRect, cityBand(junction, outerRect, densityScale))
-                val textPadX = CITY_TEXT_PAD_X_DP * densityScale
-                val textPadY = CITY_TEXT_PAD_Y_DP * densityScale
-                val paddingLeft = textBox.left + textPadX
-                val paddingRight = textBox.right - textPadX
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                val cardTop = textBox.top + textPadY
-                TextBox(paddingLeft, textWidth, cardTop, (textBox.bottom - textPadY - cardTop).coerceAtLeast(1f))
             }
             WidgetShape.WEATHER_BOX -> {
                 // 天气盒子：正文落在腔体下方的白色留白区。留白区从腔体下沿切起，
