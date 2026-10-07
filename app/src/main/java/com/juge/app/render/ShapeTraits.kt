@@ -42,6 +42,12 @@ internal enum class ShapeFamily {
 
     /** 画框卡片：卡纸 + 相框 + 角落点缀（比例见 `FramedCardRenderer` 的 spec 表） */
     FRAMED_CARD,
+
+    /**
+     * 材质边框：卡片本身就是那种材质，边由 `BorderMaterialRenderer` 沿轮廓现画
+     * （毛绒 / 素描线 / 绿藤）。材质即风格，不是能贴到任意卡片上的通用修饰。
+     */
+    BORDER_MATERIAL,
 }
 
 /**
@@ -54,8 +60,13 @@ internal enum class ShapeFamily {
  */
 internal class ShapeTraits(
     val family: ShapeFamily,
-    /** 内容整体内缩 4dp：只适用于内容完全按 rectF / outerRect 布局、内缩不会溢出的形状 */
-    val usesInsetCard: Boolean,
+    /**
+     * 内容**能不能**整体内缩 4dp：只适用于内容完全按 rectF / outerRect 布局、内缩不会溢出的形状。
+     *
+     * 注意这是「能不能」，不是「要不要」——要不要由 `RenderScene.cardInset` 决定：
+     * 只有轮廓外沿真有的东西要放（投影、材质边）时才内缩。
+     */
+    val insetCapable: Boolean,
     /** 强制直角：整幅插画被圆角裁切会切掉主体，忽略用户的圆角设置 */
     val forcesSquareCorners: Boolean,
     /** 整幅透明底：没有卡片外框，投影与底色只跟随各自的文本框 / 文字栏 */
@@ -79,17 +90,36 @@ internal class ShapeTraits(
 
     /** 图文明信片：底色 / 背景图只铺「图片那一半」 */
     val isSplitCard: Boolean get() = family == ShapeFamily.SPLIT_CARD
+
+    /**
+     * 轮廓**外沿**还有装饰要摆（材质边框的绒毛、藤叶）。
+     *
+     * 有外侧装饰的形状**无论开不开投影都必须内缩**：装饰要往轮廓外探出几个 dp，
+     * 满幅时会被位图边界齐齐削平，变成一圈"剪齐的边"。
+     */
+    val decoratesOutsideContour: Boolean get() = family == ShapeFamily.BORDER_MATERIAL
 }
 
-/** 内容整体内缩 4dp 的形状 */
-private val INSET_CARD_SHAPES = setOf(
+/**
+ * **可以**内缩的形状：这些形状的内容完全按 rectF / outerRect 布局，内缩不会溢出。
+ *
+ * 名单只管「**能不能**内缩」；「**要不要**内缩」由 `RenderScene.cardInset` 判：看轮廓外沿有没有
+ * 东西要放（样式的投影 / 形状的外侧装饰）。两件事原先混在一份名单里，结果没有投影的样式
+ * 也白留了 4dp 透明边——那圈边除了透出壁纸，还给 launcher 的白色占位底留了个出风口。
+ */
+private val INSET_CAPABLE_SHAPES = setOf(
     WidgetShape.RECTANGLE,
     WidgetShape.HANDBOOK_TAPE,
     WidgetShape.SPLIT_CARD,
     WidgetShape.SPLIT_CARD_HORIZONTAL,
-    // 天气盒子：盒体与腔体都按 outerRect 布局，内缩安全；预设开了投影，
-    // 不内缩的话阴影会被位图边界裁掉，盒体看起来是"贴平"的
+    // 天气盒子：盒体与腔体都按 outerRect 布局，内缩安全
     WidgetShape.WEATHER_BOX,
+    // 材质边框族：内容按 outerRect 布局，内缩安全。
+    // （这几款必定内缩——不是因为它们开了投影，而是因为绒毛、藤叶要往轮廓外长。
+    // 见 ShapeTraits.decoratesOutsideContour。）
+    WidgetShape.PLUSH_CARD,
+    WidgetShape.SKETCH_CARD,
+    WidgetShape.VINE_CARD,
 )
 
 /** 整幅插画：预设套用时会继承上一个风格的圆角值，这里统一强制直角，避免旧数据套用后画面被裁 */
@@ -122,7 +152,7 @@ private val OWN_BACKGROUND_SHAPES = setOf(
 private val TRAITS: Map<WidgetShape, ShapeTraits> = WidgetShape.entries.associateWith { shape ->
     ShapeTraits(
         family = shape.family(),
-        usesInsetCard = shape in INSET_CARD_SHAPES,
+        insetCapable = shape in INSET_CAPABLE_SHAPES,
         forcesSquareCorners = shape in SQUARE_CORNER_SHAPES,
         transparentCard = shape in TRANSPARENT_CARD_SHAPES,
         drawsOwnBackground = shape in OWN_BACKGROUND_SHAPES,
@@ -161,4 +191,9 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.DEEP_SEA,
     WidgetShape.SUMMER_SEA,
     WidgetShape.SUMMER_LOTUS -> ShapeFamily.FRAMED_CARD
+
+    // 材质边框族：卡片轮廓就是普通圆角矩形，本族唯一多出来的事是沿轮廓画材质
+    WidgetShape.PLUSH_CARD,
+    WidgetShape.SKETCH_CARD,
+    WidgetShape.VINE_CARD -> ShapeFamily.BORDER_MATERIAL
 }

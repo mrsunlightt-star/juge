@@ -337,11 +337,23 @@ internal object WidgetRenderKernel {
         if (resId == 0) return null
         val bmp = decodeResourceSampled(context.resources, resId, targetWidth, targetHeight)
         if (bmp == null) {
-            // 矢量或非位图资源降级为 Drawable 渲染：必须按目标尺寸栅格化，
-            // 否则按 intrinsic 尺寸（或兜底 300×120）生成的小图放大到组件尺寸会发虚
+            // 矢量资源降级为 Drawable 渲染：必须按目标尺寸栅格化，
+            // 否则按 intrinsic 尺寸（或兜底 300×120）生成的小图放大到组件尺寸会发虚。
+            //
+            // **但要保持内在宽高比**：早先这里直接把 bounds 设成「组件位图尺寸」，
+            // 等于先按组件比例拉伸再交给 BgImageRenderer——铺图模式（CENTER_CROP/CENTER_FIT）
+            // 拿到的是已经变形的位图，等于失效。方格信纸铺到 4×2 上就会把横线压密。
+            // 现在按「等比放大到刚好覆盖目标」栅格化：位图比例 == 素材比例，
+            // 再由铺图模式自己决定裁哪一块——4×2 下横线维持原本的间距，只是少露几条。
             val drawable = context.resources.getDrawable(resId, null) ?: return null
-            val drawW = targetWidth.coerceAtLeast(MIN_BITMAP_SIZE)
-            val drawH = targetHeight.coerceAtLeast(MIN_BITMAP_SIZE)
+            val intrinsicW = drawable.intrinsicWidth.takeIf { it > 0 } ?: MIN_BITMAP_SIZE
+            val intrinsicH = drawable.intrinsicHeight.takeIf { it > 0 } ?: MIN_BITMAP_SIZE
+            val cover = maxOf(
+                targetWidth.toFloat() / intrinsicW,
+                targetHeight.toFloat() / intrinsicH,
+            )
+            val drawW = (intrinsicW * cover).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
+            val drawH = (intrinsicH * cover).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
             val tmpBmp = Bitmap.createBitmap(drawW, drawH, Bitmap.Config.ARGB_8888)
             val tmpCanvas = Canvas(tmpBmp)
             drawable.setBounds(0, 0, drawW, drawH)

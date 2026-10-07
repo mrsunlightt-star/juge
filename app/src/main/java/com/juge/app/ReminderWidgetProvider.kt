@@ -332,6 +332,27 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
             val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            // 位图按 MIN 尺寸渲染，而桌面把位图按 fitXY 拉满整个组件视图：
+            // 两者比例不一致时画面会被非等比拉伸，卡片描边（尤其深色卡片上的白边）会沿拉伸方向变粗。
+            // 打点记下实际用的尺寸与比例，便于和桌面实测的组件尺寸对账。
+            // OPTION_APPWIDGET_SIZES（API 31+）是 launcher 声明的候选尺寸列表——
+            // 实测（PJF110 / ColorOS）它与 MIN/MAX 一致、却按更大尺寸布局，所以拿不到真实视图尺寸；
+            // 留着这条日志是为了下次出现"画面被拉扁/拉长"时能一眼看出是哪个数在变。
+            @Suppress("DEPRECATION")
+            val declaredSizes = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                options.getParcelableArrayList<android.util.SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+                    ?.joinToString(",") { "${it.width.toInt()}x${it.height.toInt()}" }
+            } else {
+                null
+            }
+            Timber.i(
+                "widget render id=%d  %ddp x %ddp  ratio=%.3f  max=%dx%d  sizes=[%s]",
+                appWidgetId, minWidthDp, minHeightDp,
+                minWidthDp.toFloat() / minHeightDp.coerceAtLeast(1),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0),
+                declaredSizes ?: "-"
+            )
 
             val views = RemoteViews(context.packageName, R.layout.widget_layout)
             var currentConfigId = -1L

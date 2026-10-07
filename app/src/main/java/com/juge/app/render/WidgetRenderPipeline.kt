@@ -31,8 +31,10 @@ import com.juge.app.render.WidgetRenderKernel.getPresetImage
 import java.io.File
 import timber.log.Timber
 
-// 卡片四周留出的内边距：让卡片不铺满整幅组件位图，从而给投影留出可见空间。
-// 阴影绘制在位图内部，若卡片满幅则阴影会被位图边界裁掉，组件看起来就是"贴平"的。
+// 卡片四周留出的透明边距：给轮廓**外沿**要放的东西腾地方——投影，或材质边框往外长的绒毛/藤叶。
+// 阴影绘制在位图内部、材质往轮廓外探，卡片满幅时都会被位图边界切掉。
+// **它不再是所有内缩形状的默认值**：是否内缩由 RenderScene.cardInset 判（要投影或外侧装饰才内缩），
+// 没有这两样的样式内缩只是白留一圈透壁纸的透明带。
 internal const val CARD_INSET_DP = 4f
 
 // 外框圆角的默认值：撕纸/信纸/椭圆的外框只是投影与底色的兜底形状，不跟随用户的圆角设置
@@ -65,7 +67,20 @@ internal class RenderScene(
     /** 外圈兜底矩形：投影 / 底色 / 背景图都按它绘制，防止非铺满形状在外部露出黑色透明像素 */
     val outerRect: RectF
 
-    val cardInset: Float = if (traits.usesInsetCard) CARD_INSET_DP * densityScale else 0f
+    /**
+     * 卡片四周留出的透明边距，**只为「轮廓外沿还有东西要放」留空间**：
+     * 投影画在位图内部、材质边往轮廓外探，满幅时都会被位图边界硬切一刀
+     * （投影被切 = 卡片看起来"贴平"；绒毛被切 = 变成一圈"剪齐的边"）。
+     *
+     * 没有投影、也没有外侧装饰的样式一律**不内缩**——那圈透明边除了透出壁纸
+     * （以及在 launcher 重新挂载组件、垫上自己的白色占位底时透出那片白）别无用处。
+     */
+    val cardInset: Float =
+        if (traits.insetCapable && (style.showCardShadow || traits.decoratesOutsideContour)) {
+            CARD_INSET_DP * densityScale
+        } else {
+            0f
+        }
 
     /** 用户设置的圆角；整幅插画被强制直角，避免套用预设后继承上一个风格的圆角值把画面切掉 */
     val effectiveCornerRadiusDp: Float =
@@ -303,6 +318,8 @@ internal object WidgetRenderPipeline {
             )
             ShapeFamily.WEATHER_BOX -> drawWeatherBoxChrome(scene)
             ShapeFamily.FRAMED_CARD -> drawFramedCardChrome(scene)
+            // 材质边框族：沿卡片轮廓现画材质（毛绒 / 素描线 / 绿藤）
+            ShapeFamily.BORDER_MATERIAL -> drawBorderMaterialChrome(scene)
 
             ShapeFamily.ROUND_RECT,
             ShapeFamily.TORN_PAPER,
@@ -385,6 +402,16 @@ internal object WidgetRenderPipeline {
         )
     }
 
+    /**
+     * 材质边框族（毛绒边框 / 素描线卡 / 绿藤缠绕）：卡面由背景色铺好，
+     * 这里沿卡片轮廓现画边材质。材质绑定在形状上（见 `BorderMaterialRenderer.specFor`），
+     * 不是能贴到任意风格上的开关。
+     */
+    private fun drawBorderMaterialChrome(scene: RenderScene) {
+        val spec = BorderMaterialRenderer.specFor(scene.style.shape) ?: return
+        BorderMaterialRenderer.draw(scene.canvas, scene.path, spec, scene.densityScale)
+    }
+
     /** 5. 纸张颗粒/纤维纹理与卡片描边 */
     fun drawTextureAndBorder(scene: RenderScene) {
         val canvas = scene.canvas
@@ -409,17 +436,40 @@ internal object WidgetRenderPipeline {
                 this.color = Color.parseColor("#EAEAEA")
                 this.alpha = TORN_BORDER_ALPHA
             }
-            canvas.drawPath(scene.path, tornBorderPaint)
+            drawBorderInsideCard(canvas, scene.path, tornBorderPaint)
         }
 
         if (style.cardBorderWidthDp > 0f) {
             val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.style = Paint.Style.STROKE
-                this.strokeWidth = style.cardBorderWidthDp * densityScale
+                // ×2 是刻意的：描边是**居中**画的，而 drawBorderInsideCard 会把外侧那一半裁掉，
+                // 所以想得到 cardBorderWidthDp 那么宽的可见边框，标称线宽得给两倍。
+                // 这样字段的含义就是「可见边框宽度」，与名字一致——
+                // 此前它实际只画出标称值的一半，纯色圆角的 1dp 一直只画出 0.5dp。
+                this.strokeWidth = style.cardBorderWidthDp * 2f * densityScale
                 this.color = style.cardBorderColor
             }
-            canvas.drawPath(scene.path, borderPaint)
+            drawBorderInsideCard(canvas, scene.path, borderPaint)
         }
+    }
+
+    /**
+     * 描边只画在卡片**内部**。
+     *
+     * STROKE 是居中描边：不裁的话有一半落在卡片外的透明内缩上、压在桌面壁纸上——
+     * 浅色壁纸上看是一条脏边，深色壁纸上看就是「卡片外多出一圈白框」，
+     * 而设计稿里的边框（如纹理山水那圈白）本来就在图片内部。
+     * 裁到卡片路径后描边全部落在卡面内，外侧那半截不再压到壁纸上。
+     *
+     * ⚠️ 代价是**只剩一半线宽可见**：调用方给 `cardBorderWidthDp` 这类"可见宽度"字段时，
+     * 标称线宽要按两倍给（见 [drawTextureAndBorder] 里卡片描边那处）。撕纸那条白边是内部固定宽度，
+     * 按原样给即可。
+     */
+    private fun drawBorderInsideCard(canvas: Canvas, path: Path, paint: Paint) {
+        val save = canvas.save()
+        canvas.clipPath(path)
+        canvas.drawPath(path, paint)
+        canvas.restoreToCount(save)
     }
 
     /** 6. 压在正文之上的叠加层 */

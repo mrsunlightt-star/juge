@@ -1,12 +1,12 @@
 # 组件风格总览与实现方案
 
 > 这份文档回答两件事：
-> 1. **现有 34 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
+> 1. **现有 39 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
 > 2. **新增一个风格要动哪些地方** —— 一份可照着做的改动清单。
 >
 > 配套文档：`docs/component-style-guide.md`（图片处理脚本 `tools/process_component_image.py` 的用法与踩坑）。
 >
-> **与代码对齐核对：2026-10-07（第二次）** —— `PRESETS` 34 条、`WidgetShape` 22 个取值。
+> **与代码对齐核对：2026-10-07（第五次）** —— `PRESETS` 39 条、`WidgetShape` 25 个取值。
 > §4 / §5 的清单是**用脚本从 `WidgetStyle.kt` / `ShapeTraits.kt` 反查生成**的，不要手抄；
 > 改动预设或形状后请重跑核对脚本（在 `.scratch/style-doc-drift/issues/01-resync-style-overview.md`），
 > 并更新这一行的日期。
@@ -20,7 +20,7 @@
 | 要素 | 说明 | 取值 |
 | --- | --- | --- |
 | **① 路线** | 这个风格靠什么画出来 | A 纯代码卡片 / B 整卡贴图 / C 图文明信片（见 §3） |
-| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 22 个取值之一（见 §5） |
+| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 25 个取值之一（见 §5） |
 | **③ 素材** | 有没有图、图的透明处理方式 | 无素材 / 整幅抠图 / 实景照片不抠 |
 | **④ 文字落点** | 正文压在哪个区域 | 留白区、避开装饰（见 §6） |
 
@@ -54,7 +54,7 @@
 | `gradientColors` / `gradientAngle` | 背景渐变 | 目前只有「蓝色画报」用 |
 | `bgBlurRadius` / `bgScrimAlpha` | 背景模糊 / 压暗 | 自定义背景图时用 |
 | `showCardShadow` | 卡片投影 | 只有 5 条预设开着（纯色圆角、拟物撕纸、复古手账、蓝色便签、天气盒子）；柔度定义见 `WidgetRenderPipeline.drawCardBackground` |
-| `cardBorderWidthDp` / `cardBorderColor` | 卡片描边 | |
+| `cardBorderWidthDp` / `cardBorderColor` | 卡片描边 | 裁到卡片路径、**只画在卡面内部**，不溢出到卡片外那圈透明内缩上。字段值 = **可见宽度**：内部按两倍线宽画（居中描边裁掉外侧一半），所以填 2.0 就得到 2dp 宽的白框（见 §10） |
 | `textureType` | 纸张纹理 | `PAPER` / `GRAIN` / `NONE`；用 `PAPER` 的有 4 条：拟物撕纸、雪落宫墙、夏天的海、夏日荷花 |
 | `lineSpacingMultiplier` / `letterSpacing` | 行距 / 字距 | |
 
@@ -83,8 +83,13 @@
 | 蓝色画报 | `SPLIT_CARD` + `LinearGradient` 渐变填充图片区 |
 | 蓝色便签 | `drawBlueNoteChrome()`：顶部 NOTE 区 + 右上信息钮 + 底部米白手写签条 |
 | 书香书架 | `drawBookshelfChrome()`：顶部彩色书脊立在横板上 + 底部米色摘录面板 |
+| 毛绒边框 / 素描线卡 / 绿藤缠绕 | `drawBorderMaterialChrome()`：沿卡片轮廓现画边材质（`BorderMaterialRenderer`）——绒毛、手绘线、藤条与叶片。见下方「路线 A 的例外：材质边框」 |
 
-> 路线 A 的完整名单见 §4 表里「路线 = A」的行（当前 3 条）。
+> 路线 A 的完整名单见 §4 表里「路线 = A」的行（当前 8 条）。
+>
+> **路线 A 的例外：材质边框族**（`PLUSH_CARD` / `SKETCH_CARD` / `VINE_CARD`）虽然也是纯代码，但它有**自己的形状家族**（`ShapeFamily.BORDER_MATERIAL`），而不是并进普通圆角矩形。原因是这三款的边要沿 `scene.path` 现画、还要往轮廓**外**长出几个 dp（绒毛、藤叶），需要「内容内缩 4dp」这个前提——归入 `INSET_CAPABLE_SHAPES` 且带 `decoratesOutsideContour` 才成立（它们必定内缩）。
+>
+> 材质**刻意不做成能贴到任意风格上的开关**：材质若人人可加，37 款风格就只剩"同一张卡换了道边"，用户也就无所谓选哪一款了。加一种材质 = 加一个 `WidgetShape` + 一份规格表（见 §8.2）。
 
 ### 路线 B：整卡贴图（图即主体）
 
@@ -104,6 +109,8 @@
 | 小霸王游戏机 | `SUBOR_CONSOLE` | `subor_console` | 素材是**未通电**的深灰玻璃屏，代码叠绿色荧光底 + 扫描线 + 暗角 + 玻璃反光 |
 | 春天与小狗 | `SPRING_DOG` | `spring_dog` | 绿框白卡 + 上沿草丛麦穗粉花 + 右上角探头柯基；四周抠成透明（卡外透壁纸）。与毛绒森林同一套设计语言，素材同为 1.79:1，同样走 `STRETCH` |
 | 天空之蓝 | `RECTANGLE` | `rectangle_1`（矢量 XML） | 代码额外画一个 "NOTE" 标签 |
+| 纹理山水 | `RECTANGLE` | `texture_landscape` | 整卡贴图。素材是设计稿里那张水彩山水，已按设计稿的拉伸方式**预烘**成 222:90（源图切片直接裁会丢掉上半雾带与下半重山，构图对不上）。白框改用卡片描边而非烘进素材——圆角滑条一动，框跟着走圆角。⚠️ 4×2 原生：源切片仅 1152×679 真实像素，4×4 方形裁切要放大 2.3x，会软 |
+| 信纸 | `RECTANGLE` | `ruled_paper`（**矢量 XML**） | 横线信纸。纸色由「背景颜色」给（默认白），只有横线在素材里；铺图用 `CENTER_CROP`——4×2 下等比裁中间一段，横线维持 18.3dp 原间距（`STRETCH` 会把 11 条压成 4 条）。矢量素材，栅格化按组件尺寸现算，拖多大都不糊 |
 | 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
 | 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充） |
 
@@ -140,7 +147,7 @@
 > `RECTANGLE`（其余字段照常保留），桌面上的老组件会变成一张同色系的普通圆角卡，不会崩。
 > 需要复活这条路线时，从 git 历史里取回这三个渲染器与对应素材即可。
 
-## 4. 全部 34 个风格清单
+## 4. 全部 39 个风格清单
 
 `PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。名称取自五个分类清单，
 完整清单由脚本从 `WidgetStyle.kt` 反查生成，不要手抄。
@@ -154,7 +161,7 @@
 | 4 | 晨曦日出 | `p_dawn_sunrise` | SPLIT_CARD | C | `bg_illustration_1` | PRO |
 | 5 | 治愈落日 | `p_healing_sunset` | SPLIT_CARD | C | `bg_illustration_2` | PRO |
 | 6 | 星空森林 | `p_starry_forest` | SPLIT_CARD | C | `bg_illustration_3` | PRO |
-| 7 | 天空之蓝 | `p_sky_blue` | RECTANGLE | B | `rectangle_1` | PRO |
+| 7 | 天空蓝 | `p_sky_blue` | RECTANGLE | B | `rectangle_1` | PRO |
 | 8 | 搏击俱乐部 | `p_fight_club` | SPLIT_CARD | C | `boji_julebu` | PRO |
 | 9 | 绝命毒师 | `p_breaking_bad` | SPLIT_CARD | C | `breaking_bad` | PRO |
 | 10 | V字仇杀队 | `p_v_for_vendetta` | SPLIT_CARD | C | `v_for_vendetta` | PRO |
@@ -181,6 +188,11 @@
 | 31 | 夏天的海 | `p_summer_sea` | SUMMER_SEA | B | `summersea_frame` | PRO |
 | 32 | 夏日荷花 | `p_summer_lotus` | SUMMER_LOTUS | B | `lotus_frame` | PRO |
 | 33 | 春天与小狗 | `p_spring_dog` | SPRING_DOG | B | `spring_dog` | PRO |
+| 34 | 毛绒边框 | `p_plush_card` | PLUSH_CARD | A | — | PRO |
+| 35 | 素描线卡 | `p_sketch_card` | SKETCH_CARD | A | — | PRO |
+| 36 | 绿藤缠绕 | `p_vine_card` | VINE_CARD | A | — | PRO |
+| 37 | 信纸 | `p_ruled_paper` | RECTANGLE | B | `ruled_paper` | PRO |
+| 38 | 纹理山水 | `p_texture_landscape` | RECTANGLE | B | `texture_landscape` | PRO |
 
 ### 4.1 界面上怎么分组展示
 
@@ -188,13 +200,13 @@
 
 | 列表 | 界面标题 | 内容（当前） |
 | --- | --- | --- |
-| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、巨剑、小霸王游戏机、春天与小狗（11 条） |
+| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、巨剑、小霸王游戏机、春天与小狗、毛绒边框、素描线卡、绿藤缠绕、纹理山水（15 条） |
 | `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、可爱猫咪、毛绒小狗、快乐小狗、毛绒猫咪、萌宠猫咪趴、可爱四小只、毛绒森林（8 条） |
 | `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 蓝色画报、书香书架（2 条） |
-| `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花（5 条） |
+| `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、信纸（6 条） |
 | `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 8 张插图的 `资源名 → 展示名` 映射 |
 
-> 五份清单合计覆盖**全部 34 条**预设。
+> 五份清单合计覆盖**全部 39 条**预设。
 >
 > 2026-10-06 删掉了 3 条「没登记进任何分类行、界面上点不到」的预设：白底黑字（p_white_black）、
 > 深夜模式（p_dark_night）、磨砂玻璃（p_frosted_glass）。这三条**已不在代码里**，所以在本段按普通文字书写、
@@ -215,10 +227,10 @@
 
 ## 5. 形状清单（`WidgetShape`）
 
-22 个取值，其中 **`ELLIPSE` 是历史遗留，没有任何预设使用**。
-「内缩 / 强制直角 / 整幅透明底 / 素材自己摆放」四列直接对应 `ShapeTraits.kt` 的四张名单。
+25 个取值，其中 **`ELLIPSE` 是历史遗留，没有任何预设使用**。
+「可内缩 / 强制直角 / 整幅透明底 / 素材自己摆放」四列直接对应 `ShapeTraits.kt` 的四张名单。
 
-| 形状 | 外轮廓怎么来的 | 内缩 4dp | 备注 |
+| 形状 | 外轮廓怎么来的 | 可内缩 | 备注 |
 | --- | --- | --- | --- |
 | `RECTANGLE` | 圆角矩形 | ✅ |  |
 | `ELLIPSE` | 椭圆 | ❌ |  |
@@ -242,8 +254,15 @@
 | `SUMMER_SEA` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 整幅透明底，背景色只作用于文本框/文字栏；素材由家族自己摆放 |
 | `SUMMER_LOTUS` | 圆角矩形（卡纸 + 相框 + 角落点缀） | ❌ | 整幅透明底，背景色只作用于文本框/文字栏；素材由家族自己摆放 |
 | `SPRING_DOG` | 圆角矩形（**强制 0 圆角**） | ❌ | 绿框与圆角都在素材里 |
+| `PLUSH_CARD` | 圆角矩形（毛绒边：沿轮廓现画的绒面基带 + 四层绒毛） | ✅ | 材质即风格，边由 `BorderMaterialRenderer` 现画；圆角仍可调 |
+| `SKETCH_CARD` | 圆角矩形（素描边：三道错开的手绘线） | ✅ | 材质即风格，边由 `BorderMaterialRenderer` 现画；圆角仍可调 |
+| `VINE_CARD` | 圆角矩形（绿藤边：沿轮廓蜿蜒的藤条 + 叶片） | ✅ | 材质即风格，边由 `BorderMaterialRenderer` 现画；圆角仍可调 |
 
-**「内缩 4dp」（`CARD_INSET_DP`）**：只对 `ShapeTraits.kt` 里 `INSET_CARD_SHAPES` 名单的形状生效——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX`，让卡片四周留一点透明边（天气盒子开了投影，不内缩的话阴影会被位图边界裁掉，盒体看起来是"贴平"的）。其余形状有各自按整幅位图绘制的装饰，保持满幅以免错位。
+**「可内缩」（`CARD_INSET_DP = 4dp`）**：名单在 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX` / `PLUSH_CARD` / `SKETCH_CARD` / `VINE_CARD`。
+>
+> ⚠️ 这一列说的是「内容按 `rectF`/`outerRect` 布局，内缩**不会溢出**」，即**能不能**内缩；**要不要**内缩由 `RenderScene.cardInset` 另判：**轮廓外沿真有东西要放才内缩**——① 样式开了投影（`showCardShadow`，阴影画在位图内部，满幅会被位图边界硬切、卡片看起来"贴平"），或 ② 形状有外侧装饰（`ShapeTraits.decoratesOutsideContour`，材质边框的绒毛/藤叶要往轮廓外长）。
+>
+> 两件事原先混在一份名单里，结果 15 款**没有投影**的风格（8 张明信片插图、6 款萌宠、天空之蓝）也白留了 4dp 透明边——那圈边除了透出壁纸，还给 launcher 重新挂载组件时垫的白色占位底留了个出风口。其余形状有各自按整幅位图绘制的装饰，保持满幅以免错位。
 
 **未列入「跟随用户圆角」名单的形状**，外框圆角统一用 `DEFAULT_OUTER_CORNER_RADIUS_DP = 16dp`（即 `TORN_PAPER` / `FEATHER_LETTER` / `ELLIPSE`）。
 
@@ -256,7 +275,7 @@
 
 | 形状 | 上边 | 下边 / 可用高 | 左 | 右 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| RECTANGLE / HANDBOOK_TAPE / TORN_PAPER | 卡片内缩 | 卡片内缩 | 16dp | 16dp | 默认分支（`ELLIPSE` 同此分支） |
+| RECTANGLE / HANDBOOK_TAPE / TORN_PAPER / PLUSH_CARD / SKETCH_CARD / VINE_CARD | 卡片内缩 | 卡片内缩 | 16dp | 16dp | 默认分支（`ELLIPSE` 同此分支）。材质三款的边只占轮廓外沿几个 dp，16dp 内边距本就压不到它 |
 | SPLIT_CARD | 48% + 12dp | 12dp | 16dp | 16dp | 落下半 |
 | SPLIT_CARD_HORIZONTAL | 12dp | 12dp | 33.3% + 12dp | 12dp | 落右半 |
 | FEATHER_LETTER | 16% | 14% | 10% | 20% | 右侧多留避羽毛笔 |
@@ -331,8 +350,8 @@
               └─ 实景照片 → CENTER_CROP；透明抠图 → CENTER_FIT
 ```
 
-特殊到套不进 A/B/C 的（整幅透明底、多元素分层、有独立文本框）→ 在
-`WidgetRenderPipeline.drawFamilyChrome` 里新增一个家族分支。
+特殊到套不进 A/B/C 的（整幅透明底、多元素分层、有独立文本框、沿轮廓现画的材质边）→ 在
+`WidgetRenderPipeline.drawFamilyChrome` 里新增一个家族分支；若这类形状还要共享一张「形状 → 参数」表，照 `FramedCardRenderer.specFor` 与 `BorderMaterialRenderer.specFor` 的写法办。
 
 ### 8.2 改动点（4 个文件）
 
@@ -366,7 +385,7 @@ WidgetStyle(
 ```kotlin
 // a. WidgetShape.family()：穷举 when，给新形状认领一个家族
 //    （不写 else，编译器会强制你为每个新形状选家族）
-// b. ShapeTraits 的名单：INSET_CARD_SHAPES（内容内缩 4dp）/
+// b. ShapeTraits 的名单：INSET_CAPABLE_SHAPES（内容可内缩 4dp；要不要内缩看投影/外侧装饰）/
 //    SQUARE_CORNER_SHAPES（整幅插画强制直角）/ TRANSPARENT_CARD_SHAPES（整幅透明底）/
 //    OWN_BACKGROUND_SHAPES（素材由家族自己摆，不走整卡铺图）
 // c. CardTextRenderer.textBoxFor()：加一个文字安全区分支   ← 见 §6
@@ -424,6 +443,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | 明信片底色叠两遍、不透明度失真 | 图区和文字区各铺了一次底色 | 图区只铺图，文字区单独画（共用 `splitImageRect()`） |
 | 新增/删除预设后免费风格错乱 | 按下标取用 `PRESETS` | 一律追加到末尾 + 按 `presetId`/`shape`/资源名定位 |
 | 半透明卡面被画成白卡 | 管线为投影先补一层**不透明**底色，玻璃被垫实 | 卡面交家族自己画（归入 `TRANSPARENT_CARD_SHAPES`，当前无成员），投影只画卡外（裁掉卡内） |
+| 卡片四周多出一圈透壁纸的透明带，launcher 重挂载组件时还会在那圈里闪白 | 内缩原先按**形状**一刀切，没有投影的样式也留了 4dp——那圈边除了透出壁纸别无用处，正好给 launcher 的白色占位底当出风口 | 内缩条件改绑「轮廓外沿有东西要放」：`traits.insetCapable && (style.showCardShadow || traits.decoratesOutsideContour)`（`RenderScene.cardInset`） |
+| 卡片外多出一圈白框（深色壁纸上尤其明显） | 描边是 STROKE，**居中**画在路径上：一半落在卡片外那圈透明内缩上、压在壁纸里。设计稿里的边框（如纹理山水那圈白）本来在图片内部，这条边是凭空多出来的 | 描边前 `clipPath(scene.path)`，整条描边落在卡面内（`WidgetRenderPipeline.drawBorderInsideCard`） |
+| 描边比设定值细一半（如 `cardBorderWidthDp = 1` 只画出 0.5dp） | 上一条的代价：裁掉外侧后只剩一半线宽可见，而字段名说的是"描边宽度" | 卡片描边处标称线宽按 `cardBorderWidthDp * 2` 给，让字段等于**可见宽度**；撕纸那条白边是内部固定宽度，按原样给 |
+| 组件画面被拉扁/拉长，描边沿拉伸方向变粗 | 位图按 `OPTION_APPWIDGET_MIN/MAX_WIDTH/HEIGHT` 渲染，ImageView 是 `fitXY` 会把它拉满组件视图——两者比例不一致时就是非等比拉伸。实测（PJF110 / ColorOS）：launcher 自报的 `OPTION_APPWIDGET_SIZES` 与 MIN/MAX 都是 304×158dp，却按 ~370×192dp 布局，**它自己的两个数就对不上**，App 侧无从校正 | 当前无解，只能靠 `RENDER_DENSITY_SCALE = 1.5` 的过采样吸收**均匀**缩放（实测两轴 0.2% 差，肉眼无碍）。比例真出问题时看 `JuGeWidget` 那条日志（渲染尺寸 / 比例 / launcher 声明的候选尺寸） |
 | 切形状时页面自动上滑 | 控件被移除导致列表高度突变 | 控件常驻渲染，只置灰 |
 
 ---

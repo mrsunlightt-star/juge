@@ -64,6 +64,12 @@ enum class WidgetShape(val displayName: String) {
     SUMMER_LOTUS("夏日荷花"),
     // 春天与小狗：绿框白卡 + 上沿草丛花枝 + 右上角探头柯基（整幅抠图素材）
     SPRING_DOG("春天与小狗"),
+    // 材质边框族：卡片本身就是那种材质——边不是一条描边，而是沿轮廓现画的材质
+    // （见 BorderMaterialRenderer）。一个材质一款形状，不做成能贴到任意风格上的通用开关：
+    // 材质若人人可加，风格就失去了辨识度，也就没有了「选风格」这件事。
+    PLUSH_CARD("毛绒边框"),
+    SKETCH_CARD("素描线卡"),
+    VINE_CARD("绿藤缠绕"),
 }
 
 // 图片缩放模式
@@ -343,8 +349,10 @@ data class WidgetStyle(
                 font = WidgetFont.LXGW_WENKAI,
                 fontBold = true,
                 showCardShadow = true,
-                cardBorderWidthDp = 1.5f,
-                cardBorderColor = Color.parseColor("#DCD0BA"),
+                // 原先有一条 1.5dp 的米色描边（#DCD0BA）。描边改为「只画在卡面内」之后，
+                // 它从"半条压在卡上、半条压在壁纸上"变成整条实心落在卡面上，可见宽度翻倍，
+                // 在桌面上显成卡片外一圈浅色带。这层厚度感本来也不是必需的，直接去掉，卡片更干净。
+                cardBorderWidthDp = 0f,
                 authorSignature = "—— 手账心情"
             ), // 5. 复古手账风格 (PRO)
             WidgetStyle(
@@ -820,6 +828,95 @@ data class WidgetStyle(
                 presetImageResName = "spring_dog",
                 authorSignature = "—— 春天与小狗"
             ), // 54. 春天与小狗 (PRO)
+            // 材质边框族（毛绒 / 素描 / 绿藤）：三款的差别**只**是边上的材质，
+            // 卡面、字色、字体各不相同，让它们看起来是三种不同的卡片而不是同一张卡换了道边。
+            // 边由 BorderMaterialRenderer 沿轮廓现画，因此圆角仍可调、组件拖多大都不糊。
+            WidgetStyle(
+                presetId = "p_plush_card",
+                shape = WidgetShape.PLUSH_CARD,
+                cornerRadiusDp = 18f,
+                backgroundColor = Color.parseColor("#FFFBF3"), // 暖白卡面，与奶油绒边同调
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#6B4A34"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                authorSignature = "—— 毛绒边框"
+            ), // 55. 毛绒边框 (PRO)
+            WidgetStyle(
+                presetId = "p_sketch_card",
+                shape = WidgetShape.SKETCH_CARD,
+                cornerRadiusDp = 14f,
+                backgroundColor = Color.parseColor("#FDFCF8"), // 素描纸白
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3A3D42"), // 石墨灰，与边线同色系
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                authorSignature = "—— 素描线卡"
+            ), // 56. 素描线卡 (PRO)
+            WidgetStyle(
+                presetId = "p_vine_card",
+                shape = WidgetShape.VINE_CARD,
+                cornerRadiusDp = 16f,
+                backgroundColor = Color.parseColor("#FBFAF2"), // 米白卡面，衬绿叶
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3F5A32"), // 藤绿题字
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                authorSignature = "—— 绿藤缠绕"
+            ), // 57. 绿藤缠绕 (PRO)
+            // 信纸 (PRO)：一张横线信纸。纸色由「背景颜色」给（默认白），横线是矢量素材，
+            // 栅格化按组件尺寸现算，因此 4×2 / 4×4 / 用户拖大都不糊。
+            // 铺图刻意用 CENTER_CROP 而不是 STRETCH：4×2 下是等比放大后裁中间一段，
+            // 横线维持 19/250 的原间距、只是少露几条；STRETCH 会把 11 条压成 4 条，密得不像信纸。
+            WidgetStyle(
+                presetId = "p_ruled_paper",
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 8f,
+                backgroundColor = Color.parseColor("#FFFFFF"),
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3B3F46"), // 中性深灰：与横线的灰同调，不抢字
+                textAlign = "CENTER",
+                showCardShadow = true,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "ruled_paper",
+                authorSignature = "—— 信纸"
+            ), // 58. 信纸 (PRO)
+            // 纹理山水 (PRO)：整卡贴图。素材是设计稿里那张横线水彩山水，
+            // 已经按设计稿的拉伸方式**预烘**成 222:90 的比例（设计稿把源图的一段横向切片
+            // 非等比拉宽铺进图片区，直接裁原图会丢掉上半的雾带与下半的重山，构图对不上）。
+            // 白框不烘进素材、改用卡片描边：这样圆角滑条一动，框跟着走圆角而不是被切成直角。
+            // ⚠️ 这是 4×2 原生的风格：源图那一段只有 1152×679 真实像素，4×4 下方形裁切要放大 2.3x，会软。
+            WidgetStyle(
+                presetId = "p_texture_landscape",
+                shape = WidgetShape.RECTANGLE,
+                cornerRadiusDp = 10f,
+                backgroundColor = Color.parseColor("#DDDECD"), // 素材平均色：调低不透明度时褪成同色
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.CENTER_CROP,
+                font = WidgetFont.SOURCE_HAN_SERIF,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3C4A3E"), // 深松绿：压雾带与远山都读得出
+                textAlign = "CENTER",
+                showCardShadow = true,
+                // 设计稿的白框是 225 画布上的 1.5 单位 = 图片宽的 0.676%；
+                // 换算到 4×2 的卡面（内缩后 296dp 宽）≈ 2.0dp 可见宽度。
+                // cardBorderWidthDp 现在就是「可见宽度」，所以填 2.0 即等于设计稿。
+                cardBorderWidthDp = 2.0f,
+                cardBorderColor = Color.parseColor("#FFFFFF"),
+                presetImageResName = "texture_landscape",
+                authorSignature = "—— 纹理山水"
+            ), // 59. 纹理山水 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -928,6 +1025,10 @@ data class WidgetStyle(
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
             "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
             "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
+            "毛绒边框" to (PRESETS.firstOrNull { it.presetId == "p_plush_card" } ?: PRESETS[0]),
+            "素描线卡" to (PRESETS.firstOrNull { it.presetId == "p_sketch_card" } ?: PRESETS[0]),
+            "绿藤缠绕" to (PRESETS.firstOrNull { it.presetId == "p_vine_card" } ?: PRESETS[0]),
+            "纹理山水" to (PRESETS.firstOrNull { it.presetId == "p_texture_landscape" } ?: PRESETS[0]),
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
@@ -956,7 +1057,8 @@ data class WidgetStyle(
             "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0]),
             "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0]),
             "夏天的海" to (PRESETS.firstOrNull { it.presetId == "p_summer_sea" } ?: PRESETS[0]),
-            "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0])
+            "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0]),
+            "信纸" to (PRESETS.firstOrNull { it.presetId == "p_ruled_paper" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画

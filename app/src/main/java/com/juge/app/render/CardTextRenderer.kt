@@ -196,9 +196,13 @@ internal object CardTextRenderer {
                 TextBox(paddingLeft, textWidth, cardTop, (layout.textRect.bottom - layout.textRect.top).coerceAtLeast(1f))
             }
             // 内容完全按 rectF / outerRect 布局的形状：通用内边距即可
+            // （材质边框族同此：边材质只占轮廓外沿几个 dp，16dp 内边距本就压不到它）
             WidgetShape.RECTANGLE,
             WidgetShape.HANDBOOK_TAPE,
             WidgetShape.TORN_PAPER,
+            WidgetShape.PLUSH_CARD,
+            WidgetShape.SKETCH_CARD,
+            WidgetShape.VINE_CARD,
             WidgetShape.ELLIPSE -> {
 
             val paddingLeft = 16f * densityScale
