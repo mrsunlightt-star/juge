@@ -117,7 +117,7 @@ App 端拿到 `order_str` 后交给 `PayTask.payV2(orderStr, true)` 拉起支付
 
 ## 上线前 Checklist
 
-支付宝侧（详见 `.scratch/alipay-app-pay/issues/01-pre-launch-checklist.md`）：
+支付宝侧（逐步清单原先记在本地工单 `.scratch/alipay-app-pay/issues/01-pre-launch-checklist.md`——**该目录不入库**，仓库里看不到；下表的 4 条是它的现役摘要）：
 
 1. 配置服务器 IP 白名单（选**全量接口**，IP `1.15.174.33`）——服务端部署到服务器后再配
 2. 开放平台「应用网关」填 `https://puretxt.cn/api/alipay/notify`（与请求里的 `notify_url` 同值）

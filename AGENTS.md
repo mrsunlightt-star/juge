@@ -31,3 +31,6 @@ Five canonical roles, label == name: needs-triage, needs-info, ready-for-agent, 
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+（2026-10-07 注：`CONTEXT.md` 与 `docs/adr/` **目前都还没创建**——按 `docs/agents/domain.md` 的约定，它们由
+`/domain-modeling` 在术语或决策真正定下来时惰性生成，缺失属正常状态，不要以为是漏了文件。）
