@@ -341,7 +341,7 @@ data class WidgetStyle(
                     lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat().coerceIn(0.5f, 3.0f),
                     letterSpacing = json.optDouble("letterSpacing", 0.0).toFloat().coerceIn(0f, 20f)
                 )
-                parsed.upgradedForFreeStyle()
+                parsed.upgradedForFreeStyle().caughtUpWithPreset()
             } catch (e: Exception) {
                 WidgetStyle()
             }
@@ -375,6 +375,70 @@ data class WidgetStyle(
             if (presetId == null) return WidgetDisplaySize.WIDE_4X2
             return PRESETS.firstOrNull { it.presetId == presetId }?.bestDisplaySize
                 ?: WidgetDisplaySize.WIDE_4X2
+        }
+
+        /**
+         * 预设改版记录：一款预设被重新设计后，**上一版**的形状与铺图方式。
+         *
+         * 只用来识别旧存档——当前预设定义里已经不再有这些取值，命中即说明这份存档
+         * 来自改版之前。新增一条 = 某款预设改到了「形状 / 铺图方式」这一层，
+         * 需要已落桌面的旧组件跟着走（见 [caughtUpWithPreset]）。
+         */
+        private data class PresetLegacyLook(
+            val presetId: String,
+            /** 上一版的形状；只作为识别特征，不再被任何预设使用 */
+            val shape: WidgetShape,
+            /** 上一版的铺图方式；null 表示这次改版没动它，不参与迁移 */
+            val bgImageScaleMode: ImageScaleMode? = null
+        )
+
+        private val PRESET_LEGACY_LOOKS = listOf(
+            // 可爱四小只 2026-10-07 改版：四个头像从「左侧 2×2 网格」的左右分割卡
+            // （SPLIT_CARD_HORIZONTAL + 等比完整显示）改成「左下角横排一排」
+            // （CUTE_FOUR_KIDS + 拉伸铺满整卡）。presetId 不变，老组件靠这条迁移跟上。
+            PresetLegacyLook(
+                presetId = "p_cute_four_kids",
+                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                bgImageScaleMode = ImageScaleMode.CENTER_FIT
+            ),
+        )
+
+        /**
+         * 预设改版迁移（读档时调用）：把已保存 / 已落桌面的旧样式副本追上当前预设定义。
+         *
+         * 为什么需要它：`safeEnum` 只兜「字段值已经不合法」（如形状被下架），兜不住
+         * 「字段合法但过时」。预设改版后，桌面上的老组件会拿着旧形状去渲染**新素材**——
+         * 可爱四小只就是这么坏掉的：存档里还是左右分割卡，素材却已换成头像条。
+         *
+         * 三个字段的迁移边界不同，差别就在于**用户能不能自己调**：
+         * - **形状**不是用户可调项（界面上没有形状选择器，形状只随预设来），
+         *   存档里只要还是上一版的形状，就一定是过时的，直接换成当前预设的形状；
+         * - **铺图方式**用户可调（个性定制的「铺图模式」），只在存档值**恰好等于上一版预设值**时
+         *   才迁移——用户自己选过的值（不等于旧值）一律保留，哪怕它与新版预设不同；
+         * - **方版素材字段**（presetImageResNameSquare）用户不可调、又是后加的字段，
+         *   旧存档没有它就会在 4×4 上继续用横版素材（纵向拉 76%），从当前预设补齐即可。
+         *
+         * 与 [upgradedForFreeStyle] 同一处调用：都不必重新套用预设。
+         * 找不到 presetId 对应的预设（已下架、或用户的自定义样式）时整体跳过。
+         */
+        private fun WidgetStyle.caughtUpWithPreset(): WidgetStyle {
+            val id = presetId ?: return this
+            val current = PRESETS.firstOrNull { it.presetId == id } ?: return this
+            var out = this
+            PRESET_LEGACY_LOOKS.firstOrNull { it.presetId == id }?.let { legacy ->
+                if (out.shape == legacy.shape) out = out.copy(shape = current.shape)
+                val legacyMode = legacy.bgImageScaleMode
+                if (legacyMode != null &&
+                    out.bgImageScaleMode == legacyMode &&
+                    current.bgImageScaleMode != legacyMode
+                ) {
+                    out = out.copy(bgImageScaleMode = current.bgImageScaleMode)
+                }
+            }
+            if (out.presetImageResNameSquare == null) {
+                out = out.copy(presetImageResNameSquare = current.presetImageResNameSquare)
+            }
+            return out
         }
 
         // 内置风格预设
@@ -630,7 +694,9 @@ data class WidgetStyle(
                 presetId = "p_cute_four_kids",
                 bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 4×2 专属：设计稿就是 1824×912（2:1），不出 4×4 版
                 // 2026-10-07 改版：四个头像从「左侧 2×2 网格」改成「左下角横排一排」（设计稿 1824×912）。
-                // 刻意保留 presetId 不变——已用这款的组件、以及按身份判定的会员状态都不受影响。
+                // 刻意保留 presetId 不变——按身份判定的会员状态不受影响；
+                // 已用这款的旧组件（存档里还是左右分割卡）由读档迁移跟着换成新造型，
+                // 旧值记在 PRESET_LEGACY_LOOKS，改这一版的形状/铺图方式时同步更新那条。
                 //
                 // ⚠️ 这是一款**4×2 专属**风格，按产品决定**不出 4×4 版**（设计之初就是 2:1 画布）。
                 // 它在 4×4 组件上会被纵向拉 94%，这是已知且被接受的，**不要**给它补方版素材、

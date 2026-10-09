@@ -115,7 +115,7 @@
 | 信纸 | `RECTANGLE` | `ruled_paper`（**矢量 XML**） | 横线信纸。纸色由「背景颜色」给（默认白），只有横线在素材里；铺图用 `CENTER_CROP`——4×2 下等比裁中间一段，横线维持 18.3dp 原间距（`STRETCH` 会把 11 条压成 4 条）。矢量素材，栅格化按组件尺寸现算，拖多大都不糊 |
 | 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
 | 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充） |
-| 可爱四小只 **（4×2 专属）** | `CUTE_FOUR_KIDS` | `cute_four_kids` | 2026-10-07 改版：四个头像横排在左下角，素材是透明底的「头像条」，压在背景色铺出的卡面上。设计稿就是 1824×912（2:1），**按产品决定不出 4×4 版**，4×4 上的拉伸是已知且接受的 |
+| 可爱四小只 **（4×2 专属）** | `CUTE_FOUR_KIDS` | `cute_four_kids` | 2026-10-07 改版：四个头像横排在左下角，素材是透明底的「头像条」，压在背景色铺出的卡面上。设计稿就是 1824×912（2:1），**按产品决定不出 4×4 版**，4×4 上的拉伸是已知且接受的。旧存档（左右分割卡 + 等比完整显示）读档时按 `PRESET_LEGACY_LOOKS` 自动迁移到本形状与拉伸铺满，不必重新套用预设 |
 | 青年雕塑 **（4×4 专属）** | `YOUTH_SCULPTURE` | `youth_sculpture` | 整卡贴图：浅灰卡面 + 上半身雕塑像（带白描边的抠图），下半白色面板放正文，面板中央有设计稿自带的 10% 星形纹样。设计稿只出 2048×2048 方版，**按产品决定不出 4×2 版**，4×2 上的横向拉伸是已知且接受的。卡面就是素材底色、四角同色，圆角交给管线裁，因此**不强制直角**、圆角滑条可用（12dp 起） |
 
 > 例外：`WEATHER_BOX`（盒面）与 `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS`（卡纸）
@@ -498,6 +498,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | 桌面组件外有深色卡片框 | widget 根布局用了系统 id `@android:id/background` | 换普通 id；改完布局要**删除并重新添加**组件 |
 | 圆角裁剪切掉主体 | 整幅插画形状继承了上一个风格的圆角值 | 加进 `render/ShapeTraits.kt` 的 `SQUARE_CORNER_SHAPES` |
 | 删掉的风格在旧组件上崩掉 | 存档里 shape 名已不存在 | `fromJsonString` 的 `safeEnum` 降级为 `RECTANGLE`（字段全保留），老组件变普通圆角卡 |
+| 预设改版后，桌面上的老组件还是旧造型（形状 / 铺图方式 / 素材都停在上一版） | 存档里是套用当时那份样式副本：字段**合法、只是过时**，`safeEnum` 只兜「值已非法」，兜不住这一类 | 读档时按 `presetId` 迁移（`WidgetStyle.caughtUpWithPreset`）：形状用户不可调、是旧值就换成当前预设的；铺图方式用户可调，仅当存档值仍等于上一版预设值才迁移；方版素材字段缺失时补齐。某款预设改到「形状 / 铺图方式」这一层时，往 `PRESET_LEGACY_LOOKS` 追加一条旧值 |
 | 背景色在主体外围露一圈 | 透明抠图形状被设了背景色 | 加进 `SHAPES_WITHOUT_BACKGROUND_COLOR` |
 | 宽横幅两侧露白边 | 素材自带近白相框 | `CENTER_CROP` 会自动 `detectLightBorder()` 裁掉（阈值 228，相框 >30% 时回退原图） |
 | 明信片底色叠两遍、不透明度失真 | 图区和文字区各铺了一次底色 | 图区只铺图，文字区单独画（共用 `splitImageRect()`） |

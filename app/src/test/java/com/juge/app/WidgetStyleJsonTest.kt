@@ -103,6 +103,77 @@ class WidgetStyleJsonTest {
     }
 
     @Test
+    fun `改版前的可爱四小只存档迁移到当前形状与铺图方式`() {
+        // 构造一份「上一版」的存档：形状与铺图方式都是改版前的取值，其余字段与现预设一致。
+        // 这就是桌面上老组件的实际数据——形状合法、只是过时，safeEnum 兜不住
+        val current = WidgetStyle.PRESETS.first { it.presetId == "p_cute_four_kids" }
+        val legacyJson = org.json.JSONObject(current.toJsonString()).apply {
+            put("shape", WidgetShape.SPLIT_CARD_HORIZONTAL.name)
+            put("bgImageScaleMode", com.juge.app.data.ImageScaleMode.CENTER_FIT.name)
+        }.toString()
+
+        val parsed = WidgetStyle.fromJsonString(legacyJson)
+        assertEquals(WidgetShape.CUTE_FOUR_KIDS, parsed.shape)
+        assertEquals(com.juge.app.data.ImageScaleMode.STRETCH, parsed.bgImageScaleMode)
+        // 用户没微调过的旧存档，读出来应与当前预设**完全一致**（渲染输入自然也对齐）
+        assertEquals(current, parsed)
+        // 迁移必须幂等：用户微调后样式会被写回存档，再读出来不该继续变
+        assertEquals(parsed, WidgetStyle.fromJsonString(parsed.toJsonString()))
+    }
+
+    @Test
+    fun `用户自己选过铺图方式的存档只迁移形状`() {
+        val current = WidgetStyle.PRESETS.first { it.presetId == "p_cute_four_kids" }
+        val customizedJson = org.json.JSONObject(current.toJsonString()).apply {
+            put("shape", WidgetShape.SPLIT_CARD_HORIZONTAL.name)
+            put("bgImageScaleMode", com.juge.app.data.ImageScaleMode.TILE.name) // 用户手动选的
+        }.toString()
+
+        val parsed = WidgetStyle.fromJsonString(customizedJson)
+        // 形状不是用户可调项（界面上没有形状选择器），存档里是旧值就一定过时
+        assertEquals(WidgetShape.CUTE_FOUR_KIDS, parsed.shape)
+        // 铺图方式是用户可调项：值不等于旧版预设值，说明用户选过，必须保留
+        assertEquals(com.juge.app.data.ImageScaleMode.TILE, parsed.bgImageScaleMode)
+    }
+
+    @Test
+    fun `旧存档自动补上方版素材字段`() {
+        val plushForest = WidgetStyle.PRESETS.first { it.presetId == "p_plush_forest" }
+        val legacyJson = org.json.JSONObject(plushForest.toJsonString())
+            .apply { remove("presetImageResNameSquare") }.toString()
+
+        // 字段是后加的，旧存档没有它——不补齐的话 4×4 上会继续拿横版素材纵向拉 76%
+        assertEquals("plush_forest_square", WidgetStyle.fromJsonString(legacyJson).presetImageResNameSquare)
+        // 没有 presetId 的样式没有补齐来源，保持原样
+        assertNull(WidgetStyle.fromJsonString("""{"shape":"RECTANGLE"}""").presetImageResNameSquare)
+    }
+
+    @Test
+    fun `自定义样式与已下架的预设不参与迁移`() {
+        val custom = WidgetStyle.fromJsonString("""{"shape":"TORN_PAPER","bgImageScaleMode":"TILE"}""")
+        assertEquals(WidgetShape.TORN_PAPER, custom.shape)
+        assertEquals(com.juge.app.data.ImageScaleMode.TILE, custom.bgImageScaleMode)
+
+        // 已下架的预设（材质边框族）：在现预设表里找不到，不迁移，
+        // 形状保持 safeEnum 的降级结果（字段全保留，老组件变普通圆角卡）
+        val removed = WidgetStyle.fromJsonString("""{"presetId":"p_plush_card","shape":"PLUSH_CARD"}""")
+        assertEquals(WidgetShape.RECTANGLE, removed.shape)
+    }
+
+    @Test
+    fun `迁移规则不误伤当前预设自身`() {
+        // 迁移表记的是「上一版」的取值，当前预设一条都不该命中：
+        // 形状不是用户可调项，误伤之后没有界面能把画面改回来
+        WidgetStyle.PRESETS.forEach { preset ->
+            assertEquals(
+                "预设 ${preset.presetId} 被旧存档迁移规则改动了",
+                preset,
+                WidgetStyle.fromJsonString(preset.toJsonString())
+            )
+        }
+    }
+
+    @Test
     fun `free presets are not pro`() {
         // 当前规则：「纯色圆角」与「青年雕塑」免费，其余风格一律会员专属。
         // 按 id 逐个点名而不是只数个数——免费名单变化时，失败信息要能直接指出多/少了哪一款
