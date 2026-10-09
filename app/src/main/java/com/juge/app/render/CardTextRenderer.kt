@@ -158,6 +158,52 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.545f)
             }
+            WidgetShape.PANDA_BAMBOO -> {
+                // 竹林熊猫：正文落在竹框内的奶油面板里。比例取自素材实测
+                // （素材 2080×1184：面板内沿 x 111~1974 / y 485~1021），再各留一点余量不贴竹竿；
+                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.083f
+                val paddingRight = targetWidth * 0.917f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.44f, targetHeight * 0.39f)
+            }
+            WidgetShape.CUTE_FOUR_KIDS -> {
+                // 可爱四小只：正文落在头像条**上方**的整幅留白区。
+                // 头像条占设计稿 1824×912 的 y 689~840（75.5%~92%），这里留 3.5% 间隔；
+                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.92f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.10f, targetHeight * 0.62f)
+            }
+            WidgetShape.PET_PARK -> {
+                // 萌宠乐园：正文落在毛毡框内的奶油面板里。比例取自素材实测
+                //（素材 2080×1184：面板内沿 x 77~1973 / y 404~1062），再各留一点余量不贴花边；
+                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.92f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.38f, targetHeight * 0.49f)
+            }
+            WidgetShape.CRAYON_FRAME -> {
+                // 蜡笔彩虹框：正文落在蜡笔框内的白纸面上，并避开左上爱心与右下气球。
+                // 比例取自素材实测（素材 1826×627 裁自设计稿内容框：白纸面 x 0.052~0.952 /
+                // y 0.137~0.861，爱心 x 0.089~0.133 / y 0.247~0.375，气球 x 0.890~0.917 / y 0.595~0.707），
+                // 左右各留出约 3dp 不贴装饰与蜡笔描边；素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.145f
+                val paddingRight = targetWidth * 0.875f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.175f, targetHeight * 0.67f)
+            }
+            WidgetShape.YOUTH_SCULPTURE -> {
+                // 青年雕塑：正文落在下半那张白色面板里。比例取自素材实测
+                //（素材 2048×2048：面板 x 203~1760 / y 1174~1933），再各留一点余量不贴面板边缘；
+                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.115f
+                val paddingRight = targetWidth * 0.845f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.59f, targetHeight * 0.345f)
+            }
             WidgetShape.SUBOR_CONSOLE -> {
                 // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
                 // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上
@@ -196,13 +242,9 @@ internal object CardTextRenderer {
                 TextBox(paddingLeft, textWidth, cardTop, (layout.textRect.bottom - layout.textRect.top).coerceAtLeast(1f))
             }
             // 内容完全按 rectF / outerRect 布局的形状：通用内边距即可
-            // （材质边框族同此：边材质只占轮廓外沿几个 dp，16dp 内边距本就压不到它）
             WidgetShape.RECTANGLE,
             WidgetShape.HANDBOOK_TAPE,
             WidgetShape.TORN_PAPER,
-            WidgetShape.PLUSH_CARD,
-            WidgetShape.SKETCH_CARD,
-            WidgetShape.VINE_CARD,
             WidgetShape.ELLIPSE -> {
 
             val paddingLeft = 16f * densityScale

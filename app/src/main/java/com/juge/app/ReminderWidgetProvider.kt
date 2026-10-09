@@ -176,10 +176,10 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
          * 组件**声明的默认尺寸**（dp）：主入口 4×4 → 250×250，紧凑入口 4×2 → 250×110，
          * 与 widget_info.xml / widget_info_compact.xml 里的 minWidth/minHeight 一致。
          *
-         * App 内预览按这个尺寸出图，而不是按 [getWidgetSizeDp] 的实时尺寸：
-         * 实时尺寸会随用户在桌面拉伸组件、切换机型（同一网格在不同机器上 dp 不同）
-         * 而变化，同一个组件的预览就会在「圆角矩形」与「方形」之间来回跳。
-         * 声明尺寸只由组件是从哪个入口添加的决定，添加后不再变化。
+         * ⚠️ **App 内预览已不再用它**（2026-10-08 起预览按风格自己的最佳显示尺寸出图，
+         * 见 `WidgetStyle.bestDisplaySize`）：同一个风格从哪个入口添加、在桌面上拉成多大，
+         * 预览都不再跟着变。这里保留两个入口的声明尺寸映射，目前只有回归测试
+         * （WidgetDeclaredSizeTest）在调用，留作后续「按入口提示尺寸」类功能的落点。
          */
         fun getWidgetDeclaredSizeDp(context: Context, appWidgetId: Int): Pair<Int, Int> {
             if (appWidgetId == -1) return DECLARED_COMPACT_SIZE_DP

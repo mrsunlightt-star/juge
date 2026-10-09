@@ -2,5 +2,6 @@
 # 拆 Activity 前后，截图像素与可见语义都应完全一致；删除本文件后重跑可重新生成（须人工确认）。
 # 字段: 场景 \t WxH \t 可见语义节点数 \t sha256[:16](截图) \t sha256[:16](语义摘要)
 main-library	1233x2673	25	ad305d3d9d34921d	b23a64dc71dbd095
-main-adjust	1233x2673	19	791e547ec606251e	7059b07e44c6bb8c
+main-adjust	1233x2673	19	0dc78f5c6236ddfa	be8e0e6a8b618eaf
+main-adjust-postcard	1233x2673	33	9f42f81d8914410f	52a85c57e16d2178
 main-adjust-tutorial	1233x2673	15	41368eee34af8e13	27cbb6f868f3c3bf

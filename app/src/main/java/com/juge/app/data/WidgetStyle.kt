@@ -64,12 +64,40 @@ enum class WidgetShape(val displayName: String) {
     SUMMER_LOTUS("夏日荷花"),
     // 春天与小狗：绿框白卡 + 上沿草丛花枝 + 右上角探头柯基（整幅抠图素材）
     SPRING_DOG("春天与小狗"),
-    // 材质边框族：卡片本身就是那种材质——边不是一条描边，而是沿轮廓现画的材质
-    // （见 BorderMaterialRenderer）。一个材质一款形状，不做成能贴到任意风格上的通用开关：
-    // 材质若人人可加，风格就失去了辨识度，也就没有了「选风格」这件事。
-    PLUSH_CARD("毛绒边框"),
-    SKETCH_CARD("素描线卡"),
-    VINE_CARD("绿藤缠绕"),
+    // 竹林熊猫：整幅贴纸风插画——竹框 + 框顶五只探头熊猫 + 四角竹叶，框内奶油面板放正文。
+    // 素材原稿四周的白灰棋盘格是"假透明"（PNG 被压成 RGB），已按低饱和+高亮+边界连通抠掉。
+    PANDA_BAMBOO("竹林熊猫"),
+    // 萌宠乐园：整幅毛毡风插画——粉色花边毛毡框 + 框顶六只毛毡小动物（猫狗兔鼠狐熊猫），
+    // 框内奶油毛毡面板放正文。素材原稿是纯白底（同样被压成无 alpha 的 RGB），已抠掉。
+    PET_PARK("萌宠乐园"),
+    // 可爱四小只（2026-10-07 改版）：四个圆形头像**横排**在卡片左下角（原来是左侧 2×2 网格），
+    // 正文落在头像上方整幅留白区。头像方块几何取自设计稿 1824×912：
+    // 每块 170×151、1px #C9C9C9 描边、圆角 3，横排于 x 49/239/429/619、y 689。
+    CUTE_FOUR_KIDS("可爱四小只"),
+    // 青年雕塑：整幅贴图——浅灰卡面 + 上半身青年雕塑像（带白描边的抠图），下半一张白色面板放正文，
+    // 面板中央有一枚 10% 不透明度的星形纹样（设计稿自带，刻意保留）。素材 2048×2048。
+    // ⚠️ 这是一款 **4×4 专属**风格：设计稿只有方版，按产品决定**不出 4×2 版**（"没有这个东西"）。
+    // 它在 4×2 组件上会被横向拉宽约 97%，这是已知且被接受的，**不要**给它补横版素材。
+    YOUTH_SCULPTURE("青年雕塑"),
+    // 蜡笔彩虹框：整幅手绘素材——蓝/绿/粉三色蜡笔波浪描边 + 框内近白纸面，
+    // 左上角一颗红蜡笔爱心、右下角一只黄蜡笔气球。素材原稿 2048×1152 是 16:9 画布、
+    // 框只占中间一条（四周透明留白 7%~27%），入库前已按内容框裁到 1826×627。
+    CRAYON_FRAME("蜡笔彩虹框"),
+}
+
+/**
+ * 组件的**最佳显示尺寸**：App 内预览按它出图，不跟桌面组件的尺寸走。
+ *
+ * 一款风格只对应一个尺寸——素材/设计稿的原生画布（见 docs/component-style-guide.md §0.1）。
+ * 预览位图与预览区高度都由它推导（ui/main/WidgetPreviewPager、ui/PreviewMetrics）。
+ * 两个取值与 widget_info.xml / widget_info_compact.xml 声明的入口尺寸一致。
+ */
+enum class WidgetDisplaySize(val widthDp: Int, val heightDp: Int) {
+    /** 4×2：250×110dp（与紧凑入口 widget_info_compact.xml 的 minWidth/minHeight 一致） */
+    WIDE_4X2(250, 110),
+
+    /** 4×4：250×250dp（与主入口 widget_info.xml 的 minWidth/minHeight 一致） */
+    SQUARE_4X4(250, 250);
 }
 
 // 图片缩放模式
@@ -137,11 +165,32 @@ data class WidgetStyle(
     val textureType: String = "NONE",
     val authorSignature: String? = null,
     val presetImageResName: String? = null,
+    // 方版（4×4）专用素材。组件比例接近方形时优先用它，否则用 presetImageResName（横版）。
+    //
+    // **一款风格只出一份素材的代价是免不了的变形**：4×2 卡面 1.97:1、4×4 卡面 1:1，
+    // 拿一张 1.75:1 的素材两边用，4×4 上要纵向拉 76%——熊猫会被拉成瘦高条。
+    // 所以整幅贴图类风格要同时上两个尺寸，就得各出一份，方版放这里。
+    //
+    // ⚠️ 方版素材的**正文安全区必须落在与横版相同的相对位置**（见对应形状在
+    // CardTextRenderer.textBoxFor 里的比例），这样切换两张素材时文字不用重排、也不用改代码。
+    val presetImageResNameSquare: String? = null,
     val lineSpacingMultiplier: Float = 1.0f,
     val letterSpacing: Float = 0f,
     // 预设身份标识：套用内置预设时携带，copy() 微调后依然保留，
     // 用于精确判定样式是否源自 PRO 预设（字段匹配可被微调绕过）
-    val presetId: String? = null
+    val presetId: String? = null,
+    /**
+     * 组件的**最佳显示尺寸**：App 内预览按它出图，与桌面组件的入口/实时尺寸无关。
+     *
+     * 一款风格只对应一个尺寸——素材/设计稿的原生画布（见 docs/component-style-guide.md §0.1）：
+     * 整幅方版素材（2048×2048）的风格取 [WidgetDisplaySize.SQUARE_4X4]，横版素材（≈2:1）的取
+     * [WidgetDisplaySize.WIDE_4X2]；无素材的全代码风格跟随 App 默认落位 4×2。
+     *
+     * **不落 JSON**：读档时按 presetId 从当前预设定义解析（[bestDisplaySizeForPreset]），
+     * 因此预设改尺寸后，已保存、已落桌面的样式立即跟着变，不必重新套用预设；
+     * 无 presetId 的旧存档与自定义样式按 4×2 兜底。
+     */
+    val bestDisplaySize: WidgetDisplaySize = WidgetDisplaySize.WIDE_4X2
 ) {
     /**
      * 主体四周透明的形状（信纸/撕纸/牛皮/猫咪趴/书架）不支持背景色：
@@ -171,6 +220,7 @@ data class WidgetStyle(
         append(bgScrimAlpha).append('|').append(showCardShadow).append('|')
         append(cardBorderWidthDp).append('|').append(cardBorderColor).append('|')
         append(textureType).append('|').append(presetImageResName ?: "").append('|')
+        append(presetImageResNameSquare ?: "").append('|')
         append(lineSpacingMultiplier).append('|').append(letterSpacing)
     }
 
@@ -206,6 +256,7 @@ data class WidgetStyle(
             put("textureType", textureType)
             put("authorSignature", authorSignature ?: JSONObject.NULL)
             put("presetImageResName", presetImageResName ?: JSONObject.NULL)
+            put("presetImageResNameSquare", presetImageResNameSquare ?: JSONObject.NULL)
             put("lineSpacingMultiplier", lineSpacingMultiplier.toDouble())
             put("letterSpacing", letterSpacing.toDouble())
         }.toString()
@@ -221,13 +272,15 @@ data class WidgetStyle(
             if (jsonStr.isNullOrEmpty()) return WidgetStyle()
             return try {
                 val json = JSONObject(jsonStr)
+                val parsedPresetId = if (json.has("presetId") && !json.isNull("presetId")) {
+                    json.optString("presetId").takeIf { it.isNotEmpty() }
+                } else {
+                    null
+                }
                 val parsed = WidgetStyle(
                     shape = safeEnum(json.optString("shape", WidgetShape.RECTANGLE.name), WidgetShape.RECTANGLE),
-                    presetId = if (json.has("presetId") && !json.isNull("presetId")) {
-                        json.optString("presetId").takeIf { it.isNotEmpty() }
-                    } else {
-                        null
-                    },
+                    presetId = parsedPresetId,
+                    bestDisplaySize = bestDisplaySizeForPreset(parsedPresetId),
                     cornerRadiusDp = json.optDouble("cornerRadiusDp", 12.0).toFloat(),
                     backgroundColor = json.optInt("backgroundColor", Color.parseColor("#F5F5F5")),
                     backgroundOpacity = json.optDouble("backgroundOpacity", 1.0).toFloat(),
@@ -280,6 +333,11 @@ data class WidgetStyle(
                     } else {
                         null
                     },
+                    presetImageResNameSquare = if (json.has("presetImageResNameSquare") && !json.isNull("presetImageResNameSquare")) {
+                        json.getString("presetImageResNameSquare")
+                    } else {
+                        null
+                    },
                     lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat().coerceIn(0.5f, 3.0f),
                     letterSpacing = json.optDouble("letterSpacing", 0.0).toFloat().coerceIn(0f, 20f)
                 )
@@ -308,6 +366,17 @@ data class WidgetStyle(
             )
         }
 
+        /**
+         * 读档时解析最佳显示尺寸（**不落 JSON** 的派生属性）：
+         * 按 presetId 查当前预设定义，预设改了尺寸即对所有已保存/已落桌面的样式生效；
+         * 无 presetId 的旧存档与自定义样式按 4×2 兜底。
+         */
+        private fun bestDisplaySizeForPreset(presetId: String?): WidgetDisplaySize {
+            if (presetId == null) return WidgetDisplaySize.WIDE_4X2
+            return PRESETS.firstOrNull { it.presetId == presetId }?.bestDisplaySize
+                ?: WidgetDisplaySize.WIDE_4X2
+        }
+
         // 内置风格预设
         // 每条都带一个手写的固定 presetId（如 p_pure_round）作为身份标识：套用后随 copy() 保留，
         // 付费判定依据身份而不是字段值（字段匹配可被"改一个字段"绕过），也不依赖列表位置。
@@ -315,6 +384,7 @@ data class WidgetStyle(
             // 免费默认风格：纯色圆角
             WidgetStyle(
                 presetId = "p_pure_round",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 无素材：跟随 App 默认落位 4×2
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 12f,
                 backgroundColor = Color.parseColor("#FFFFFF"),
@@ -330,6 +400,7 @@ data class WidgetStyle(
             ), // 0. 纯色圆角 (免费)
             WidgetStyle(
                 presetId = "p_torn_paper",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.TORN_PAPER, // 拟物撕纸
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#E2EAD8"),
@@ -342,6 +413,7 @@ data class WidgetStyle(
             ), // 4. 拟物撕纸风格 (PRO)
             WidgetStyle(
                 presetId = "p_handbook_tape",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.HANDBOOK_TAPE, // 手账胶带
                 cornerRadiusDp = 12f,
                 backgroundColor = Color.parseColor("#FCF6E5"),
@@ -357,6 +429,7 @@ data class WidgetStyle(
             ), // 5. 复古手账风格 (PRO)
             WidgetStyle(
                 presetId = "p_postcard_note",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：4×2 下图片区被裁掉近一半、正文只剩一行
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 gradientColors = listOf(Color.parseColor("#1B2845"), Color.parseColor("#274060")),
@@ -367,6 +440,7 @@ data class WidgetStyle(
             ), // 10. 蓝色画报风格 (PRO)
             WidgetStyle(
                 presetId = "p_dawn_sunrise",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：图片带在 4×4 下才不被裁掉一半
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -376,6 +450,7 @@ data class WidgetStyle(
             ), // 12. 晨曦画报风格 (PRO)
             WidgetStyle(
                 presetId = "p_healing_sunset",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -385,6 +460,7 @@ data class WidgetStyle(
             ), // 13. 治愈画报风格 (PRO)
             WidgetStyle(
                 presetId = "p_starry_forest",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -395,6 +471,7 @@ data class WidgetStyle(
 
             WidgetStyle(
                 presetId = "p_sky_blue",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 底图是 300×120 的矢量素材（2.5:1），4×2 下即原生比例
                 shape = WidgetShape.RECTANGLE,
                 backgroundColor = Color.parseColor("#1E6DD0"),
                 font = WidgetFont.SOURCE_HAN_SERIF,
@@ -404,6 +481,7 @@ data class WidgetStyle(
             ), // 15. 天空蓝风格 (PRO)
             WidgetStyle(
                 presetId = "p_fight_club",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：实景照片在 4×4 的图区里只裁 16%、4×2 下要裁掉 47%
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -413,6 +491,7 @@ data class WidgetStyle(
             ), // 21. 搏击俱乐部风格 (PRO)
             WidgetStyle(
                 presetId = "p_breaking_bad",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -422,6 +501,7 @@ data class WidgetStyle(
             ), // 22. 绝命毒师风格 (PRO)
             WidgetStyle(
                 presetId = "p_v_for_vendetta",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -431,6 +511,7 @@ data class WidgetStyle(
             ), // 23. V字仇杀队风格 (PRO)
             WidgetStyle(
                 presetId = "p_la_la_land",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计
                 shape = WidgetShape.SPLIT_CARD,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -442,6 +523,7 @@ data class WidgetStyle(
             // 新风格：经典左右分割（会员专属）
             WidgetStyle(
                 presetId = "p_cute_cat",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 左栏人像素材（0.95:1）：4×2 的左栏比例与素材最接近
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -452,6 +534,7 @@ data class WidgetStyle(
             ), // 可爱猫咪 (PRO)
             WidgetStyle(
                 presetId = "p_fluffy_dog",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -461,6 +544,7 @@ data class WidgetStyle(
             ), // 毛绒小狗 (PRO)
             WidgetStyle(
                 presetId = "p_happy_dog",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 萌宠主体已抠底透明，等比完整显示避免裁切头/脸
@@ -471,6 +555,7 @@ data class WidgetStyle(
             ), // 快乐小狗 (PRO)
             WidgetStyle(
                 presetId = "p_fluffy_cat",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 font = WidgetFont.LXGW_WENKAI,
@@ -482,6 +567,7 @@ data class WidgetStyle(
             // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
             WidgetStyle(
                 presetId = "p_feather_letter",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 横版素材 2051×1313：4×2 下等比铺满，横向只多铺约 45%
                 shape = WidgetShape.FEATHER_LETTER,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 信纸外透明
@@ -501,6 +587,7 @@ data class WidgetStyle(
             // 复古像素 (PRO)：像素风方框(红框+虚线+薄荷绿底)即卡片，文字落框内留白
             WidgetStyle(
                 presetId = "p_pixel_retro",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 横版素材 1825×793（2.3:1）
                 shape = WidgetShape.PIXEL_RETRO,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 框外透明
@@ -521,6 +608,7 @@ data class WidgetStyle(
             // 萌宠猫咪趴 (PRO)：橘猫趴在渐变卡片顶，卡片做主体，文字落卡片中下部(避开猫)
             WidgetStyle(
                 presetId = "p_pet_cat_nap",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 素材 1414×994（1.42）更接近方形：4×4 下猫更大、正文也放得下
                 shape = WidgetShape.PET_CAT_NAP,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT, // 卡片外透明
@@ -540,9 +628,16 @@ data class WidgetStyle(
             // 可爱四小只 (PRO)：四个圆形萌宠头像(企鹅帽/蓝绿双马尾/黄脸/粉发双丸子)排成 2×2 网格，左图右文
             WidgetStyle(
                 presetId = "p_cute_four_kids",
-                shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 4×2 专属：设计稿就是 1824×912（2:1），不出 4×4 版
+                // 2026-10-07 改版：四个头像从「左侧 2×2 网格」改成「左下角横排一排」（设计稿 1824×912）。
+                // 刻意保留 presetId 不变——已用这款的组件、以及按身份判定的会员状态都不受影响。
+                //
+                // ⚠️ 这是一款**4×2 专属**风格，按产品决定**不出 4×4 版**（设计之初就是 2:1 画布）。
+                // 它在 4×4 组件上会被纵向拉 94%，这是已知且被接受的，**不要**给它补方版素材、
+                // 也不要把它当成"缺一份方版"来修。
+                shape = WidgetShape.CUTE_FOUR_KIDS,
                 backgroundColor = Color.WHITE,
-                bgImageScaleMode = ImageScaleMode.CENTER_FIT, // 四小只头像为透明圆形抠图，等比完整显示不被裁切
+                bgImageScaleMode = ImageScaleMode.STRETCH, // 头像条按 2:1 设计，铺满整卡
                 font = WidgetFont.LXGW_WENKAI,
                 fontSizeSp = 19f,
                 fontColor = Color.parseColor("#374151"),
@@ -555,6 +650,7 @@ data class WidgetStyle(
             // 蓝色便签 (PRO)：SVG 设计稿还原 — #43A8F0 蓝底圆角 + 顶部 NOTE + 右上信息钮 + 底部米白手写签条
             WidgetStyle(
                 presetId = "p_blue_note",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 设计稿 578×363（横版）：NOTE 区与底部签条按它的比例现画
                 shape = WidgetShape.BLUE_NOTE,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#43A8F0"),
@@ -571,6 +667,7 @@ data class WidgetStyle(
             // 撕边牛皮手账 (PRO)：牛皮纸撕边即卡片(外透明透桌面)，文字落纸面中部
             WidgetStyle(
                 presetId = "p_niupi_shouzhang",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 横版素材 2048×1037（1.98:1）
                 shape = WidgetShape.NIUPI_SHOUZHANG,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT,
@@ -589,6 +686,7 @@ data class WidgetStyle(
             // 得意doro (PRO)：实景照片左图右文，保留人物与草地背景
             WidgetStyle(
                 presetId = "p_deyi_doro",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
                 shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
                 backgroundColor = Color.WHITE,
                 bgImageScaleMode = ImageScaleMode.CENTER_CROP, // 整幅实景照片铺满左栏，无透明抠图
@@ -600,6 +698,7 @@ data class WidgetStyle(
             // 教室黑板 (PRO)：黑板即卡片，粉笔白字写在绿色板面上
             WidgetStyle(
                 presetId = "p_classroom_blackboard",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 横版素材 2048×931（2.2:1）
                 shape = WidgetShape.CLASSROOM_BLACKBOARD,
                 cornerRadiusDp = 8f,
                 backgroundColor = android.graphics.Color.TRANSPARENT,
@@ -619,6 +718,7 @@ data class WidgetStyle(
             // 四周保持透明（无底色/描边/投影），摘录面板与文字区域一起随组件尺寸缩放
             WidgetStyle(
                 presetId = "p_bookshelf",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 设计为 4×3：比 4×2 更接近方形，书架多一排、正文放得下
                 shape = WidgetShape.BOOKSHELF,
                 cornerRadiusDp = 0f,
                 backgroundColor = Color.TRANSPARENT,
@@ -636,6 +736,7 @@ data class WidgetStyle(
             // 巨剑 (PRO)：武士扛巨剑横贯画面，正文压在剑身金属面上（左侧人物留白，文字区只取剑身）
             WidgetStyle(
                 presetId = "p_giant_sword",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 横版素材 1024×585（1.75:1）
                 shape = WidgetShape.GIANT_SWORD,
                 cornerRadiusDp = 0f,
                 backgroundColor = Color.TRANSPARENT,
@@ -662,6 +763,7 @@ data class WidgetStyle(
             // 毛绒森林 (PRO)：毛绒粉边卡片 + 顶部小树蘑菇，正文落在奶油色毛绒面板内
             WidgetStyle(
                 presetId = "p_plush_forest",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 方版素材已交付（1536×1536）：4×4 上不再把 1.75 的横版纵向拉 76%
                 shape = WidgetShape.PLUSH_FOREST,
                 cornerRadiusDp = 0f,
                 backgroundColor = Color.TRANSPARENT,
@@ -675,11 +777,14 @@ data class WidgetStyle(
                 showCardShadow = false,
                 cardBorderWidthDp = 0f,
                 presetImageResName = "plush_forest",
+                // 方版（4×4）：真透明底 1:1 图，避免 1.75 的横版在 4×4 上被纵向拉 76%
+                presetImageResNameSquare = "plush_forest_square",
                 authorSignature = "—— 毛绒森林"
             ), // 40. 毛绒森林 (PRO)
             // 小霸王游戏机 (PRO)：3D 渲染的实物模型——机身居中、左右各一只手柄，正文落在机身屏幕上
             WidgetStyle(
                 presetId = "p_subor_console",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品点名（2026-10-08）：方形下模型更大、屏幕放得下两行正文；4×2 只剩一行、两侧还是大片留白
                 shape = WidgetShape.SUBOR_CONSOLE,
                 cornerRadiusDp = 0f,
                 backgroundColor = Color.TRANSPARENT,
@@ -709,6 +814,7 @@ data class WidgetStyle(
             // 渲染器按当前组件尺寸现算，素材只是腔底那一块画面，因此 4×2 / 4×4 都不会拉伸。
             WidgetStyle(
                 presetId = "p_weather_box",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：腔体在上、正文在下
                 shape = WidgetShape.WEATHER_BOX,
                 cornerRadiusDp = 20f,
                 backgroundColor = Color.parseColor("#FFFFFF"), // 盒面：白，可跟随「背景颜色」自定义
@@ -731,6 +837,7 @@ data class WidgetStyle(
             // 文字落在相框下方、梅枝以左的留白区。
             WidgetStyle(
                 presetId = "p_winter_palace",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
                 shape = WidgetShape.WINTER_PALACE,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#EEE6E2"), // 米色卡纸，与素材羽化边同色
@@ -752,6 +859,7 @@ data class WidgetStyle(
             // 相框与鲸影都是带羽化卡纸边的抠图图层，文字落在相框下方整幅留白带。
             WidgetStyle(
                 presetId = "p_deep_sea",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
                 shape = WidgetShape.DEEP_SEA,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#E5E5F8"), // 白蓝卡纸，与素材羽化边同色
@@ -771,6 +879,7 @@ data class WidgetStyle(
             // 浪花与绿叶淡入右下角。画框卡片族，与雪落宫墙共用分层渲染。
             WidgetStyle(
                 presetId = "p_summer_sea",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
                 shape = WidgetShape.SUMMER_SEA,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#DAD8E6"), // 浅灰蓝卡纸，与素材羽化边同色
@@ -791,6 +900,7 @@ data class WidgetStyle(
             // 荷影淡入右下角。画框卡片族，与雪落宫墙共用分层渲染。
             WidgetStyle(
                 presetId = "p_summer_lotus",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
                 shape = WidgetShape.SUMMER_LOTUS,
                 cornerRadiusDp = 16f,
                 backgroundColor = Color.parseColor("#D7D4EA"), // 淡紫卡纸，与素材羽化边同色
@@ -813,6 +923,7 @@ data class WidgetStyle(
             // 卡外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
             WidgetStyle(
                 presetId = "p_spring_dog",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // ⚠️ 方版素材未交付：4×4 会把横版纵向拉 76%（见 style-guide §0.1.1），方版到货后改 SQUARE_4X4
                 shape = WidgetShape.SPRING_DOG,
                 cornerRadiusDp = 12f,
                 backgroundColor = android.graphics.Color.TRANSPARENT,
@@ -828,54 +939,13 @@ data class WidgetStyle(
                 presetImageResName = "spring_dog",
                 authorSignature = "—— 春天与小狗"
             ), // 54. 春天与小狗 (PRO)
-            // 材质边框族（毛绒 / 素描 / 绿藤）：三款的差别**只**是边上的材质，
-            // 卡面、字色、字体各不相同，让它们看起来是三种不同的卡片而不是同一张卡换了道边。
-            // 边由 BorderMaterialRenderer 沿轮廓现画，因此圆角仍可调、组件拖多大都不糊。
-            WidgetStyle(
-                presetId = "p_plush_card",
-                shape = WidgetShape.PLUSH_CARD,
-                cornerRadiusDp = 18f,
-                backgroundColor = Color.parseColor("#FFFBF3"), // 暖白卡面，与奶油绒边同调
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 18f,
-                fontColor = Color.parseColor("#6B4A34"),
-                textAlign = "CENTER",
-                showCardShadow = false,
-                cardBorderWidthDp = 0f,
-                authorSignature = "—— 毛绒边框"
-            ), // 55. 毛绒边框 (PRO)
-            WidgetStyle(
-                presetId = "p_sketch_card",
-                shape = WidgetShape.SKETCH_CARD,
-                cornerRadiusDp = 14f,
-                backgroundColor = Color.parseColor("#FDFCF8"), // 素描纸白
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 18f,
-                fontColor = Color.parseColor("#3A3D42"), // 石墨灰，与边线同色系
-                textAlign = "CENTER",
-                showCardShadow = false,
-                cardBorderWidthDp = 0f,
-                authorSignature = "—— 素描线卡"
-            ), // 56. 素描线卡 (PRO)
-            WidgetStyle(
-                presetId = "p_vine_card",
-                shape = WidgetShape.VINE_CARD,
-                cornerRadiusDp = 16f,
-                backgroundColor = Color.parseColor("#FBFAF2"), // 米白卡面，衬绿叶
-                font = WidgetFont.LXGW_WENKAI,
-                fontSizeSp = 18f,
-                fontColor = Color.parseColor("#3F5A32"), // 藤绿题字
-                textAlign = "CENTER",
-                showCardShadow = false,
-                cardBorderWidthDp = 0f,
-                authorSignature = "—— 绿藤缠绕"
-            ), // 57. 绿藤缠绕 (PRO)
             // 信纸 (PRO)：一张横线信纸。纸色由「背景颜色」给（默认白），横线是矢量素材，
             // 栅格化按组件尺寸现算，因此 4×2 / 4×4 / 用户拖大都不糊。
             // 铺图刻意用 CENTER_CROP 而不是 STRETCH：4×2 下是等比放大后裁中间一段，
             // 横线维持 19/250 的原间距、只是少露几条；STRETCH 会把 11 条压成 4 条，密得不像信纸。
             WidgetStyle(
                 presetId = "p_ruled_paper",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 按 4×2 设计：CENTER_CROP 保住横线原间距
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 8f,
                 backgroundColor = Color.parseColor("#FFFFFF"),
@@ -898,6 +968,7 @@ data class WidgetStyle(
             // ⚠️ 这是 4×2 原生的风格：源图那一段只有 1152×679 真实像素，4×4 下方形裁切要放大 2.3x，会软。
             WidgetStyle(
                 presetId = "p_texture_landscape",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 4×2 原生：源切片仅 1152×679 真实像素，方形裁切要放大 2.3x，会软
                 shape = WidgetShape.RECTANGLE,
                 cornerRadiusDp = 10f,
                 backgroundColor = Color.parseColor("#DDDECD"), // 素材平均色：调低不透明度时褪成同色
@@ -917,13 +988,117 @@ data class WidgetStyle(
                 presetImageResName = "texture_landscape",
                 authorSignature = "—— 纹理山水"
             ), // 59. 纹理山水 (PRO)
+            // 竹林熊猫 (PRO)：整幅贴纸风插画——竹框 + 框顶五只探头熊猫 + 四角竹叶，
+            // 框内奶油面板承载正文。素材比例 1.757:1，与「春天与小狗」「毛绒森林」同一套语言，
+            // 同样按 STRETCH 铺满：4×2 上横向多铺约 29%，4×4 上纵向多铺约 76%（熊猫会显得瘦高）。
+            // 框外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
+            WidgetStyle(
+                presetId = "p_panda_bamboo",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 方版素材已交付（1536×1536）：4×4 上不再把 1.757 的横版纵向拉 76%
+                shape = WidgetShape.PANDA_BAMBOO,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3E4A35"), // 墨绿题字：压奶油面板，与竹叶同调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "panda_bamboo",
+                // 方版（4×4）：真透明底 1:1 图
+                presetImageResNameSquare = "panda_bamboo_square",
+                authorSignature = "—— 竹林熊猫"
+            ), // 60. 竹林熊猫 (PRO)
+            // 萌宠乐园 (PRO)：整幅毛毡风插画——粉色花边毛毡框 + 框顶六只毛毡小动物，框内奶油面板放正文。
+            // 素材比例 1.757:1，与「竹林熊猫」「毛绒森林」「春天与小狗」同一套语言，同样 STRETCH 铺满。
+            // 框外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
+            WidgetStyle(
+                presetId = "p_pet_park",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 方版素材已交付（1536×1536）；产品明确：萌宠乐园的最佳显示尺寸是 4:4
+                shape = WidgetShape.PET_PARK,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#7A5A55"), // 暖棕题字：压奶油毛毡面，与粉框同暖调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "pet_park",
+                // 方版（4×4）：用户按 2048×2048 规格另出的一张真透明底方图。
+                // 有了它，4×4 上不再把 1.757 的横版纵向拉 76%，毛毡小动物保持本来比例。
+                presetImageResNameSquare = "pet_park_square",
+                authorSignature = "—— 萌宠乐园"
+            ), // 61. 萌宠乐园 (PRO)
+            // 青年雕塑 (免费)：整幅贴图——浅灰卡面 + 上半身雕塑像，下半白面板放正文。
+            // 素材 2048×2048，只出了 4×4 方版（见 WidgetShape.YOUTH_SCULPTURE 的说明），
+            // 因此 presetImageResName 直接指向方版素材，不填预设的方版字段。
+            //
+            // 底色写成素材卡面自己的浅灰：不透明度调低时整卡褪成同色，而不是露出上一个风格的底色。
+            // 阴影 + 1dp 细描边与「纯色圆角」同款——免费风格的既有视觉定义，
+            // 老存档读取时 upgradedForFreeStyle() 也会把这两项补齐，预设不写就会在重载时跳一下。
+            WidgetStyle(
+                presetId = "p_youth_sculpture",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 4×4 专属：设计稿只有 2048×2048 方版，不出 4×2 版
+                shape = WidgetShape.YOUTH_SCULPTURE,
+                cornerRadiusDp = 12f, // 设计稿的「12dp 圆角参考」
+                backgroundColor = Color.parseColor("#F5F5F5"),
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.SOURCE_HAN_SERIF, // 宋体：与纪念碑式的雕塑气质一致
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3F3B36"), // 暖石灰：压白色面板
+                textAlign = "CENTER",
+                showCardShadow = true,
+                cardBorderWidthDp = 1f,
+                cardBorderColor = Color.parseColor("#140F172A"),
+                presetImageResName = "youth_sculpture",
+                authorSignature = "—— 青年雕塑"
+            ), // 62. 青年雕塑 (免费)
+            // 蜡笔彩虹框 (PRO)：整幅手绘素材——蓝/绿/粉三色蜡笔波浪描边，框内近白纸面，
+            // 左上角一颗红蜡笔爱心、右下角一只黄蜡笔气球。
+            //
+            // 素材原稿 2048×1152 是 16:9 画布，框只占中间一条（上下各留 21%~27% 透明），
+            // 整幅入库铺满后框会缩到中间、四周空一圈，所以**按内容框裁到 1826×627** 再入库。
+            // 裁后 2.91:1、4×2 卡面 2.27:1，按 STRETCH 铺满：4×2 上纵向多铺约 28%
+            // （爱心与气球略变高；蜡笔线条本来就粗细不匀，这点变形看不出来）。
+            // ⚠️ 4×4 上纵向要拉近 2.9 倍，爱心会拉成细条——**产品决定这款风格不出 4×4 版**
+            // （2026-10-08：同「纹理山水」「可爱四小只」，不要替它补方版素材）。
+            //
+            // 框外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
+            WidgetStyle(
+                presetId = "p_crayon_frame",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品点名：最佳显示尺寸 4:2（4×2 原生，无方版素材）
+                shape = WidgetShape.CRAYON_FRAME,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3B4A5A"), // 铅笔灰蓝：压白纸面，与蓝蜡笔同调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "crayon_frame",
+                authorSignature = "—— 蜡笔彩虹框"
+            ), // 63. 蜡笔彩虹框 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
-        // 当前规则：只有「纯色圆角」免费，其余风格一律会员专属。
+        // 当前规则：「纯色圆角」与「青年雕塑」免费，其余风格一律会员专属。
         // 字体、字号、颜色、圆角、不透明度等细节调整不在此列，全部免费。
         private val FREE_PRESET_IDS = setOf(
-            "p_pure_round"    // 纯色圆角
+            "p_pure_round",      // 纯色圆角
+            "p_youth_sculpture"  // 青年雕塑
         )
 
         // 主体四周透明的形状：这些形状的插画/装饰并不铺满整个组件位图，背景色只会在主体外围
@@ -939,7 +1114,14 @@ data class WidgetStyle(
             WidgetShape.SUBOR_CONSOLE,
             // 春天与小狗：绿框白卡是素材本身的一部分，卡外透明处透出壁纸；
             // 再铺一层背景色会在卡外露出一圈色块
-            WidgetShape.SPRING_DOG
+            WidgetShape.SPRING_DOG,
+            // 竹林熊猫：同理——竹框内奶油面板是素材自带的，框外（熊猫、竹叶周围）透明处透壁纸
+            WidgetShape.PANDA_BAMBOO,
+            // 萌宠乐园：同理——毛毡框内面板是素材自带的，框外（小动物周围）透明处透壁纸
+            WidgetShape.PET_PARK,
+            // 蜡笔彩虹框：同理——蜡笔框外一侧是透明的（透出壁纸），
+            // 再铺一层背景色会在蜡笔描边外露出一圈方角色块
+            WidgetShape.CRAYON_FRAME
         )
 
         /** 该形状是否支持设置背景色 */
@@ -1025,33 +1207,28 @@ data class WidgetStyle(
             "巨剑" to (PRESETS.firstOrNull { it.shape == WidgetShape.GIANT_SWORD } ?: PRESETS[0]),
             "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
             "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
-            "毛绒边框" to (PRESETS.firstOrNull { it.presetId == "p_plush_card" } ?: PRESETS[0]),
-            "素描线卡" to (PRESETS.firstOrNull { it.presetId == "p_sketch_card" } ?: PRESETS[0]),
-            "绿藤缠绕" to (PRESETS.firstOrNull { it.presetId == "p_vine_card" } ?: PRESETS[0]),
             "纹理山水" to (PRESETS.firstOrNull { it.presetId == "p_texture_landscape" } ?: PRESETS[0]),
+            "蜡笔彩虹框" to (PRESETS.firstOrNull { it.presetId == "p_crayon_frame" } ?: PRESETS[0]),
         )
 
-        // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件，
-        // 按桌面 4×3 规格以 4:3 比例预览。与插图素材项同排展示，排在插图之前。
+        // 明信片行**首位**的整幅贴图预设：按产品要求排在明信片风格第一个。
+        // 与 POSTCARD_RENDERED_PRESETS 同样按组件真实渲染缩略图——整幅铺贴 + 正文面板的观感，
+        // 裁原图是看不出来的。与代码绘制组分开列，避免"这组都是代码画的"的说法被说破。
+        val POSTCARD_LEADING_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
+            "青年雕塑" to (PRESETS.firstOrNull { it.presetId == "p_youth_sculpture" } ?: PRESETS[0])
+        )
+
+        // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件。
+        // 与插图素材项同排展示，排在插图之前。缩略图尺寸不与桌面 4×3 挂钩：
+        // 行内统一按 150×80 渲染（见 PostcardPresetsRow），组件内容在渲染时按画布自适应重排。
         val POSTCARD_CODE_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "蓝色画报" to (PRESETS.firstOrNull { it.presetId == "p_postcard_note" } ?: PRESETS[0]),
             "书香书架" to (PRESETS.firstOrNull { it.shape == WidgetShape.BOOKSHELF } ?: PRESETS[0])
         )
 
-        // 代码绘制预设的缩略图渲染尺寸：按桌面 4×3 的设计尺寸渲染后再缩小显示，
-        // 使缩略图里的书脊/文本面板比例与桌面组件一致
-        const val POSTCARD_CODE_RENDER_WIDTH_DP = 240
-        const val POSTCARD_CODE_RENDER_HEIGHT_DP = 180
-        // 天气盒子固定按 4×4 渲染：素材是横幅（2.09:1），在扁组件上腔体只能居中、
-        // 两侧留白过多且正文被压扁；竖版才能把「蓝天腔体 + 下方留白」的比例拉舒服
-        const val WEATHER_BOX_RENDER_WIDTH_DP = 240
-        const val WEATHER_BOX_RENDER_HEIGHT_DP = 240
-
         // 明信片风格行里的「立体场景」预设：缩略图必须**按组件真实渲染**
         // （而非裁原图），否则形状/铺图方式的差异在缩略图上完全看不出来。按 presetId 定位，
         // 避免 PRESETS 新增条目时索引漂移。
-        // 天气盒子是纯代码绘制的立体盒（白盒体 + 内凹腔体），素材比例锁死为横幅，
-        // 在 4×2 这类扁组件上腔体只能居中、两侧留白过多，故归到明信片行按 4×4 渲染。
         val POSTCARD_RENDERED_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "天气盒子" to (PRESETS.firstOrNull { it.presetId == "p_weather_box" } ?: PRESETS[0]),
             "雪落宫墙" to (PRESETS.firstOrNull { it.presetId == "p_winter_palace" } ?: PRESETS[0]),
@@ -1070,7 +1247,9 @@ data class WidgetStyle(
             "毛绒猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_cat" } ?: PRESETS[0]),
             "萌宠猫咪趴" to (PRESETS.firstOrNull { it.shape == WidgetShape.PET_CAT_NAP } ?: PRESETS[0]),
             "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0]),
-            "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0])
+            "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0]),
+            "竹林熊猫" to (PRESETS.firstOrNull { it.presetId == "p_panda_bamboo" } ?: PRESETS[0]),
+            "萌宠乐园" to (PRESETS.firstOrNull { it.presetId == "p_pet_park" } ?: PRESETS[0])
         )
     }
 }

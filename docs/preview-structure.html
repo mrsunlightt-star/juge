@@ -37,7 +37,7 @@
     <span class="tabs">小组件 #1</span>
 
     <div class="cardbox">
-      <div class="cap">按组件声明尺寸渲染：4×4 入口 250×250dp，4×2 入口 250×110dp</div>
+      <div class="cap">按风格的最佳显示尺寸渲染：4×4 款 250×250dp，4×2 款 250×110dp</div>
       <div class="lines">
         <div class="line" style="width:55%"></div>
         <div class="line" style="width:44%"></div>
@@ -48,15 +48,16 @@
   </div>
 
   <div class="legend">
-    <div class="item"><span class="sw sw-outer"></span>预览外框（容器 / 区域）· 高 244~268dp，随当前页组件声明尺寸自适应</div>
-    <div class="item"><span class="sw sw-card"></span>预览卡片（组件位图）· 宽高比 = 声明尺寸，等比缩放进页内</div>
+    <div class="item"><span class="sw sw-outer"></span>预览外框（容器 / 区域）· 高 244~268dp，随当前页风格的最佳显示尺寸自适应</div>
+    <div class="item"><span class="sw sw-card"></span>预览卡片（组件位图）· 宽高比 = 风格的最佳显示尺寸，等比缩放进页内</div>
   </div>
 
   <p class="note">说明：外框占整行；每页宽度 = 整行 − 两侧各 36dp 内边距，
-    页高由 <code>PreviewMetrics.previewHeightDp</code> 按声明尺寸算出（4×2 → 180dp、4×4 → 260dp），
+    页高由 <code>PreviewMetrics.previewHeightDp</code> 按最佳显示尺寸算出（4×2 → 180dp、4×4 → 260dp），
     卡片再按 <code>ContentScale.Fit</code> 等比缩放显示。
-    预览尺寸只取决于组件是从哪个入口添加的（4×4 / 4×2），与桌面上的实时拉伸无关；
-    没有桌面组件时按 4×2 兜底。示意图比例为便于观看放缩。</p>
+    预览尺寸只取决于<b>当前风格自己声明的</b>最佳显示尺寸（<code>WidgetStyle.bestDisplaySize</code>：
+    4×4 款始终方形、4×2 款始终长条），与组件从哪个入口添加、在桌面上被拉成多大都无关
+    （产品规则，2026-10-08）；风格没声明时按 4×2 兜底。示意图比例为便于观看放缩。</p>
 </div>
 </body>
 </html>

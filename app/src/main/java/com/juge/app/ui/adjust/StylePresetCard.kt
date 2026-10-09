@@ -21,11 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.juge.app.ReminderWidgetProvider
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.PresetRow
 import com.juge.app.ui.SaveOutcome
@@ -43,7 +41,6 @@ internal fun StylePresetCard(
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -72,14 +69,12 @@ internal fun StylePresetCard(
 
             // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
             // 间距统一交给外层 Column 的 spacedBy(10.dp)，这里不再叠加 Spacer/分割线
-            // 分类标题尾部统一附加卡片尺寸（如 4×2 / 4×4），取组件**声明的默认尺寸**：
-            // 与上方预览区同一来源，用户拉伸过桌面组件时标题才不会与预览比例对不上
-            val widgetSizeStr = ReminderWidgetProvider.getWidgetDeclaredSizeString(context, selectedWidgetId)
-            val sizeLabel = widgetSizeStr.replace("x", "×").replace("*", "×")
+            // 分类标题**不带尺寸后缀**：一行里各款风格的最佳显示尺寸本就各不相同
+            // （见 WidgetStyle.bestDisplaySize），挂一个尺寸会误导。
                     // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
                     PresetRow(
                         presets = WidgetStyle.CLASSIC_PRESETS,
-                        title = "经典风格 · $sizeLabel",
+                        title = "经典风格",
                         onPresetClick = { _, preset ->
                             val newPresetStyle = preset.copy(
                                 backgroundOpacity = selectedStyle.backgroundOpacity,
@@ -96,7 +91,7 @@ internal fun StylePresetCard(
                     // 2. 萌宠风格（位于经典与明信片之间）
                     PresetRow(
                         presets = WidgetStyle.PET_PRESETS,
-                        title = "萌宠风格 · 会员专属 · $sizeLabel",
+                        title = "萌宠风格 · 会员专属",
                         onPresetClick = { _, preset ->
                             val newPresetStyle = preset.copy(
                                 backgroundOpacity = selectedStyle.backgroundOpacity,
@@ -111,9 +106,13 @@ internal fun StylePresetCard(
                         imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
                     )
 
-                    // 精选卡片插画
-                    // 明信片风格固定为 4×4（竖版上下分割）/ 4×3（书香书架），不随当前组件尺寸变化
+                    // 3. 明信片风格（精选卡片插画）
+                    // 标题由行自己渲染（与经典/萌宠行同款），**不再写在这里**——
+                    // 2e9f34b 拆分 AdjustTabContent 时，正是因为标题散在调用方，整行被搬掉后标题也一起丢了。
+                    // 不带尺寸后缀：这一行混着各自独立的固定尺寸，挂一个尺寸会误导（见 PostcardPresetsRow 注释）；
+                    // 也不写「会员专属」——行首的「青年雕塑」是免费款，免费/付费由条目自己的角标标（同经典行）
                     PostcardPresetsRow(
+                        title = "明信片风格",
                         selectedStyle = selectedStyle,
                         selectedContent = selectedContent,
                         isActivated = isActivated,

@@ -11,14 +11,15 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * App 内预览用尺寸的回归测试。
+ * 两个组件入口「声明尺寸」的回归测试。
  *
- * 背景：预览原先按桌面**实时尺寸**（OPTION_APPWIDGET_MIN_WIDTH/HEIGHT）出图，
- * 用户在桌面拉伸组件、或同一组件在别的机型上落在不同 dp 的格子里，预览比例就跟着变——
- * 同一个组件的预览会在「圆角矩形」和「方形」之间来回跳。
- * 现在预览只看组件是**从哪个入口添加的**：4×4 入口 250×250，4×2 入口 250×110。
+ * 背景：两个入口各自在 xml 里声明了默认落位（4×4 → 250×250、4×2 → 250×110），
+ * 这里锁定这份映射，并把实时尺寸设成与声明尺寸不同的值，验证它不跟着桌面拉伸走。
  *
- * 这里刻意把实时尺寸设成与声明尺寸不同的值，验证预览尺寸不跟着实时尺寸走。
+ * ⚠️ App 内预览**已不再**按它出图（2026-10-08 起改按风格的最佳显示尺寸，
+ * 见 WidgetStyle.bestDisplaySize 与 PresetDisplaySizeTest）：同一个风格挂在哪个入口、
+ * 在桌面上拉成多大，预览都不该跟着变。这份映射现由回归测试与后续
+ * 「按入口提示尺寸」类功能取用。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "xxhdpi")
@@ -61,7 +62,7 @@ class WidgetDeclaredSizeTest {
     }
 
     @Test
-    fun `预览尺寸不随桌面拉伸变化`() {
+    fun `声明尺寸不随桌面拉伸变化`() {
         val context = RuntimeEnvironment.getApplication()
         // 4×2 入口的组件被拉到 4 行高：声明尺寸仍是 250×110
         val stretched = bindWidget(ReminderWidgetProviderCompact::class.java, liveWidthDp = 250, liveHeightDp = 250)
@@ -89,8 +90,8 @@ class WidgetDeclaredSizeTest {
     }
 
     @Test
-    fun `声明尺寸能换算成预览行数`() {
-        // 4×4 入口 250dp → 4 行，4×2 入口 110dp → 2 行
+    fun `声明尺寸能换算成网格行数`() {
+        // 250dp → 4 行、110dp → 2 行；最佳显示尺寸（WidgetDisplaySize）也走这一套换算
         assertEquals(4, com.juge.app.ui.PreviewMetrics.spanYForHeightDp(250))
         assertEquals(2, com.juge.app.ui.PreviewMetrics.spanYForHeightDp(110))
     }

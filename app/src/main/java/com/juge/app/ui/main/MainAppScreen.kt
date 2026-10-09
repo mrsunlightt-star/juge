@@ -202,9 +202,9 @@ fun MainAppScreen(
         )
     }
 
-    // 预览区高度随当前组件规格自适应：短组件(4×2)不再预留 4×4 的空间，
+    // 预览区高度随**当前风格的最佳显示尺寸**自适应：4×2 款不预留 4×4 的空间，
     // 从而让“小组件#N”标签行与“跃然纸上/个性定制”页签行同步上移、去掉底部空洞。
-    // 封顶 268dp 确保 4×4 组件不被裁切，下限保住最小可见高度。
+    // 封顶 268dp 确保 4×4 款不被裁切，下限保住最小可见高度。
     fun previewHeightForPage(page: Int): Int {
         val wid = if (appWidgetIds.isNotEmpty()) appWidgetIds[page.coerceIn(0, appWidgetIds.size - 1)] else -1
         val cid = if (wid != -1) ReminderWidgetProvider.getBoundConfigId(context, wid) else -1L
@@ -213,18 +213,17 @@ fun MainAppScreen(
         } else {
             widgetConfigs.firstOrNull()
         }
-        val shape = if (wid == selectedWidgetId) currentStyle.shape
-            else if (wid != -1) ReminderWidgetProvider.getWidgetStyle(context, wid, cfg?.styleJson).shape
-            else WidgetStyle.fromJsonString(cfg?.styleJson).shape
-        // 行数取自组件**声明的默认尺寸**（4×4 入口 250×250、4×2 入口 250×110），
-        // 与渲染用尺寸同一来源，预览图与显示盒不会各算一套；没有桌面组件时同样按 4×2 兜底。
-        // 不读库里的 sizeType：它只在新建配置那一刻写一次（ReminderWidgetProvider），
-        // 之后用户在桌面拉伸组件、或组件被桌面重新分配格子，库里那份都不更新。
-        // 也不读桌面实时尺寸：同一组件会因此时高时低，预览在「方形」和「圆角矩形」之间跳。
+        val style = if (wid == selectedWidgetId) currentStyle
+            else if (wid != -1) ReminderWidgetProvider.getWidgetStyle(context, wid, cfg?.styleJson)
+            else WidgetStyle.fromJsonString(cfg?.styleJson)
+        // 高度取风格的**最佳显示尺寸**（每款风格在 WidgetStyle.bestDisplaySize 上声明：
+        // 4×4 款 250×250、4×2 款 250×110），与 WidgetPreviewPager 的出图尺寸同一来源，
+        // 预览图与显示盒不会各算一套。
+        // 不读桌面组件的入口/实时尺寸：同一个风格挂在不同入口、被拉成不同大小，
+        // 预览都要按它自己的尺寸显示（产品规则，2026-10-08）。
         // 高度映射本身是纯函数，已抽到 PreviewMetrics 并有单测覆盖
         // （下限 180dp、4×4 上限 268dp、横向分割卡固定 130dp 等规则都在那边）。
-        val declaredHeightDp = ReminderWidgetProvider.getWidgetDeclaredSizeDp(context, wid).second
-        return PreviewMetrics.previewHeightDp(shape, PreviewMetrics.spanYForHeightDp(declaredHeightDp))
+        return PreviewMetrics.previewHeightForStyle(style)
     }
     // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
     // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后

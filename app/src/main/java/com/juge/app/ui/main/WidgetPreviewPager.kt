@@ -33,7 +33,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 上 1/3 预览区：横向 Pager，每页按组件真实 dp 尺寸渲染一张预览位图。
+ * 上 1/3 预览区：横向 Pager，每页按**该页风格的最佳显示尺寸**渲染一张预览位图
+ * （`WidgetStyle.bestDisplaySize`：4×4 款 250×250、4×2 款 250×110）。
  *
  * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity）：规格计算仍由调用方的
  * [previewHeightForPage] 提供（它同时决定外层显示盒高度），点击预览切到「个性定制」
@@ -95,40 +96,38 @@ fun WidgetPreviewPager(
 
             // 复用与预览盒一致的规格计算，避免渲染高度与盒高度不一致造成裁切/空洞
             val previewHeightDp = previewHeightForPage(page)
-            // 预览按组件**声明的默认尺寸**渲染（4×4 入口 250×250、4×2 入口 250×110），
-            // 而不是桌面上的实时尺寸：实时尺寸会随用户拉伸组件、换机型而变化，
-            // 同一个组件的预览就会在「圆角矩形」和「方形」之间来回跳。
+            // 预览按**风格自己的最佳显示尺寸**出图（4×4 款 250×250、4×2 款 250×110，见
+            // WidgetStyle.bestDisplaySize），不跟桌面组件走：同一个风格无论从哪个入口添加、
+            // 在桌面上被拉成多大，App 内预览的比例都固定——4:4 款始终方形、4:2 款始终长条
+            // （产品规则，2026-10-08）。显示盒高度由 previewHeightForPage 按同一尺寸算出。
             // 也不能写死 360dp 之类的宽度：各类按比例分配的几何（图文卡分割线、
             // 天气盒子的腔体等）都按画布比例算，尺寸与声明尺寸脱节就会算错格子。
-            // 没有桌面组件（pageWidgetId == -1）时同样由它按 4×2 兜底。
-            val (declaredW, declaredH) = ReminderWidgetProvider.getWidgetDeclaredSizeDp(context, pageWidgetId)
-            // 渲染高度直接用声明高度：位图比例与组件的设计比例完全一致，
-            // 显示层用 ContentScale.Fit 等比缩小，预览比例自然正确。
-            // previewHeightDp（行数估算）只用于外层显示盒高度防裁切，不参与渲染。
-            val renderHeightDp = if (declaredH > 0) declaredH else previewHeightDp
+            val displaySize = pageStyle.bestDisplaySize
+            val renderWidthDp = displaySize.widthDp
+            val renderHeightDp = displaySize.heightDp
             // 先同步取一张磁盘缓存里的成品图作为初值（remember 保证每个 key 只读一次盘，
             // 写在下面 produceState 的 initialValue 里会在每次重组时重复解码）。
             // 冷启动时预览区因此首帧就有内容，不必空等约 0.8s；
             // 随后的渲染会用当前样式重新画一张并覆盖它。
-            val cachedPreview = remember(pageConfigId, pageStyle, renderHeightDp, declaredW) {
+            val cachedPreview = remember(pageConfigId, pageStyle, renderWidthDp, renderHeightDp) {
                 WidgetCanvasRenderer.cachedPreview(
                     context = context,
                     configId = pageConfigId,
-                    widthDp = declaredW,
+                    widthDp = renderWidthDp,
                     heightDp = renderHeightDp,
                     style = pageStyle
                 )
             }
             val pageBitmap by produceState<Bitmap?>(
                 initialValue = cachedPreview,
-                pageContent, pageStyle, renderHeightDp, declaredW
+                pageContent, pageStyle, renderWidthDp, renderHeightDp
             ) {
                 value = withContext(Dispatchers.Default) {
                     try {
                         WidgetCanvasRenderer.renderPreview(
                             context = context,
                             configId = pageConfigId,
-                            widthDp = declaredW,
+                            widthDp = renderWidthDp,
                             heightDp = renderHeightDp,
                             content = pageContent,
                             style = pageStyle

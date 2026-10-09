@@ -42,12 +42,6 @@ internal enum class ShapeFamily {
 
     /** 画框卡片：卡纸 + 相框 + 角落点缀（比例见 `FramedCardRenderer` 的 spec 表） */
     FRAMED_CARD,
-
-    /**
-     * 材质边框：卡片本身就是那种材质，边由 `BorderMaterialRenderer` 沿轮廓现画
-     * （毛绒 / 素描线 / 绿藤）。材质即风格，不是能贴到任意卡片上的通用修饰。
-     */
-    BORDER_MATERIAL,
 }
 
 /**
@@ -67,7 +61,10 @@ internal class ShapeTraits(
      * 只有轮廓外沿真有的东西要放（投影、材质边）时才内缩。
      */
     val insetCapable: Boolean,
-    /** 强制直角：整幅插画被圆角裁切会切掉主体，忽略用户的圆角设置 */
+    /**
+     * 强制直角：忽略用户的圆角设置。整幅贴图类的角上压着的就是素材画的东西，
+     * 裁圆角等于"作品被切角"（逐形状理由与实测数字见 `SQUARE_CORNER_SHAPES`）。
+     */
     val forcesSquareCorners: Boolean,
     /** 整幅透明底：没有卡片外框，投影与底色只跟随各自的文本框 / 文字栏 */
     val transparentCard: Boolean,
@@ -90,14 +87,6 @@ internal class ShapeTraits(
 
     /** 图文明信片：底色 / 背景图只铺「图片那一半」 */
     val isSplitCard: Boolean get() = family == ShapeFamily.SPLIT_CARD
-
-    /**
-     * 轮廓**外沿**还有装饰要摆（材质边框的绒毛、藤叶）。
-     *
-     * 有外侧装饰的形状**无论开不开投影都必须内缩**：装饰要往轮廓外探出几个 dp，
-     * 满幅时会被位图边界齐齐削平，变成一圈"剪齐的边"。
-     */
-    val decoratesOutsideContour: Boolean get() = family == ShapeFamily.BORDER_MATERIAL
 }
 
 /**
@@ -114,21 +103,45 @@ private val INSET_CAPABLE_SHAPES = setOf(
     WidgetShape.SPLIT_CARD_HORIZONTAL,
     // 天气盒子：盒体与腔体都按 outerRect 布局，内缩安全
     WidgetShape.WEATHER_BOX,
-    // 材质边框族：内容按 outerRect 布局，内缩安全。
-    // （这几款必定内缩——不是因为它们开了投影，而是因为绒毛、藤叶要往轮廓外长。
-    // 见 ShapeTraits.decoratesOutsideContour。）
-    WidgetShape.PLUSH_CARD,
-    WidgetShape.SKETCH_CARD,
-    WidgetShape.VINE_CARD,
+    // 青年雕塑：卡面就是整幅素材，内容全按 outerRect 布局，内缩（给投影让位）安全
+    WidgetShape.YOUTH_SCULPTURE,
 )
 
-/** 整幅插画：预设套用时会继承上一个风格的圆角值，这里统一强制直角，避免旧数据套用后画面被裁 */
+/**
+ * 强制 0 圆角的形状：渲染时**忽略**用户的圆角设置（见 [ShapeTraits.forcesSquareCorners]）。
+ *
+ * **① 为什么必须由渲染层决定**：靠"预设自己把圆角写成 0"兜不住——套用预设时圆角是**继承**来的
+ * （`ui/adjust/StylePresetCard.kt` 里 `preset.copy(cornerRadiusDp = selectedStyle.cornerRadiusDp)`），
+ * 用户还能把滑条拖到 30dp。整幅贴图类的角上往往就是素材画的东西，裁一刀就是"作品缺了个角"。
+ *
+ * **② 圆角会切掉什么**（口径：预览位图 1125px 宽 = 4.5px/dp，数"画面上已有的不透明像素"落在圆角
+ * 遮罩外的部分；斜杠后只数非卡面白的图案/笔画像素。4×4 只有 SPRING_DOG 另算——见它那一行，
+ * CUTE_FOUR_KIDS 与 4×2 相同，其余 4×4 均为 0）：
+ *  · SPRING_DOG     绿框四个角——**12dp 就会切到**：4×2 653/280px，4×4 273/34px；30dp 6473/4154px
+ *  · PANDA_BAMBOO   竹框下沿两角：12dp 0，30dp 1018/956px
+ *  · PET_PARK       毛毡框下沿两角：12dp 0，30dp 1053/684px
+ *  · CRAYON_FRAME   最外侧的蜡笔波浪尖：12dp 0，30dp 693/433px
+ *  · PLUSH_FOREST   底部毛绒草地：12dp 0，30dp 780/775px
+ *  · GIANT_SWORD    左下衣摆：12dp、20dp 都是 0，30dp 才 102/92px
+ *  · CUTE_FOUR_KIDS 白卡四角——切到的是**卡面**，不是头像（12dp 头像 0px、30dp 仅 10px）。
+ *                   直角是这款的设计选择（整卡留白到边），别写成"保护头像条"
+ *  · SUBOR_CONSOLE  标准尺寸下**切不到**：`CENTER_FIT` 把机身缩在中间，四角本来就是透明的
+ *
+ * **③ 别照 ② 的数字删条目**：上表是标准 4×2 / 4×4 预览下测的。用户在桌面上把组件**拖小**（占的格数
+ * 变少）时，同一个圆角在卡片上占的比例更大、切得更多；`SUBOR_CONSOLE` 还多一层——它的素材是
+ * 1.604:1，组件长宽比一接近它，`CENTER_FIT` 就把机身撑满四角；再加上"从上一个风格继承来一个大
+ * 圆角"这条路径，切到的东西都跟着变。删一条**不会让任何测试变红**（`ShapeCornerSliderTest`
+ * 只核对"强制直角 ⇒ 圆角滑条置灰"），而桌面上的老组件会当场多一刀。
+ */
 private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.GIANT_SWORD,
     WidgetShape.PLUSH_FOREST,
     WidgetShape.SUBOR_CONSOLE,
-    // 春天与小狗：圆角与绿框都在素材里，再裁一次会切掉框角
     WidgetShape.SPRING_DOG,
+    WidgetShape.PANDA_BAMBOO,
+    WidgetShape.PET_PARK,
+    WidgetShape.CUTE_FOUR_KIDS,
+    WidgetShape.CRAYON_FRAME,
 )
 
 /**
@@ -177,6 +190,21 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     // 春天与小狗：素材自带绿框与卡面，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
     WidgetShape.SPRING_DOG -> ShapeFamily.ROUND_RECT
 
+    // 竹林熊猫：竹框、熊猫、竹叶全在素材里，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
+    WidgetShape.PANDA_BAMBOO,
+    // 萌宠乐园：毛毡框与六只小动物全在素材里，同上
+    WidgetShape.PET_PARK,
+    // 可爱四小只：头像条压在卡面左下角，走普通圆角矩形（卡面由背景色铺、头像条由背景图铺）
+    WidgetShape.CUTE_FOUR_KIDS -> ShapeFamily.ROUND_RECT
+
+    // 青年雕塑：浅灰卡面 + 雕塑 + 白色正文面板全在素材里，装饰由素材提供，
+    // 走普通圆角矩形（不额外绘制）。圆角不强制直角——卡面本身就是一个 12dp 圆角矩形，
+    // 素材四角是同色卡面，圆角交给管线裁（见 SQUARE_CORNER_SHAPES 的说明）
+    WidgetShape.YOUTH_SCULPTURE -> ShapeFamily.ROUND_RECT
+
+    // 蜡笔彩虹框：蜡笔框、爱心、气球全在素材里，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
+    WidgetShape.CRAYON_FRAME -> ShapeFamily.ROUND_RECT
+
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER
     WidgetShape.ELLIPSE -> ShapeFamily.ELLIPSE
@@ -192,8 +220,4 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.SUMMER_SEA,
     WidgetShape.SUMMER_LOTUS -> ShapeFamily.FRAMED_CARD
 
-    // 材质边框族：卡片轮廓就是普通圆角矩形，本族唯一多出来的事是沿轮廓画材质
-    WidgetShape.PLUSH_CARD,
-    WidgetShape.SKETCH_CARD,
-    WidgetShape.VINE_CARD -> ShapeFamily.BORDER_MATERIAL
 }

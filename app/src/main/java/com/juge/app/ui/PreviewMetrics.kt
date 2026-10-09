@@ -1,6 +1,7 @@
 package com.juge.app.ui
 
 import com.juge.app.data.WidgetShape
+import com.juge.app.data.WidgetStyle
 
 /**
  * 预览区高度映射。
@@ -24,21 +25,21 @@ object PreviewMetrics {
     private const val BASE_HEIGHT_DP = 60
     private const val ROW_HEIGHT_DP = 50
 
-    /** App 内预览（没有桌面组件可问）时的兜底行数：按声明的默认落位 4×2 */
+    /** App 内没有桌面组件、或样式没声明尺寸时的兜底行数：按 4×2 */
     const val DEFAULT_SPAN_Y = 2
 
     /**
-     * 组件声明高度（dp）→ 网格行数：与桌面按 dp 推行数的换算一致。
-     * 4×4 入口声明 250dp → 4 行；4×2 入口声明 110dp → 2 行。
+     * 组件高度（dp）→ 网格行数：与桌面按 dp 推行数的换算一致。
+     * 4×4 款 250dp → 4 行；4×2 款 110dp → 2 行。
      */
     fun spanYForHeightDp(heightDp: Int): Int = ((heightDp + 30) / 70).coerceIn(2, 4)
 
     /**
-     * 预览高度：行数来自组件**声明的默认尺寸**（见 spanYForHeightDp），
-     * 不读库里那份建配置时写死的 sizeType，也不读桌面实时尺寸——两者都会让
-     * 同一个组件的预览在「方形」与「圆角矩形」之间来回跳。
+     * 预览高度：行数来自风格的**最佳显示尺寸**（见 WidgetStyle.bestDisplaySize，
+     * 由调用方经 [spanYForHeightDp] 换算成行数），不读库里的 sizeType、
+     * 也不读桌面组件入口/实时尺寸——三者都会让同一个风格的预览在「方形」与「长条」之间跳。
      *
-     * @param spanY 组件声明尺寸对应的网格行数（见 [spanYForHeightDp]）；
+     * @param spanY 最佳显示尺寸对应的网格行数（见 [spanYForHeightDp]）；
      *   null 按 [DEFAULT_SPAN_Y] 兜底，纯函数的兜底分支，调用方现在总能拿到声明尺寸
      */
     fun previewHeightDp(shape: WidgetShape, spanY: Int?): Int {
@@ -55,4 +56,14 @@ object PreviewMetrics {
         PREVIEW_BOX_BASE_DP
             .coerceAtLeast(previewHeightDp + 8)
             .coerceAtMost(PREVIEW_BOX_MAX_DP)
+
+    /**
+     * 某个风格在 App 内预览区占的高度：只认它自己的最佳显示尺寸
+     * （[WidgetStyle.bestDisplaySize]，4×4 款 250dp → 4 行、4×2 款 110dp → 2 行）。
+     *
+     * 产品规则（2026-10-08）：组件从哪个入口添加、在桌面上被拉成多大，都不影响这里的取值——
+     * 预览与桌面各按各的尺寸显示。
+     */
+    fun previewHeightForStyle(style: WidgetStyle): Int =
+        previewHeightDp(style.shape, spanYForHeightDp(style.bestDisplaySize.heightDp))
 }

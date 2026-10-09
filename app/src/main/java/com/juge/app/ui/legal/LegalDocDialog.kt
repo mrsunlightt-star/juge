@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.selectBlue
@@ -28,12 +29,18 @@ import com.juge.app.ui.theme.textGray
  */
 @Composable
 fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        // 与首启弹窗同一套宽度处理：平台默认宽度在手机上只有约 280dp，
+        // 「连读几十行」的协议全文挤在这点宽度里每行十几个字，非常难读。
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 420.dp)
                 .fillMaxHeight(0.85f)
-                .padding(12.dp),
+                .padding(vertical = 12.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = cardBg),
             border = BorderStroke(1.dp, borderBlue)

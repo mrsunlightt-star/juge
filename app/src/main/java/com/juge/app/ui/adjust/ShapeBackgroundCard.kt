@@ -81,16 +81,7 @@ internal fun ShapeBackgroundCard(
 
             // 背景圆角尺寸 Slider (适用于卡片类形状)
             // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
-            val canAdjustCorner = selectedStyle.shape != WidgetShape.ELLIPSE &&
-                                  selectedStyle.shape != WidgetShape.TORN_PAPER &&
-                                  // 书香书架本身就是组件、四周透明，没有外框可调圆角
-                                  selectedStyle.shape != WidgetShape.BOOKSHELF &&
-                                  // 巨剑/毛绒森林/小霸王游戏机是整幅插画，裁剪圆角会切掉剑身、毛绒小树与实物模型
-                                  selectedStyle.shape != WidgetShape.GIANT_SWORD &&
-                                  selectedStyle.shape != WidgetShape.PLUSH_FOREST &&
-                                  selectedStyle.shape != WidgetShape.SUBOR_CONSOLE &&
-                                  // 春天与小狗：圆角与绿框都在素材里（渲染层同样强制直角），滑条无落点
-                                  selectedStyle.shape != WidgetShape.SPRING_DOG
+            val canAdjustCorner = canAdjustCardCorner(selectedStyle.shape)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -234,3 +225,31 @@ internal fun ShapeBackgroundCard(
         }
     }
 }
+
+/**
+ * 「外框圆角大小」滑条是否可用。
+ *
+ * 两个理由会让滑条失去落点：
+ * 1. **渲染层强制直角**（`ShapeTraits.SQUARE_CORNER_SHAPES`）：整幅插画或素材自带的框角
+ *    被圆角裁切会切掉主体，渲染时不读用户的圆角值——滑条能动但画面上没有任何变化；
+ * 2. 形状本身没有可调的外框（椭圆/撕纸/书架各自的外轮廓另有来源）。
+ *
+ * 名单**必须覆盖第 1 类**，`ShapeCornerSliderTest` 会逐形状核对这一点：
+ * 这份名单历史上漏登记过三次（竹林熊猫、萌宠乐园、可爱四小只），
+ * 表现都是「滑条能动、拖动无反应」。
+ */
+internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
+    shape != WidgetShape.ELLIPSE &&
+        // 书香书架本身就是组件、四周透明，没有外框可调圆角
+        shape != WidgetShape.BOOKSHELF &&
+        shape != WidgetShape.TORN_PAPER &&
+        // 以下全部在渲染层强制直角：整幅插画/自带框角的素材，裁圆角会切掉剑身、
+        // 毛绒小树、实物模型、竹框、毛毡框、头像条与蜡笔框
+        shape != WidgetShape.GIANT_SWORD &&
+        shape != WidgetShape.PLUSH_FOREST &&
+        shape != WidgetShape.SUBOR_CONSOLE &&
+        shape != WidgetShape.SPRING_DOG &&
+        shape != WidgetShape.CRAYON_FRAME &&
+        shape != WidgetShape.PANDA_BAMBOO &&
+        shape != WidgetShape.PET_PARK &&
+        shape != WidgetShape.CUTE_FOUR_KIDS

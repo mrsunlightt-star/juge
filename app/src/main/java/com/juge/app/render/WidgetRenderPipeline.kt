@@ -40,6 +40,10 @@ internal const val CARD_INSET_DP = 4f
 // 外框圆角的默认值：撕纸/信纸/椭圆的外框只是投影与底色的兜底形状，不跟随用户的圆角设置
 internal const val DEFAULT_OUTER_CORNER_RADIUS_DP = 16f
 
+// 「该用方版素材吗」的分界：目标比例低于它就算方形组件。
+// 4×2 卡面约 1.97:1、4×4 约 1:1，取中间值即可；用户把组件拖成别的比例时也落在合理一侧。
+internal const val SQUARE_ASSET_ASPECT_THRESHOLD = 1.4f
+
 /**
  * 一次渲染的全部状态。
  *
@@ -76,11 +80,7 @@ internal class RenderScene(
      * （以及在 launcher 重新挂载组件、垫上自己的白色占位底时透出那片白）别无用处。
      */
     val cardInset: Float =
-        if (traits.insetCapable && (style.showCardShadow || traits.decoratesOutsideContour)) {
-            CARD_INSET_DP * densityScale
-        } else {
-            0f
-        }
+        if (traits.insetCapable && style.showCardShadow) CARD_INSET_DP * densityScale else 0f
 
     /** 用户设置的圆角；整幅插画被强制直角，避免套用预设后继承上一个风格的圆角值把画面切掉 */
     val effectiveCornerRadiusDp: Float =
@@ -91,6 +91,16 @@ internal class RenderScene(
 
     /** 外框路径：投影、底色、背景图与外圈圆角都用它 */
     val outerPath = Path()
+
+    /**
+     * 这次渲染该用**方版素材**吗：目标比例接近方形（4×4）、且这款风格确实带了方版素材。
+     *
+     * 4×2 卡面约 1.97:1、4×4 约 1:1，取 [SQUARE_ASSET_ASPECT_THRESHOLD] 作分界。
+     * 没带方版素材时一律用横版（老数据、以及只出了一份素材的风格，行为与从前一致）。
+     */
+    val useSquareAsset: Boolean =
+        style.presetImageResNameSquare != null &&
+            targetWidth.toFloat() / targetHeight.coerceAtLeast(1) < SQUARE_ASSET_ASPECT_THRESHOLD
 
     val alpha: Int = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
 
@@ -254,8 +264,11 @@ internal object WidgetRenderPipeline {
             val resName = if (traits.isSplitCard) {
                 // 图文明信片：没有指定素材时退回默认插画
                 style.presetImageResName ?: "bg_illustration_1"
+            } else if (scene.useSquareAsset) {
+                // 整幅贴图类：带了方版素材就用方版，避免一张 1.75:1 的图在 4×4 上被纵向拉 76%
+                style.presetImageResNameSquare
             } else {
-                // 城市微缩 / 其余风格：一个风格一张素材，presetImageResName 就是素材名
+                // 一个风格一张素材，presetImageResName 就是素材名
                 style.presetImageResName
             }
             if (!resName.isNullOrEmpty()) {
@@ -318,8 +331,6 @@ internal object WidgetRenderPipeline {
             )
             ShapeFamily.WEATHER_BOX -> drawWeatherBoxChrome(scene)
             ShapeFamily.FRAMED_CARD -> drawFramedCardChrome(scene)
-            // 材质边框族：沿卡片轮廓现画材质（毛绒 / 素描线 / 绿藤）
-            ShapeFamily.BORDER_MATERIAL -> drawBorderMaterialChrome(scene)
 
             ShapeFamily.ROUND_RECT,
             ShapeFamily.TORN_PAPER,
@@ -400,16 +411,6 @@ internal object WidgetRenderPipeline {
             scene.canvas, scene.context, scene.outerPath, spec, layout,
             scene.targetWidth, scene.targetHeight, scene.densityScale, scene.alpha
         )
-    }
-
-    /**
-     * 材质边框族（毛绒边框 / 素描线卡 / 绿藤缠绕）：卡面由背景色铺好，
-     * 这里沿卡片轮廓现画边材质。材质绑定在形状上（见 `BorderMaterialRenderer.specFor`），
-     * 不是能贴到任意风格上的开关。
-     */
-    private fun drawBorderMaterialChrome(scene: RenderScene) {
-        val spec = BorderMaterialRenderer.specFor(scene.style.shape) ?: return
-        BorderMaterialRenderer.draw(scene.canvas, scene.path, spec, scene.densityScale)
     }
 
     /** 5. 纸张颗粒/纤维纹理与卡片描边 */
