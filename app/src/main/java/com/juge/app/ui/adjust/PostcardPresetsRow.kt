@@ -48,7 +48,7 @@ private const val PREVIEW_WIDTH_DP = 150
 private const val PREVIEW_HEIGHT_DP = 80
 
 /**
- * 明信片风格行：首位整幅贴图、代码绘制的大卡、按真实渲染的微缩场景、插画素材。
+ * 明信片风格行：首位整幅贴图、代码绘制的大卡、按真实渲染的场景卡、插画素材。
  * 四类缩略图统一 150×80，名称以独立文本显示在缩略图下方。
  */
 @Composable
@@ -115,7 +115,7 @@ internal fun PostcardPresetsRow(
                 )
             }
 
-            // 明信片行的微缩城市 / 立体场景：缩略图按组件真实渲染——
+            // 明信片行的场景卡 / 抠图明信片：缩略图按组件真实渲染——
             // 若像插图那样裁原图，几张会长得一模一样、分不出方案。
             WidgetStyle.POSTCARD_RENDERED_PRESETS.forEach { (presetName, preset) ->
                 RenderedPresetItem(

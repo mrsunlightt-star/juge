@@ -29,10 +29,12 @@ import com.juge.app.data.DbHelper
 import com.juge.app.data.Reminder
 import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
+import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetStyle
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.requiresProForDesktop
 import com.juge.app.ui.adjust.AdjustTabContent
 import com.juge.app.ui.theme.darkBg
 import java.io.File
@@ -153,7 +155,7 @@ fun MainAppScreen(
 
     // 「点击桌面组件 → 打开 App」的定位请求（MainActivity 带上被点组件的 config_id）。
     // 反查绑定关系找到对应的 appWidgetId，选中它并直接落在「个性定制」页——
-    // 用户点组件的目的就是改这个组件，这正是原先快捷面板承担的语义。
+    // 用户点组件的目的就是改这个组件，所以直接定位到它的编辑页。
     //
     // 之所以靠 config_id 而不是 appWidgetId 反查：真正决定显示内容与样式的是配置行，
     // 而绑定关系（appWidgetId → configId）存在 SharedPreferences 里，可以不依赖数据库就完成定位。
@@ -238,6 +240,10 @@ fun MainAppScreen(
     // 防抖写库任务：声明在 LaunchedEffect 之前，切换组件时可 join 等待未落库的写入完成
     var persistJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
+    // 上次真正落库的风格尺寸：只在「风格尺寸发生变化」时提示手动拉伸，
+    // 改文字/颜色等细节不会再弹提示
+    var lastPersistedBestSize by remember { mutableStateOf<WidgetDisplaySize?>(null) }
+
     LaunchedEffect(selectedWidgetId) {
         if (selectedWidgetId != -1) {
             // 等待 400ms 防抖写入落库后再读取，避免切换组件时读到数据库旧值覆盖用户草稿
@@ -245,7 +251,9 @@ fun MainAppScreen(
             val boundConfigId = ReminderWidgetProvider.getBoundConfigId(context, selectedWidgetId)
             val config = widgetConfigs.find { it.id == boundConfigId } ?: widgetConfigs.firstOrNull()
             textContentState = config?.content ?: ""
-            currentStyle = ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, config?.styleJson)
+            val loadedStyle = ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, config?.styleJson)
+            currentStyle = loadedStyle
+            lastPersistedBestSize = loadedStyle.bestDisplaySize
         }
     }
 
@@ -253,22 +261,21 @@ fun MainAppScreen(
 
     var showProDialog by remember { mutableStateOf(startOnActivate) }
 
-    // 样式保存与更新回调。
-    // 新付费规则：预览任意风格、默认组件免费、仅在"同步到桌面"时拦截。
-    // 未激活时切到付费风格仍允许在 App 内预览，但点保存同步到桌面时弹激活。
-    val onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome = onStyleChange@{ widgetId, configId, newContent, newStyle ->
-        // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
-        val style = newStyle.withoutUnsupportedBackgroundColor()
-        val isSyncToDesktop = widgetId != -1
-        // 付费点只有两个：会员专属风格、自定义背景图。
-        // 字体、字号、颜色、圆角、不透明度等细节调整全部免费，不再参与判定。
-        val needPay = isSyncToDesktop && !trialManager.isActivated() && (
-            WidgetStyle.isProPreset(style) || !style.backgroundImagePath.isNullOrEmpty()
-            )
-        if (needPay) {
-            showProDialog = true
-            return@onStyleChange SaveOutcome.REQUIRES_PRO
+    var sizeHint by remember { mutableStateOf<WidgetSizeHint?>(null) }
+
+    // 尺寸不匹配提示：只提醒，不阻断保存。桌面组件的实际大小由 launcher 控制，
+    // App 没有强制 resize 的 API，所以引导用户直接在桌面长按拖动边缘。
+    val maybeShowSizeHint: (Int, WidgetStyle) -> Unit = { widgetId, style ->
+        if (widgetId != -1) {
+            widgetSizeHintFor(
+                style,
+                ReminderWidgetProvider.getWidgetSizeString(context, widgetId)
+            )?.let { sizeHint = it }
         }
+    }
+
+    // 编辑/预览期真正落库。调用前已经判断过付费权限。
+    val persistStyle: (Int, Long, String, WidgetStyle) -> SaveOutcome = persist@{ widgetId, configId, newContent, style ->
         // 编辑期背景图先落在 bg_tmp；走到这里说明用户确实在保存，提交为正式资源（可重复调用）
         val committedPath = CropImageHelper.commitBackground(context, style.backgroundImagePath)
         val finalStyle = if (committedPath != style.backgroundImagePath) {
@@ -316,7 +323,35 @@ fun MainAppScreen(
                 }
             }
         }
+        if (widgetId != -1) {
+            val sizeChanged = lastPersistedBestSize != style.bestDisplaySize
+            lastPersistedBestSize = style.bestDisplaySize
+            if (sizeChanged) maybeShowSizeHint(widgetId, style)
+        }
         SaveOutcome.SAVED
+    }
+
+    // 编辑回调（输入文字、改字体/颜色/圆角/不透明度等）：
+    // 未激活时如果当前是付费风格/自定义背景图，只更新 App 内预览，
+    // 不落库、不触发桌面更新，也不弹付费框；等用户点「保存并应用到桌面」时再拦截。
+    val onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome = onStyleChange@{ widgetId, configId, newContent, newStyle ->
+        // 主体四周透明的形状不支持背景色，落库前统一清空，避免旧配色残留导致外围露出包裹卡片
+        val style = newStyle.withoutUnsupportedBackgroundColor()
+        if (requiresProForDesktop(style, trialManager.isActivated(), widgetId)) {
+            return@onStyleChange SaveOutcome.PREVIEW_ONLY
+        }
+        persistStyle(widgetId, configId, newContent, style)
+    }
+
+    // 唯一付费拦截点：点「保存并应用到桌面小组件」时才判断。
+    // 没有桌面目标（widgetId == -1）时不拦截，保持与旧逻辑一致。
+    val onApplyToDesktop: (Int, Long, String, WidgetStyle) -> SaveOutcome = apply@{ widgetId, configId, newContent, newStyle ->
+        val style = newStyle.withoutUnsupportedBackgroundColor()
+        if (requiresProForDesktop(style, trialManager.isActivated(), widgetId)) {
+            showProDialog = true
+            return@apply SaveOutcome.REQUIRES_PRO
+        }
+        persistStyle(widgetId, configId, newContent, style)
     }
 
     MainOverlays(
@@ -338,6 +373,10 @@ fun MainAppScreen(
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
     )
+
+    sizeHint?.let { hint ->
+        WidgetSizeHintDialog(hint) { sizeHint = null }
+    }
 
     MainScreenBackground {
         MainTopBar(
@@ -461,6 +500,9 @@ fun MainAppScreen(
                             },
                             onStyleChange = { wId, rId, text, newStyle ->
                                 onStyleChange(wId, rId, text, newStyle)
+                            },
+                            onApplyToDesktop = { wId, rId, text, newStyle ->
+                                onApplyToDesktop(wId, rId, text, newStyle)
                             },
                             onOpenDoc = { showLegalDoc = it },
                             initiallyTutorialExpanded = startTutorialExpanded

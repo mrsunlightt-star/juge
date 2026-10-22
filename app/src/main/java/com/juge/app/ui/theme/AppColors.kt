@@ -3,8 +3,8 @@ package com.juge.app.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * 全局主题色：主界面与快捷面板此前各抄了一份（值完全相同），改一处必须记得改两处。
- * 色值取自主界面晴空蓝背景与网站同款配色，改动前请同时确认两条界面的对比度。
+ * 全局主题色统一收在这里，避免各界面各抄一份；改色只需改这一处。
+ * 色值取自主界面晴空蓝背景与网站同款配色，改动前请同时确认相关界面的对比度。
  */
 internal val darkBg = Color(0xFFEEF2F7) // 页面底色（冷调浅灰蓝）：比纯白卡片深一档，让白卡片能"浮"起来，同时保持清爽
 internal val cardBg = Color(0xFFFFFFFF) // 纯净白卡片

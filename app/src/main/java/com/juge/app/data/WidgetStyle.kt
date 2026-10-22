@@ -74,15 +74,48 @@ enum class WidgetShape(val displayName: String) {
     // 正文落在头像上方整幅留白区。头像方块几何取自设计稿 1824×912：
     // 每块 170×151、1px #C9C9C9 描边、圆角 3，横排于 x 49/239/429/619、y 689。
     CUTE_FOUR_KIDS("可爱四小只"),
-    // 青年雕塑：整幅贴图——浅灰卡面 + 上半身青年雕塑像（带白描边的抠图），下半一张白色面板放正文，
-    // 面板中央有一枚 10% 不透明度的星形纹样（设计稿自带，刻意保留）。素材 2048×2048。
-    // ⚠️ 这是一款 **4×4 专属**风格：设计稿只有方版，按产品决定**不出 4×2 版**（"没有这个东西"）。
+    // 青年雕塑（2026-10-21 改版）：整幅明信片——纯白卡面 + 上方约 52% 的雕塑图
+    //（内嵌 1920×1280 原图，肩部在 52% 处裁齐），下方整片留白放正文。素材 2048×2048。
+    // presetId 保持不变，已落桌面/已保存的旧组件读档时直接跟到新造型，
+    // 不必重新套用预设。
+    // ⚠️ 这是一款 **4×4 专属**风格：设计稿就是 250×250 方版，按产品决定**不出 4×2 版**。
     // 它在 4×2 组件上会被横向拉宽约 97%，这是已知且被接受的，**不要**给它补横版素材。
     YOUTH_SCULPTURE("青年雕塑"),
     // 蜡笔彩虹框：整幅手绘素材——蓝/绿/粉三色蜡笔波浪描边 + 框内近白纸面，
     // 左上角一颗红蜡笔爱心、右下角一只黄蜡笔气球。素材原稿 2048×1152 是 16:9 画布、
     // 框只占中间一条（四周透明留白 7%~27%），入库前已按内容框裁到 1826×627。
     CRAYON_FRAME("蜡笔彩虹框"),
+    // Keep Smiling：整幅社交动态卡素材——白卡 + 左上圆形笑脸头像 + 标题/绿色副标题，
+    // 右上三点、左下四个头像 +「+2」、右下铅笔；中间大片留白放正文。
+    //
+    // ⚠️ 设计稿原稿是 578×407（1.42:1），与 4×2 卡面（约 1.97:1）不等比。入库时**没有拉伸**，
+    // 而是按高度等比缩放后把「三点 / 铅笔」钉到右边缘、「头像条」留在左下角，中间留白横向加宽，
+    // 得到 2048×1024 的 2:1 素材（SVG 矢量重绘，标题文字在 SVG 导出时缺失，已按原稿补回）。
+    // 这是一款 **4×2 原生**风格，按产品要求归类为 4:2；4×4 上纵向拉伸约 2 倍是已知且接受的，
+    // **不要**给它补方版素材。
+    KEEP_SMILING("Keep Smiling"),
+    // 课后时光：抠图明信片——上方 52% 横排三张校园人物**真透明抠图**（内嵌三张 2048×1152 原图，
+    // alpha=0 约 84%~88%），下半是**代码绘制**的正文面板；人物以外透出桌面壁纸，
+    // 沿人物边缘呈不规则形状，面板颜色跟随「小组件背景颜色」。
+    // 素材 2048×2048，设计稿原生 250×250。
+    // ⚠️ 这是一款 **4×4 专属**风格：按产品要求默认 4×4，**不出 4×2 版**；
+    // 4×2 上横向拉伸约 97% 是已知且接受的，**不要**给它补横版素材。
+    AFTER_SCHOOL("课后时光"),
+    // 男生房间：明信片——上半是房间**透明抠图**，下半是设计稿自带的白色正文框
+    //（#AC7163 2px 描边，x 5~244 / y 113~244，素材 250×250）；框外全部透明。
+    // 白框是直角的，渲染时强制 0 圆角；底色由素材里的白框提供，不铺背景色。
+    BOY_ROOM("男生房间"),
+    // 跨栏小子：明信片——上半是跨栏少年 + 栏杆的**真透明抠图**（不规则形状，透出壁纸），
+    // 下半是素材自带的白色记分牌正文框（素材 1536×1536：牌面 x 186~1356 / y 670~1405）。
+    // 牌面与牌角圆角都在素材里，不铺背景色；牌角本身是圆角，不强制直角。
+    HURDLE_BOY("跨栏小子"),
+    // 可爱Doro：萌宠——原生 1536×1536 方形构图（粉发毛绒角色 + 奶油色留言板），
+    // 角色在上、留言板占下方约 42%~94%，四周透明；正文直接写在留言板里。
+    // 2026-10-21 用设计师新出的方形版替换了原来的 2:1 裁切放大版，不再需要裁两侧。
+    CUTE_DORO("可爱Doro"),
+    // 蓝色鲸鱼：4×2 萌宠卡——浅灰圆角卡 + #4998CD 描边 + 右下角小鲸鱼，
+    // 卡面与描边都烘在素材里（设计稿 250×110），右上/左上留白放正文。
+    BLUE_WHALE("蓝色鲸鱼"),
 }
 
 /**
@@ -689,7 +722,8 @@ data class WidgetStyle(
                 authorSignature = "—— 萌宠猫咪趴"
             ), // 31. 萌宠猫咪趴 (PRO)
 
-            // 可爱四小只 (PRO)：四个圆形萌宠头像(企鹅帽/蓝绿双马尾/黄脸/粉发双丸子)排成 2×2 网格，左图右文
+            // 可爱四小只 (PRO)：四个圆形萌宠头像(企鹅帽/蓝绿双马尾/黄脸/粉发双丸子)横排在卡片左下角，
+            // 正文落在头像上方的整幅留白区（设计稿 1824×912）
             WidgetStyle(
                 presetId = "p_cute_four_kids",
                 bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 4×2 专属：设计稿就是 1824×912（2:1），不出 4×4 版
@@ -1102,19 +1136,22 @@ data class WidgetStyle(
                 presetImageResNameSquare = "pet_park_square",
                 authorSignature = "—— 萌宠乐园"
             ), // 61. 萌宠乐园 (PRO)
-            // 青年雕塑 (免费)：整幅贴图——浅灰卡面 + 上半身雕塑像，下半白面板放正文。
-            // 素材 2048×2048，只出了 4×4 方版（见 WidgetShape.YOUTH_SCULPTURE 的说明），
-            // 因此 presetImageResName 直接指向方版素材，不填预设的方版字段。
+            // 青年雕塑 (免费, 2026-10-21 改版)：整幅明信片——纯白卡面 + 上方 52% 雕塑图，
+            // 下方整片留白放正文。设计稿原生 250×250，已按 SVG 渲染成 2048×2048 方版；
+            // 只出 4×4（见 WidgetShape.YOUTH_SCULPTURE 的说明），不填预设的方版字段。
             //
-            // 底色写成素材卡面自己的浅灰：不透明度调低时整卡褪成同色，而不是露出上一个风格的底色。
+            // presetId 刻意保持不变：已保存/已落桌面的旧组件读档时直接跟到新造型，
+            // 不必重新套用预设。
+            //
+            // 底色写成素材卡面自己的纯白：不透明度调低时整卡褪成同色，而不是露出上一个风格的底色。
             // 阴影 + 1dp 细描边与「纯色圆角」同款——免费风格的既有视觉定义，
             // 老存档读取时 upgradedForFreeStyle() 也会把这两项补齐，预设不写就会在重载时跳一下。
             WidgetStyle(
                 presetId = "p_youth_sculpture",
-                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 4×4 专属：设计稿只有 2048×2048 方版，不出 4×2 版
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 4×4 专属：设计稿只有 250×250 方版，不出 4×2 版
                 shape = WidgetShape.YOUTH_SCULPTURE,
                 cornerRadiusDp = 12f, // 设计稿的「12dp 圆角参考」
-                backgroundColor = Color.parseColor("#F5F5F5"),
+                backgroundColor = Color.WHITE,
                 backgroundOpacity = 1f,
                 backgroundImagePath = null,
                 bgImageScaleMode = ImageScaleMode.STRETCH,
@@ -1157,6 +1194,141 @@ data class WidgetStyle(
                 presetImageResName = "crayon_frame",
                 authorSignature = "—— 蜡笔彩虹框"
             ), // 63. 蜡笔彩虹框 (PRO)
+            // Keep Smiling (PRO)：社交动态卡风格——白卡 + 左上笑脸头像 / 标题 / 绿色副标题，
+            // 右上三点、左下头像条 +「+2」、右下铅笔，中间大片留白承载正文。
+            //
+            // 素材 2048×1024 按 4×2 画布重排（原稿 578×407 见 WidgetShape.KEEP_SMILING 的说明）：
+            // 按高度等比缩放、左右贴边元素重新钉边，不是把 1.42:1 的图横向拉宽 39%。
+            // 卡面与四角圆角都在素材里，因此不铺背景色（透明处透出壁纸），也不加投影/描边。
+            WidgetStyle(
+                presetId = "p_keep_smiling",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：4×2 原生，不出 4×4 版
+                shape = WidgetShape.KEEP_SMILING,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.SOURCE_HAN_SANS, // 无衬线：与社交动态卡的现代感一致
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#1F1F1F"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "keep_smiling",
+                authorSignature = "—— Keep Smiling"
+            ), // 64. Keep Smiling (PRO)
+            // 课后时光 (PRO)：抠图明信片——上方 52% 横排三张校园人物真透明抠图，
+            // 下半是**代码绘制**的正文面板，颜色跟随「小组件背景颜色」；人物以外透出桌面壁纸，
+            // 沿人物边缘呈不规则形状。素材只保留上半的抠图，下半不再烘面板。
+            // 设计稿 250×250，已按 SVG 渲染成 2048×2048 方版；三张图由 SVG 内嵌的
+            // 2048×1152 原图裁出（alpha=0 约 84%~88%），入库不额外放大。
+            // 上半部分透明，所以渲染器不整卡铺底色，只由 CUTOUT_POSTCARD 家族铺下半面板。
+            // ⚠️ 按产品要求归类为明信片风格、默认 4×4，不出 4×2 版。
+            WidgetStyle(
+                presetId = "p_after_school",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4×4，不出 4×2 版
+                shape = WidgetShape.AFTER_SCHOOL,
+                cornerRadiusDp = 12f,
+                backgroundColor = Color.WHITE, // 默认白面板；用户可改，只作用于下半部分
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI, // 霞鹜文楷：校园/手帐气质，贴合课后时光
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#3A3A3A"),
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "after_school",
+                authorSignature = "—— 课后时光"
+            ), // 65. 课后时光 (PRO)
+            // 男生房间 (PRO)：明信片——上半是房间透明抠图，下半是设计稿自带的白色正文框
+            //（#AC7163 描边）；框外全部透明。白框是直角的，渲染时强制 0 圆角。
+            WidgetStyle(
+                presetId = "p_boy_room",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4×4
+                shape = WidgetShape.BOY_ROOM,
+                cornerRadiusDp = 0f, // 设计框是直角；形状同时强制 0 圆角
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#4A3B33"), // 暖棕：压白纸框
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "boy_room",
+                authorSignature = "—— 男生房间"
+            ), // 66. 男生房间 (PRO)
+            // 可爱Doro (PRO)：萌宠——设计师新出的原生 1536×1536 方形版，
+            // 粉发毛绒角色在上、奶油色留言板占下方约 42%~94%，四周透明；
+            // 不再裁切/放大，留言板圆角完整保留，正文直接写在板子里。
+            WidgetStyle(
+                presetId = "p_cute_doro",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4×4
+                shape = WidgetShape.CUTE_DORO,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#6B4A4A"), // 暖棕红：压奶油色留言板
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "cute_doro",
+                authorSignature = "—— 可爱Doro"
+            ), // 67. 可爱Doro (PRO)
+            // 蓝色鲸鱼 (PRO)：4×2 萌宠卡——浅灰圆角卡 + #4998CD 描边 + 右下角小鲸鱼。
+            // 设计稿 250×110，卡面/描边/鲸鱼都烘在 2048×1024 素材里；
+            // 白框与描边本身是圆角，形状强制 0 圆角避免管线再把卡角切一刀。
+            WidgetStyle(
+                presetId = "p_blue_whale",
+                bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
+                shape = WidgetShape.BLUE_WHALE,
+                cornerRadiusDp = 0f, // 设计稿的圆角在素材里；形状同时强制 0 圆角
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.LXGW_WENKAI,
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#2F5D7A"), // 深蓝灰：与 #4998CD 描边同调
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "blue_whale",
+                authorSignature = "—— 蓝色鲸鱼"
+            ), // 68. 蓝色鲸鱼 (PRO)
+            // 跨栏小子 (PRO)：明信片——上半是跨栏少年与栏杆的真透明抠图（不规则形状，
+            // 人物与栏杆以外透出壁纸），下半是素材自带的白色记分牌正文框。
+            // 素材原生 1536×1536，牌面 x 186~1356 / y 670~1405，正文落在牌内
+            // （比例见 CardTextRenderer）；牌面与卡角圆角都在素材里，不铺背景色。
+            // ⚠️ 按产品要求归类为明信片风格、默认 4×4，不出 4×2 版；
+            // 4×2 上横向拉伸约 97% 是已知且接受的，**不要**给它补横版素材。
+            WidgetStyle(
+                presetId = "p_hurdle_boy",
+                bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4×4
+                shape = WidgetShape.HURDLE_BOY,
+                cornerRadiusDp = 12f,
+                backgroundColor = android.graphics.Color.TRANSPARENT,
+                backgroundOpacity = 1f,
+                backgroundImagePath = null,
+                bgImageScaleMode = ImageScaleMode.STRETCH,
+                font = WidgetFont.SOURCE_HAN_SANS, // 无衬线：与运动卡片/记分牌的现代感一致
+                fontSizeSp = 18f,
+                fontColor = Color.parseColor("#243244"), // 深蓝灰：压白色记分牌
+                textAlign = "CENTER",
+                showCardShadow = false,
+                cardBorderWidthDp = 0f,
+                presetImageResName = "hurdle_boy",
+                authorSignature = "—— 跨栏小子"
+            ), // 69. 跨栏小子 (PRO)
         )
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
@@ -1187,7 +1359,20 @@ data class WidgetStyle(
             WidgetShape.PET_PARK,
             // 蜡笔彩虹框：同理——蜡笔框外一侧是透明的（透出壁纸），
             // 再铺一层背景色会在蜡笔描边外露出一圈方角色块
-            WidgetShape.CRAYON_FRAME
+            WidgetShape.CRAYON_FRAME,
+            // Keep Smiling：白卡与四角圆角都在素材里，背景色只会在四角透明处露一圈；
+            // 不铺底色也让「背景不透明度」只作用于素材本身，不会出现底色与白卡叠两层
+            WidgetShape.KEEP_SMILING,
+            // 男生房间：上半房间抠图 + 下半白框都在素材里，框外透明；铺底色会在四周露一圈
+            WidgetShape.BOY_ROOM,
+            // 跨栏小子：少年/栏杆抠图 + 白色记分牌都在素材里，周边透明；
+            // 铺底色会把上半的透明区和记分牌外缘一起填掉
+            WidgetShape.HURDLE_BOY,
+            // 可爱Doro：角色与留言板是整张抠图，上方透明；铺底色会把透明区域填掉
+            WidgetShape.CUTE_DORO,
+            // 蓝色鲸鱼：浅灰卡面与蓝色描边都烘在素材里，铺底色会填掉卡外四角
+            WidgetShape.BLUE_WHALE
+            // 课后时光不在这里：它支持背景色，但底色只铺下半面板（fillsBottomPanelOnly）
         )
 
         /** 该形状是否支持设置背景色 */
@@ -1224,7 +1409,7 @@ data class WidgetStyle(
         }
 
         // 明信片/画报风格可选插图（资源名 → 展示名）。
-        // 主界面与快捷面板共用同一份列表，避免两处硬编码各自维护导致入口间素材不一致。
+        // 主界面各分类行共用同一份列表，避免多处硬编码各自维护导致入口间素材不一致。
         // 注意：萌宠/角色类素材(guga_doro、cute_cat、fluffy_dog、happy_dog、fluffy_cat)归入
         // 下方的 PET_PRESETS(萌宠风格)，这里刻意排除，避免分类不干净、同一批图重复出现在明信片行。
         val ILLUSTRATION_PRESETS: List<Pair<String, String>> = listOf(
@@ -1259,7 +1444,7 @@ data class WidgetStyle(
             return preset.copy(backgroundImagePath = null)
         }
 
-        // 首页与快捷面板共用的推荐预设（按风格分类）。
+        // 首页推荐预设（按风格分类）。
         // 插图类按资源名定位而不是按下标，避免在 PRESETS 中新增预设时索引漂移导致展示错位。
         val CLASSIC_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "纯色圆角" to PRESETS[0],
@@ -1275,6 +1460,7 @@ data class WidgetStyle(
             "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
             "纹理山水" to (PRESETS.firstOrNull { it.presetId == "p_texture_landscape" } ?: PRESETS[0]),
             "蜡笔彩虹框" to (PRESETS.firstOrNull { it.presetId == "p_crayon_frame" } ?: PRESETS[0]),
+            "Keep Smiling" to (PRESETS.firstOrNull { it.presetId == "p_keep_smiling" } ?: PRESETS[0]),
         )
 
         // 明信片行**首位**的整幅贴图预设：按产品要求排在明信片风格第一个。
@@ -1301,7 +1487,10 @@ data class WidgetStyle(
             "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0]),
             "夏天的海" to (PRESETS.firstOrNull { it.presetId == "p_summer_sea" } ?: PRESETS[0]),
             "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0]),
-            "信纸" to (PRESETS.firstOrNull { it.presetId == "p_ruled_paper" } ?: PRESETS[0])
+            "信纸" to (PRESETS.firstOrNull { it.presetId == "p_ruled_paper" } ?: PRESETS[0]),
+            "课后时光" to (PRESETS.firstOrNull { it.presetId == "p_after_school" } ?: PRESETS[0]),
+            "男生房间" to (PRESETS.firstOrNull { it.presetId == "p_boy_room" } ?: PRESETS[0]),
+            "跨栏小子" to (PRESETS.firstOrNull { it.presetId == "p_hurdle_boy" } ?: PRESETS[0])
         )
 
         // 萌宠风格：动物/角色类卡通插画
@@ -1315,7 +1504,9 @@ data class WidgetStyle(
             "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0]),
             "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0]),
             "竹林熊猫" to (PRESETS.firstOrNull { it.presetId == "p_panda_bamboo" } ?: PRESETS[0]),
-            "萌宠乐园" to (PRESETS.firstOrNull { it.presetId == "p_pet_park" } ?: PRESETS[0])
+            "萌宠乐园" to (PRESETS.firstOrNull { it.presetId == "p_pet_park" } ?: PRESETS[0]),
+            "可爱Doro" to (PRESETS.firstOrNull { it.presetId == "p_cute_doro" } ?: PRESETS[0]),
+            "蓝色鲸鱼" to (PRESETS.firstOrNull { it.presetId == "p_blue_whale" } ?: PRESETS[0])
         )
     }
 }

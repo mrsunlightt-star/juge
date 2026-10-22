@@ -28,6 +28,9 @@ internal enum class ShapeFamily {
     /** 图文明信片（上下 / 左右分割）：一半铺图，另一半是代码绘制的文字区 */
     SPLIT_CARD,
 
+    /** 抠图明信片：上半是透明抠图，下半是代码绘制的正文面板（背景色可调） */
+    CUTOUT_POSTCARD,
+
     /** 蓝色便签：顶部 NOTE 区 + 底部米白签条 */
     BLUE_NOTE,
 
@@ -70,6 +73,17 @@ internal class ShapeTraits(
     val transparentCard: Boolean,
     /** 不走「整卡铺背景图」：素材由家族自己的绘制逻辑摆放 */
     val drawsOwnBackground: Boolean,
+    /**
+     * 只在下半部分铺底色：整卡铺底色会把上半的透明区域填掉（课后时光），
+     * 或在图片背后多叠一层（青年雕塑）。底色由家族绘制逻辑按
+     * [CutoutPostcardRenderer.panelRect] 画在正文面板上。
+     */
+    val fillsBottomPanelOnly: Boolean,
+    /**
+     * 上半部分透明：课后时光是人物抠图，上半以外要透出壁纸，所以不能画整卡投影；
+     * 青年雕塑的上半是不透明雕塑图，投影照常画。
+     */
+    val transparentTop: Boolean,
 ) {
     /**
      * 外框圆角是否跟随用户的圆角设置。
@@ -105,6 +119,8 @@ private val INSET_CAPABLE_SHAPES = setOf(
     WidgetShape.WEATHER_BOX,
     // 青年雕塑：卡面就是整幅素材，内容全按 outerRect 布局，内缩（给投影让位）安全
     WidgetShape.YOUTH_SCULPTURE,
+    // Keep Smiling：整幅素材按 outerRect 铺满，内缩（若用户后续打开投影）不会让装饰跑出卡面外
+    WidgetShape.KEEP_SMILING,
 )
 
 /**
@@ -142,12 +158,16 @@ private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.PET_PARK,
     WidgetShape.CUTE_FOUR_KIDS,
     WidgetShape.CRAYON_FRAME,
+    // 男生房间：设计稿的白色正文框是直角的，12dp/30dp 圆角会切掉白框底角
+    WidgetShape.BOY_ROOM,
+    // 蓝色鲸鱼：浅灰卡面与 #4998CD 描边本身的圆角都在素材里，管线再裁圆角会切到描边
+    WidgetShape.BLUE_WHALE,
 )
 
 /**
  * 整幅透明底：背景色只作用于各自的文本框 / 文字栏。
  *
- * 当前**没有形状在用**（原本占位的贴纸夜景 / 城市剪影 / 毛玻璃都已下线）。名单与
+ * 当前**没有形状在用**。名单与
  * [ShapeTraits.transparentCard] 一并保留，是留给这一类形状的扩展位——新形状归入时加一行即可，
  * 管线里「不铺整卡底色」「投影跟着文本框走」两条分支不用重写。
  */
@@ -162,6 +182,20 @@ private val OWN_BACKGROUND_SHAPES = setOf(
     WidgetShape.SUMMER_LOTUS,
 )
 
+/** 底色只铺下半正文面板的形状：上半是素材图，下半是代码面板 */
+private val BOTTOM_PANEL_SHAPES = setOf(
+    WidgetShape.YOUTH_SCULPTURE,
+    WidgetShape.AFTER_SCHOOL,
+)
+
+/** 上半透明的底部面板型明信片：不能画整卡投影，否则会在抠图周围露出一圈圆角矩形 */
+private val TRANSPARENT_TOP_SHAPES = setOf(
+    WidgetShape.AFTER_SCHOOL,
+    // 跨栏小子：上半是少年 + 栏杆的不规则抠图、下半是记分牌；整卡投影会在人物周围
+    // 画出圆角矩形阴影（虽然预设默认不投影，用户/旧存档打开时也要跳过）
+    WidgetShape.HURDLE_BOY,
+)
+
 private val TRAITS: Map<WidgetShape, ShapeTraits> = WidgetShape.entries.associateWith { shape ->
     ShapeTraits(
         family = shape.family(),
@@ -169,6 +203,8 @@ private val TRAITS: Map<WidgetShape, ShapeTraits> = WidgetShape.entries.associat
         forcesSquareCorners = shape in SQUARE_CORNER_SHAPES,
         transparentCard = shape in TRANSPARENT_CARD_SHAPES,
         drawsOwnBackground = shape in OWN_BACKGROUND_SHAPES,
+        fillsBottomPanelOnly = shape in BOTTOM_PANEL_SHAPES,
+        transparentTop = shape in TRANSPARENT_TOP_SHAPES,
     )
 }
 
@@ -197,13 +233,25 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     // 可爱四小只：头像条压在卡面左下角，走普通圆角矩形（卡面由背景色铺、头像条由背景图铺）
     WidgetShape.CUTE_FOUR_KIDS -> ShapeFamily.ROUND_RECT
 
-    // 青年雕塑：浅灰卡面 + 雕塑 + 白色正文面板全在素材里，装饰由素材提供，
-    // 走普通圆角矩形（不额外绘制）。圆角不强制直角——卡面本身就是一个 12dp 圆角矩形，
-    // 素材四角是同色卡面，圆角交给管线裁（见 SQUARE_CORNER_SHAPES 的说明）
-    WidgetShape.YOUTH_SCULPTURE -> ShapeFamily.ROUND_RECT
+    // 青年雕塑：上半是不透明雕塑图，下半是代码面板（背景色可调），
+    // 与课后时光共用 CUTOUT_POSTCARD 家族；上半不透明，所以整卡投影照常画
+    WidgetShape.YOUTH_SCULPTURE -> ShapeFamily.CUTOUT_POSTCARD
 
     // 蜡笔彩虹框：蜡笔框、爱心、气球全在素材里，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
-    WidgetShape.CRAYON_FRAME -> ShapeFamily.ROUND_RECT
+    WidgetShape.CRAYON_FRAME,
+    // Keep Smiling：白卡、头像、标题、三点、铅笔全在素材里，装饰由素材提供
+    WidgetShape.KEEP_SMILING,
+    // 男生房间：房间抠图 + 白色正文框全在素材里，装饰由素材提供
+    WidgetShape.BOY_ROOM,
+    // 跨栏小子：少年/栏杆抠图 + 白色记分牌全在素材里，装饰由素材提供
+    WidgetShape.HURDLE_BOY,
+    // 可爱Doro：毛绒角色 + 奶油色留言板全在素材里，装饰由素材提供
+    WidgetShape.CUTE_DORO,
+    // 蓝色鲸鱼：浅灰卡面 + 蓝描边 + 右下鲸鱼全在素材里，装饰由素材提供
+    WidgetShape.BLUE_WHALE -> ShapeFamily.ROUND_RECT
+
+    // 课后时光：上半是三张透明抠图，下半是代码绘制的正文面板（背景色可调）
+    WidgetShape.AFTER_SCHOOL -> ShapeFamily.CUTOUT_POSTCARD
 
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER

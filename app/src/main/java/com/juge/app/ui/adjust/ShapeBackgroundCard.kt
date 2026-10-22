@@ -252,4 +252,8 @@ internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
         shape != WidgetShape.CRAYON_FRAME &&
         shape != WidgetShape.PANDA_BAMBOO &&
         shape != WidgetShape.PET_PARK &&
-        shape != WidgetShape.CUTE_FOUR_KIDS
+        shape != WidgetShape.CUTE_FOUR_KIDS &&
+        // 素材里的白色正文框是直角的，强制 0 圆角避免切掉白框底角
+        shape != WidgetShape.BOY_ROOM &&
+        // 素材里的浅灰卡面与蓝色描边自带圆角，管线再裁会切到描边
+        shape != WidgetShape.BLUE_WHALE

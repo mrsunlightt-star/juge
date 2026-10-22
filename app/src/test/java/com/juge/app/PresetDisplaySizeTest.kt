@@ -35,6 +35,18 @@ class PresetDisplaySizeTest {
             "p_ruled_paper" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：蜡笔彩虹框的最佳显示尺寸是 4:2（4×2 原生，方版素材未交付）
             "p_crayon_frame" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：Keep Smiling 归类为 4:2（素材已按 2048×1024 重排，不出 4×4 版）
+            "p_keep_smiling" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：课后时光归类为明信片风格，默认 4×4（素材按 2048×2048 方版出图）
+            "p_after_school" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：男生房间归类为明信片风格，默认 4×4（设计稿 250×250）
+            "p_boy_room" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：跨栏小子归类为明信片风格，默认 4×4（素材原生 1536×1536）
+            "p_hurdle_boy" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：可爱Doro归类为萌宠风格，默认 4×4（原生 1536×1536 方形构图）
+            "p_cute_doro" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：蓝色鲸鱼归类为萌宠风格，默认 4:2（设计稿 250×110）
+            "p_blue_whale" to WidgetDisplaySize.WIDE_4X2,
             // 明信片行按 4×4 设计：天气盒子 + 画框卡片族
             "p_weather_box" to WidgetDisplaySize.SQUARE_4X4,
             "p_winter_palace" to WidgetDisplaySize.SQUARE_4X4,

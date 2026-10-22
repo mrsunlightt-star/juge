@@ -184,8 +184,10 @@ internal object WidgetRenderPipeline {
         val densityScale = scene.densityScale
 
         // 绘制卡片软阴影（移至 clip 外部以防被气泡边界截断）。
-        // 整幅透明底的形状没有卡片外框，阴影只该跟着各自的文本框走，因此在家族绘制里单独处理
-        if (style.showCardShadow && !traits.transparentCard) {
+        // 整幅透明底的形状没有卡片外框，阴影只该跟着各自的文本框走，因此在家族绘制里单独处理。
+        // 课后时光的上半是透明抠图，整卡外框的阴影会在人物周围画出一圈圆角矩形，跳过；
+        // 青年雕塑的上半不透明，投影照常画（transparentTop = false）
+        if (style.showCardShadow && !traits.transparentCard && !traits.transparentTop) {
             val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = scene.effectiveBgColor
                 if (Color.alpha(scene.effectiveBgColor) < 255) {
@@ -230,7 +232,8 @@ internal object WidgetRenderPipeline {
         }
         bgPaint.alpha = scene.alpha
         // 背景色为透明时不填充，避免 alpha 被强制为 255 后把透明底画成黑色。
-        if (Color.alpha(scene.effectiveBgColor) > 0 && !traits.transparentCard) {
+        // 抠图明信片不在这里铺整卡底色：背景色只由 drawCutoutPostcardPanel 铺下半正文面板
+        if (Color.alpha(scene.effectiveBgColor) > 0 && !traits.transparentCard && !traits.fillsBottomPanelOnly) {
             if (traits.isSplitCard) {
                 // 图文明信片：文字显示区（下半/右半）的底色由下方 panelPaint 单独绘制，
                 // 这里只铺图片区，避免同一底色叠两遍导致不透明度失真
@@ -315,6 +318,8 @@ internal object WidgetRenderPipeline {
     fun drawFamilyChrome(scene: RenderScene) {
         when (scene.traits.family) {
             ShapeFamily.SPLIT_CARD -> drawSplitCardPanel(scene)
+            // 课后时光：上半透明抠图，只用背景色铺下半正文面板
+            ShapeFamily.CUTOUT_POSTCARD -> drawCutoutPostcardPanel(scene)
             // 小霸王游戏机：素材的显像管玻璃原本是"未通电"的深灰玻璃，
             // 这里在屏幕区域内叠一层绿色荧光底，让屏幕看起来是开机的
             ShapeFamily.SUBOR_CONSOLE -> drawSuborScreenGlow(
@@ -384,6 +389,19 @@ internal object WidgetRenderPipeline {
             )
             canvas.drawRect(rightRect, panelPaint)
         }
+        canvas.restore()
+    }
+
+    /**
+     * 课后时光：上半是透明抠图，整卡底色会在人物周围露一圈；
+     * 背景色只铺下半的正文面板，面板同样受「背景不透明度」控制。
+     * 面板矩形与正文安全区共用 [CutoutPostcardRenderer] 的比例。
+     */
+    private fun drawCutoutPostcardPanel(scene: RenderScene) {
+        val canvas = scene.canvas
+        canvas.save()
+        canvas.clipPath(scene.outerPath)
+        canvas.drawRect(CutoutPostcardRenderer.panelRect(scene.outerRect), scene.bgPaint)
         canvas.restore()
     }
 

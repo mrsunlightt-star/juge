@@ -71,7 +71,7 @@ internal fun StylePresetCard(
             // 间距统一交给外层 Column 的 spacedBy(10.dp)，这里不再叠加 Spacer/分割线
             // 分类标题**不带尺寸后缀**：一行里各款风格的最佳显示尺寸本就各不相同
             // （见 WidgetStyle.bestDisplaySize），挂一个尺寸会误导。
-                    // 1. 经典风格（含唯一免费款「纯色圆角」，其余为会员专属）
+                    // 1. 经典风格（含免费款「纯色圆角」，其余为会员专属；另一款免费「青年雕塑」在明信片行首）
                     PresetRow(
                         presets = WidgetStyle.CLASSIC_PRESETS,
                         title = "经典风格",

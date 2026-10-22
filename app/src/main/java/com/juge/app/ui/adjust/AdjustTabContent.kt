@@ -64,6 +64,7 @@ fun AdjustTabContent(
     onContentStateChange: (String) -> Unit,
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
+    onApplyToDesktop: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onOpenDoc: (String) -> Unit,
     initiallyTutorialExpanded: Boolean = false
 ) {
@@ -203,7 +204,7 @@ fun AdjustTabContent(
                     .clip(RoundedCornerShape(12.dp))
                     .background(selectBlue)
                     .clickable {
-                        val outcome = onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
+                        val outcome = onApplyToDesktop(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
                         if (outcome == SaveOutcome.SAVED) {
                             Toast.makeText(context, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
                         }

@@ -49,7 +49,7 @@ private fun SliderThumb(enabled: Boolean) {
 
 /**
  * 统一样式滑条：5dp 厚胶囊轨道 + 白色圆形滑块（带柔和阴影）。
- * 主编辑面板、快捷面板全部走这一个实现；自定义轨道后 steps 的刻度点不再绘制。
+ * 主编辑面板全部走这一个实现；自定义轨道后 steps 的刻度点不再绘制。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -46,7 +46,7 @@ object WidgetCanvasRenderer {
         WidgetRenderPipeline.drawCardBackground(scene)
         // 3. 背景图（自定义路径 / 内置预设插画）
         WidgetRenderPipeline.drawBackgroundImage(scene)
-        // 4. 家族装饰（明信片文字区 / 贴纸 / 城市 / 便签 / 书架 / 盒子 / 画框）
+        // 4. 家族装饰（明信片文字区 / 抠图明信片 / 便签 / 书架 / 盒子 / 画框）
         WidgetRenderPipeline.drawFamilyChrome(scene)
         // 5. 纸张纹理与卡片描边
         WidgetRenderPipeline.drawTextureAndBorder(scene)
@@ -77,8 +77,8 @@ object WidgetCanvasRenderer {
 
     // ===== 缩略图磁盘二级缓存 =====
     //
-    // 内存缓存随进程死亡而清空，而「桌面组件 → 快捷面板」几乎总是冷进程进入
-    // （面板关闭后 App 进程很快被系统回收）。实测 30 张缩略图冷渲染合计约 12s
+    // 内存缓存随进程死亡而清空，而「桌面组件 → 主界面」几乎总是冷进程进入
+    // （App 退到后台后进程很快被系统回收）。实测 30 张缩略图冷渲染合计约 12s
     // CPU，Dispatchers.Default 8 线程并行也要 1.5~2.2s，表现为面板打开后缩略图
     // 空白 1~2 秒才逐个补齐。磁盘缓存（cacheDir/widget_thumbs/，每张 150×80
     // PNG 约 10~30KB、全部合计 <1MB）跨进程存活，冷启动退化为毫秒级 PNG 解码。
@@ -134,7 +134,7 @@ object WidgetCanvasRenderer {
 
     /**
      * 进程启动后在后台线程调用：把磁盘缓存里的全部缩略图预热进内存，
-     * 让「桌面 → 快捷面板」打开的第一帧就带图（否则首帧后还要等一次
+     * 让「桌面 → 主界面」打开的第一帧就带图（否则首帧后还要等一次
      * 毫秒级磁盘解码）。顺带清理历史版本残留的旧图。
      */
     fun prewarmThumbnailCache(context: Context) {

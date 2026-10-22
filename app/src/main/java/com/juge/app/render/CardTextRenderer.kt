@@ -195,14 +195,66 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.175f, targetHeight * 0.67f)
             }
-            WidgetShape.YOUTH_SCULPTURE -> {
-                // 青年雕塑：正文落在下半那张白色面板里。比例取自素材实测
-                //（素材 2048×2048：面板 x 203~1760 / y 1174~1933），再各留一点余量不贴面板边缘；
-                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
-                val paddingLeft = targetWidth * 0.115f
-                val paddingRight = targetWidth * 0.845f
+            WidgetShape.YOUTH_SCULPTURE,
+            WidgetShape.AFTER_SCHOOL -> {
+                // 青年雕塑 / 课后时光：上半 130/250 = 52% 是素材图
+                // （青年雕塑不透明、课后时光是透明抠图），下半是代码绘制的正文面板
+                //（比例见 CutoutPostcardRenderer）。正文从 56% 起、到 90% 止，
+                // 左右各留 8%，不贴图片下沿和卡片边缘
+                val paddingLeft = targetWidth * CutoutPostcardRenderer.TEXT_SIDE_RATIO
+                val paddingRight = targetWidth * (1f - CutoutPostcardRenderer.TEXT_SIDE_RATIO)
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.59f, targetHeight * 0.345f)
+                TextBox(
+                    paddingLeft,
+                    textWidth,
+                    targetHeight * CutoutPostcardRenderer.TEXT_TOP_RATIO,
+                    targetHeight * CutoutPostcardRenderer.TEXT_HEIGHT_RATIO
+                )
+            }
+            WidgetShape.BOY_ROOM -> {
+                // 男生房间：正文落在设计稿的白框里（素材 250×250：框 x 5~244 / y 113~244），
+                // 再各留一点余量不贴 #AC7163 描边；框外全部透明，素材按 STRETCH 铺满
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.92f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.49f, targetHeight * 0.44f)
+            }
+            WidgetShape.HURDLE_BOY -> {
+                // 跨栏小子：正文落在素材自带的白色记分牌里。
+                // 牌面实测（素材 1536×1536）：x 186~1356 / y 670~1405，
+                // 文字区与牌边再留约 10dp（左右）/ 13dp（上下）余量，不贴牌边与内沿，
+                // 牌角圆角也在此范围内。
+                // 素材按 STRETCH 铺满，故比例与组件尺寸无关。
+                val paddingLeft = targetWidth * 0.16f
+                val paddingRight = targetWidth * 0.84f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.49f, targetHeight * 0.37f)
+            }
+            WidgetShape.CUTE_DORO -> {
+                // 可爱Doro：原生 1536×1536 方形构图——角色在上、奶油色留言板在下方，
+                // 留言板约 y 42%~94%；正文从 50% 起、到 90% 止，左右各留 9%，
+                // 避开角色和板的圆角
+                val paddingLeft = targetWidth * 0.09f
+                val paddingRight = targetWidth * 0.91f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.50f, targetHeight * 0.40f)
+            }
+            WidgetShape.BLUE_WHALE -> {
+                // 蓝色鲸鱼：素材 2048×1024，右下角鲸鱼占 x 80%~100% / y 72.7%~100%；
+                // 正文落在 18%~70%，左右各留 8%，不压鲸鱼和描边
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.92f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.18f, targetHeight * 0.52f)
+            }
+            WidgetShape.KEEP_SMILING -> {
+                // Keep Smiling：正文落在标题（素材 y 约 6%~21%）与底部头像条（y 约 82%~95%）
+                // 之间的大留白区。素材 2048×1024 已按 4×2 画布重排、按 STRETCH 铺满，
+                // 故比例与组件尺寸无关；上下各再留一点余量，正文不贴标题和头像
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.92f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.24f, targetHeight * 0.54f)
             }
             WidgetShape.SUBOR_CONSOLE -> {
                 // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。

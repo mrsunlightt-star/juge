@@ -42,15 +42,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 通用风格预设横滑行：「个性定制」页与桌面快捷面板共用同一份缩略图渲染。
+ * 通用风格预设横滑行：「个性定制」页的三行预设共用同一份缩略图渲染。
  *
- * 两处的容器、选中规则与点击行为本就不同，因此这些差异以参数形式显式表达；
+ * 各行的容器、选中规则与点击行为本就不同，因此这些差异以参数形式显式表达；
  * 真正重复的部分（150×80 缩略图渲染与缓存、免费角标、名称排版）只保留这一份实现。
  *
  * @param onPresetClick 点击回调，只拿到原始 preset；是「仅预览」还是「套用并落库」
  *   （含会员拦截）由调用方决定，统一走 `previewOrApplyPreset`
  * @param showSelectionBorder 是否画选中描边（个性定制页不做选中高亮，只有免费角标与名称配色）
- * @param showThumbnailBackground 缩略图底色（快捷面板会先铺一层浅灰，避免无图时露黑）
+ * @param showThumbnailBackground 缩略图底色（先铺一层浅灰，避免无图时露黑）
  * @param imageContentDescription 缩略图的无障碍描述；两处文案不同，故由调用方给定
  * @param nameColor 名称配色规则（两处的"是否高亮"判据不同）
  */
