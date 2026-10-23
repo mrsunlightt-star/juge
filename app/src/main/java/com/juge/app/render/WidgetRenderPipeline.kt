@@ -160,6 +160,17 @@ internal class RenderScene(
         } else {
             DEFAULT_OUTER_CORNER_RADIUS_DP * densityScale
         }
+        if (traits.family == ShapeFamily.ELLIPSE) {
+            // 椭圆：外圈兜底路径与内圈同为 oval。历史上外圈写死成圆角矩形，
+            // 底色/背景图/裁剪全按外圈走，肉眼见到的"椭圆"其实一直是圆角矩形，
+            // 唯一按 oval 画的只有描边——开了边框反而出现"方卡面 + 椭圆描边"的矛盾组合。
+            // 内圈的 oval 已在上方 family 分支里加过，这里只补外圈
+            if (path.isEmpty) {
+                path.addOval(rectF, Path.Direction.CW)
+            }
+            outerPath.addOval(outerRect, Path.Direction.CW)
+            return
+        }
         if (outerRx <= 0f) {
             outerPath.addRect(outerRect, Path.Direction.CW)
         } else {
@@ -254,7 +265,14 @@ internal object WidgetRenderPipeline {
         val style = scene.style
         val traits = scene.traits
 
-        if (!style.backgroundImagePath.isNullOrEmpty()) {
+        // 自定义背景图只有「被家族消费」才值得解码：
+        // - drawsOwnBackground=false 的形状由本阶段的整卡铺图消费；
+        // - WEATHER_BOX 由家族绘制把图铺进腔体并负责回收；
+        // - FRAMED_CARD（雪落宫墙等）的家族绘制不消费 scene.bgBitmap，
+        //   曾经在这里照样全尺寸解码出几 MB 位图、既不画也不回收，白耗内存
+        val customBgConsumed =
+            !traits.drawsOwnBackground || traits.family == ShapeFamily.WEATHER_BOX
+        if (!style.backgroundImagePath.isNullOrEmpty() && customBgConsumed) {
             try {
                 val file = File(style.backgroundImagePath)
                 if (file.exists()) {
@@ -263,7 +281,11 @@ internal object WidgetRenderPipeline {
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load background image from path")
             }
-        } else {
+        }
+
+        // 自定义路径存在但文件缺失（换机恢复、被别处删除、尚未提交的 tmp 被清理）时
+        // 不再让卡面干瘪一块：回退到内置预设插画分支，与「没有自定义背景图」同路
+        if (scene.bgBitmap == null) {
             val resName = if (traits.isSplitCard) {
                 // 图文明信片：没有指定素材时退回默认插画
                 style.presetImageResName ?: "bg_illustration_1"

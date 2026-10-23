@@ -39,6 +39,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * 预览过渡的展示槽位：一个「样式身份 key + 该 key 当前应展示的位图」。
+ * details 见 [WidgetPreviewPager] 内的槽位模型注释。
+ */
+private data class PreviewSlot(
+    val key: String,
+    val bitmap: Bitmap?,
+)
+
+/**
  * 上 1/3 预览区：横向 Pager，每页按**该页风格的最佳显示尺寸**渲染一张预览位图
  * （`WidgetStyle.bestDisplaySize`：4×4 款 250×250、4×2 款 250×110）。
  *
@@ -145,8 +154,9 @@ fun WidgetPreviewPager(
                 }
             }
 
-            // 只在切换预设/形状/背景素材时渐隐过渡；正文、颜色和滑条连续调整直接更新，
+            // 只在「离散的样式身份」变化时做渐隐过渡；正文、颜色和滑条连续调整直接更新，
             // 避免拖动时每一帧都 Crossfade，导致预览看起来跟手性差或残影。
+            // 过渡目标（キー）只含离散身份，不包含 pageBitmap 本身。
             val previewTransitionKey = listOf(
                 pageWidgetId,
                 pageStyle.presetId,
@@ -154,24 +164,30 @@ fun WidgetPreviewPager(
                 pageStyle.backgroundImagePath,
                 pageStyle.bgImageScaleMode,
             ).joinToString("|")
-            var activeTransitionKey by remember(pageWidgetId) {
-                mutableStateOf(previewTransitionKey)
+
+            // 展示槽位模型：
+            //  - current 槽 = 当前 Crossfade 目标 key + 它对应的位图；
+            //  - previous 槽 = 切换瞬间把 current 的旧值整体搬进去，供离场层继续展示。
+            // 新渲染只有两种落地方式：
+            //  1. key 未变（编辑文字/拖颜色）：current 槽原位换图——目标 key 不变，**不触发动画**；
+            //  2. key 变了：旧槽搬进 previous、新图进 current，Crossfade 才从旧图淡入**已渲染好的**新图。
+            // 此前实现是 key 一变就让两层都指着旧图干等新渲染（约 0.8s），渐变形同虚设、
+            // 新图落地发生在动画结束后，视觉上是一次硬切。
+            var currentSlot by remember(pageWidgetId) {
+                mutableStateOf(PreviewSlot(previewTransitionKey, cachedPreview))
             }
-            var previousPreviewBitmap by remember(pageWidgetId) {
-                mutableStateOf(cachedPreview)
-            }
-            var currentPreviewBitmap by remember(pageWidgetId) {
-                mutableStateOf(cachedPreview)
+            var previousSlot by remember(pageWidgetId) {
+                mutableStateOf(PreviewSlot(previewTransitionKey, cachedPreview))
             }
 
-            LaunchedEffect(previewTransitionKey) {
-                if (activeTransitionKey != previewTransitionKey) {
-                    previousPreviewBitmap = currentPreviewBitmap
-                    activeTransitionKey = previewTransitionKey
+            LaunchedEffect(pageBitmap, previewTransitionKey) {
+                if (pageBitmap == null) return@LaunchedEffect
+                if (previewTransitionKey == currentSlot.key) {
+                    currentSlot = currentSlot.copy(bitmap = pageBitmap)
+                } else {
+                    previousSlot = currentSlot
+                    currentSlot = PreviewSlot(previewTransitionKey, pageBitmap)
                 }
-            }
-            LaunchedEffect(pageBitmap) {
-                if (pageBitmap != null) currentPreviewBitmap = pageBitmap
             }
 
             Box(
@@ -186,18 +202,14 @@ fun WidgetPreviewPager(
                     },
                 contentAlignment = Alignment.TopCenter
             ) {
-                // Crossfade 的目标只包含离散的风格身份，不包含 pageBitmap；
-                // 因此切换预设会过渡，而输入文字/拖动颜色滑条不会反复淡入淡出。
+                // 目标用 key 而不是 slot 对象：连续编辑换图时 key 不变，
+                // Crossfade 不会因为位图实例更新而重启动画
                 Crossfade(
-                    targetState = previewTransitionKey,
+                    targetState = currentSlot.key,
                     animationSpec = AppMotion.standard(),
                     modifier = Modifier.fillMaxSize()
-                ) { transitionKey ->
-                    val bmp = if (transitionKey == activeTransitionKey) {
-                        currentPreviewBitmap
-                    } else {
-                        previousPreviewBitmap
-                    }
+                ) { slotKey ->
+                    val bmp = if (slotKey == currentSlot.key) currentSlot.bitmap else previousSlot.bitmap
                     if (bmp != null) {
                         Image(
                             bitmap = bmp.asImageBitmap(),

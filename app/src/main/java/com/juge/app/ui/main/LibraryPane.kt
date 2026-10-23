@@ -128,21 +128,19 @@ fun LibraryPane(
                 scope.launch(Dispatchers.IO) {
                     ReminderWidgetProvider.bindReminderToWidget(context, widgetId, reminder.id)
                     val newConfigId = ReminderWidgetProvider.getBoundConfigId(context, widgetId)
-                    val newConfig = dbHelper.getWidgetConfigById(newConfigId)
-                    if (newConfig != null) {
-                        dbHelper.updateWidgetConfig(
-                            newConfig.copy(
-                                content = reminder.content,
-                                styleJson = currentStyle.toJsonString()
-                            )
-                        )
-                    }
                     val configs = dbHelper.getAllWidgetConfigs()
                     withContext(Dispatchers.Main) {
+                        // 先把最新配置列表同步给宿主，再走统一落库入口：
+                        // onStyleChange 里按 configId 找目标行，读的是宿主手里的 widgetConfigs，
+                        // 顺序颠倒会让刚建的配置行查不到，保存变成空转
                         onWidgetConfigsChanged(configs)
                         onContentChanged(reminder.content)
+                        // 样式与内容走 MainAppScreen 的 onStyleChange 落库——
+                        // 那里是付费拦截与背景图提交的唯一入口。此前这里直接把内存里的
+                        // currentStyle 原样写库，免费用户预览完全员风格后点金句，
+                        // 付费 styleJson（连同未提交的 bg_tmp 路径）会直接落库并被推上桌面
+                        onStyleChange(widgetId, newConfigId, reminder.content, currentStyle)
                     }
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
                 }
             } else {
                 onStyleChange(selectedWidgetId, selectedConfigId, reminder.content, currentStyle)

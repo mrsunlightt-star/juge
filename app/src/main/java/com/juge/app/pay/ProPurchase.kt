@@ -27,7 +27,6 @@ object ProPurchase {
 
     private const val PREFS = "pro_purchase_prefs"
     private const val KEY_PENDING_ORDER = "pending_order_no"
-
     /** 9000 之后的到账确认节奏 */
     private const val SUCCESS_ATTEMPTS = 5
     private const val SUCCESS_INTERVAL_MS = 1_200L
@@ -60,8 +59,10 @@ object ProPurchase {
             val serverMessage = (e as? AlipayPayApi.ApiException)?.message?.takeIf { it.isNotBlank() }
             return Outcome.Failed(serverMessage ?: "下单失败，请检查网络后重试")
         }
-        // 先落盘订单号：支付途中 App 被杀也能在下次启动时找回
-        savePendingOrder(activity, created.outTradeNo)
+        // 先落盘订单号：支付途中 App 被杀也能在下次启动时找回。
+        // 追加而非覆盖：连续两次下单时，上一张可能已付款但还没在服务端落库，
+        // 只留一张就会把它永久丢掉（找不到单号 → 钱花了本机却没激活）
+        appendPendingOrder(activity, created.outTradeNo)
 
         val resultStatus = withContext(Dispatchers.IO) {
             AlipayPay.pay(activity, created.orderStr)
@@ -89,31 +90,35 @@ object ProPurchase {
             else -> Outcome.Failed("支付未完成（状态码 $resultStatus）")
         }
 
-        if (outcome is Outcome.Paid) clearPendingOrder(activity)
+        if (outcome is Outcome.Paid) removePendingOrder(activity, created.outTradeNo)
         return outcome
     }
 
     /**
-     * 找回：上次支付流程被中断（App 被杀、切后台）时，用留存订单号复查一次，
-     * 兜底「已付款但没激活成功」的情况。无留存订单时直接返回 [Outcome.Unpaid]。
+     * 找回：上次支付流程被中断（App 被杀、切后台）时，用留存订单号复查，
+     * 兜底「已付款但没激活成功」的情况。留存的是**订单队列**——用户连续下单时
+     * 每一张都记着，任何一张付了都能找回；结算完成/不存在的单会从队列里摘掉。
+     * 无留存订单时直接返回 [Outcome.Unpaid]。
      */
     suspend fun recoverPending(context: Context): Outcome {
-        val outTradeNo = pendingOrderNo(context) ?: return Outcome.Unpaid("")
-        // 带上下单时的登录令牌：订单若归属账号，服务端只允许本人查询
-        val status = AlipayPayApi.queryOrder(outTradeNo, AccountStore.token(context)).getOrNull()
-            ?: return Outcome.Unpaid("")
-        return when {
-            status.isPaid -> {
-                clearPendingOrder(context)
-                Outcome.Paid
+        val orders = pendingOrders(context)
+        if (orders.isEmpty()) return Outcome.Unpaid("")
+        // 带上下单时的登录令牌：订单若归属账号，服务端只允许本人查询。
+        // 与下单时的登录态无关（历史遗留），服务端按归属拒绝就当作 Untreated 保留原单
+        val token = AccountStore.token(context)
+        for (outTradeNo in orders) {
+            val status = AlipayPayApi.queryOrder(outTradeNo, token).getOrNull() ?: continue
+            when {
+                status.isPaid -> {
+                    removePendingOrder(context, outTradeNo)
+                    return Outcome.Paid
+                }
+                // 订单已过期/不存在，继续留着只会反复查询
+                status.isNotExist -> removePendingOrder(context, outTradeNo)
+                else -> Unit
             }
-            // 订单已过期/不存在，继续留着只会反复查询
-            status.isNotExist -> {
-                clearPendingOrder(context)
-                Outcome.Unpaid("")
-            }
-            else -> Outcome.Unpaid("")
         }
+        return Outcome.Unpaid("")
     }
 
     /** 轮询查单直到确认到账，用于抹平「支付成功但异步通知尚未落库」的时间差 */
@@ -130,15 +135,26 @@ object ProPurchase {
         return false
     }
 
-    private fun pendingOrderNo(context: Context): String? =
+    /** 留存的所有未结算订单号，逗号分隔（历史版本只存一个，解析时天然兼容单值） */
+    private fun pendingOrders(context: Context): List<String> =
         prefs(context).getString(KEY_PENDING_ORDER, null)
+            ?.split(',')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
 
-    private fun savePendingOrder(context: Context, outTradeNo: String) {
-        prefs(context).edit().putString(KEY_PENDING_ORDER, outTradeNo).apply()
+    private fun appendPendingOrder(context: Context, outTradeNo: String) {
+        val current = pendingOrders(context)
+        if (outTradeNo in current) return
+        prefs(context).edit().putString(KEY_PENDING_ORDER, (current + outTradeNo).joinToString(",")).apply()
     }
 
-    private fun clearPendingOrder(context: Context) {
-        prefs(context).edit().remove(KEY_PENDING_ORDER).apply()
+    private fun removePendingOrder(context: Context, outTradeNo: String) {
+        val remaining = pendingOrders(context) - outTradeNo
+        val edit = prefs(context).edit()
+        if (remaining.isEmpty()) edit.remove(KEY_PENDING_ORDER)
+        else edit.putString(KEY_PENDING_ORDER, remaining.joinToString(","))
+        edit.apply()
     }
 
     private fun prefs(context: Context) =

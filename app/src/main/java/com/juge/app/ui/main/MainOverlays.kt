@@ -77,6 +77,14 @@ fun MainOverlays(
     if (showAccountDialog) {
         AccountDialog(
             onProConfirmed = {
+                // 只在本机未激活时才写入「账号找回」记录。登录成功不代表本机没有 PRO：
+                // 已用支付宝在这台机器买过的用户，激活记录里留着真实付费时间/方式，
+                // 无条件覆盖会让「我的」页的数据失真；更糟的是日后该账号服务端失去 PRO
+                // 时会被误判为「账号找回的权益」遭整体撤销（见 MainAppScreen 的账号同步分支）
+                if (trialManager.isActivated()) {
+                    // 已激活就什么都不用做，权益不会更多也不会更少
+                    return@AccountDialog
+                }
                 trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
                 onActivatedChange(true)
                 ReminderWidgetProvider.triggerUpdateAllWidgets(context)

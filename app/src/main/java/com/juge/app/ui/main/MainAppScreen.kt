@@ -17,10 +17,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import com.juge.app.CropImageHelper
+import com.juge.app.JugeApplication
 import com.juge.app.ReminderWidgetProvider
 import com.juge.app.account.AccountStore
 import com.juge.app.account.AccountSync
@@ -138,11 +142,27 @@ fun MainAppScreen(
     // 编辑状态弹窗控制 (专属于书库内容编辑)
     var editingReminderForContent by remember { mutableStateOf<Reminder?>(null) }
 
-    // Pager 核心状态与桌面小组件映射
-    val appWidgetIds = remember {
-        ReminderWidgetProvider.getAllAppWidgetIds(context)
+    // Pager 核心状态与桌面小组件映射。
+    // 组件集合必须是**状态**并在 ON_RESUME 重读：用户会一边把 App 留在后台一边在桌面
+    // 添加/删除组件，一次性快照会让预览 Pager 排布旧数量——新组件永远不出现在列表里，
+    // 删掉的组件留在页面上，其样式还会被写进指向死组件的 prefs
+    val appWidgetIdsState = remember {
+        mutableStateOf(ReminderWidgetProvider.getAllAppWidgetIds(context))
     }
-    val widgetCount = appWidgetIds.size
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val appWidgetIds = appWidgetIdsState.value
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val latest = ReminderWidgetProvider.getAllAppWidgetIds(context)
+                if (!latest.contentEquals(appWidgetIdsState.value)) {
+                    appWidgetIdsState.value = latest
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var selectedWidgetId by remember(appWidgetIds) {
         mutableStateOf(appWidgetIds.firstOrNull() ?: -1)
@@ -150,7 +170,8 @@ fun MainAppScreen(
 
     val pagerState = rememberPagerState(
         initialPage = 0,
-        pageCount = { if (widgetCount == 0) 1 else widgetCount }
+        // 读状态而非捕获值：组件数量变化后 pageCount 必须跟着走，否则新页不可滑入
+        pageCount = { appWidgetIdsState.value.size.coerceAtLeast(1) }
     )
 
     LaunchedEffect(pagerState.currentPage, appWidgetIds) {
@@ -258,6 +279,9 @@ fun MainAppScreen(
 
     // 防抖写库任务：声明在 LaunchedEffect 之前，切换组件时可 join 等待未落库的写入完成
     var persistJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // 防抖任务当前针对的配置行：只有「同一配置」的新写入才允许重置它的 400ms 窗口，
+    // 换了配置就各自独立排队，避免互相取消丢编辑
+    var pendingPersistConfigId by remember { mutableStateOf<Long?>(null) }
 
     // 上次真正落库的风格尺寸：只在「风格尺寸发生变化」时提示手动拉伸，
     // 改文字/颜色等细节不会再弹提示
@@ -308,37 +332,53 @@ fun MainAppScreen(
             ReminderWidgetProvider.saveWidgetStyle(context, widgetId, finalStyle)
         }
         val target = widgetConfigs.find { it.id == configId }
-        if (target != null) {
+        if (target == null) {
+            // 没有可写目标（典型是未放置桌面组件、配置行也未绑定）：UI 状态已更新，
+            // 但库里没落任何东西。不能返回 SAVED——那会让调用方弹「已成功保存并同步」，
+            // 而这些内容下次进来并不会出现
+            return@persist SaveOutcome.PREVIEW_ONLY
+        }
+        // 防抖写库：同一配置的连续编辑只保留末次（取消一个正在等待中的任务重新排期）；
+        // **不同配置之间不能互相取消**——快速切到另一个组件再改动时，上一个组件的
+        // 末次编辑说不定还没等到 400ms，被取消就永远丢了
+        if (pendingPersistConfigId == configId) {
             persistJob?.cancel()
-            // 用 lifecycleScope 而非组合作用域：页面销毁时未到期的防抖写入仍能完成，避免丢失最后 400ms 的编辑
-            persistJob = activity.lifecycleScope.launch {
-                kotlinx.coroutines.delay(400)
-                try {
-                    withContext(Dispatchers.IO) {
-                        dbHelper.updateWidgetConfig(
-                            target.copy(
-                                content = newContent,
-                                styleJson = finalStyle.toJsonString()
-                            )
+        }
+        // 用进程级 scope 而非 lifecycleScope：Activity 销毁（返回键/最近任务划掉）
+        // 正常会取消 lifecycleScope 的 delay(400)，与防抖机制的本意背道而驰；
+        // 组件实际尺寸变化提示仍在这里做
+        pendingPersistConfigId = configId
+        persistJob = (context.applicationContext as JugeApplication).appScope.launch {
+            kotlinx.coroutines.delay(400)
+            try {
+                withContext(Dispatchers.IO) {
+                    dbHelper.updateWidgetConfig(
+                        target.copy(
+                            content = newContent,
+                            styleJson = finalStyle.toJsonString()
                         )
-                        val updatedConfigs = dbHelper.getAllWidgetConfigs()
-                        withContext(Dispatchers.Main) {
-                            widgetConfigs = updatedConfigs
-                        }
-                    }
-                    // 新背景已落库，才删除被替换掉的旧背景文件，避免长期堆积孤儿图
-                    val oldBgPath = runCatching {
-                        WidgetStyle.fromJsonString(target.styleJson).backgroundImagePath
-                    }.getOrNull()
-                    if (!oldBgPath.isNullOrEmpty() && oldBgPath != finalStyle.backgroundImagePath) {
-                        runCatching { File(oldBgPath).delete() }
-                    }
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                } catch (e: Exception) {
-                    Timber.e(e, "persist widget style failed")
+                    )
+                    val updatedConfigs = dbHelper.getAllWidgetConfigs()
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                        widgetConfigs = updatedConfigs
                     }
+                }
+                // 新背景已落库，才删除被替换掉的旧背景文件；
+                // 两条配置行/组件级样式缓存可能共用同一张图，删前必须查引用，
+                // 否则先保存的那次替换会删掉另一个组件还在用的文件
+                val oldBgPath = runCatching {
+                    WidgetStyle.fromJsonString(target.styleJson).backgroundImagePath
+                }.getOrNull()
+                if (!oldBgPath.isNullOrEmpty() && oldBgPath != finalStyle.backgroundImagePath &&
+                    !CropImageHelper.isBackgroundFileStillReferenced(context, oldBgPath, target.id)
+                ) {
+                    runCatching { File(oldBgPath).delete() }
+                }
+                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
+            } catch (e: Exception) {
+                Timber.e(e, "persist widget style failed")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -501,7 +541,15 @@ fun MainAppScreen(
                             editingReminder = editingReminderForContent,
                             onEditReminderRequest = { editingReminderForContent = it },
                             onCategorySelect = { selectedCategory = it },
-                            onCategoriesChanged = { categories = it },
+                            onCategoriesChanged = { cats ->
+                                categories = cats
+                                // 当前选中的分类被删除后保持 id 会让筛选条死掉：
+                                // 没有呈选中态的 chip、列表却筛出空集，与「金句全没了」无异。
+                                // 列表刷新处统一对账（新建/改名/排序也会走到这里，均无害）
+                                if (selectedCategory != null && cats.none { it.id == selectedCategory?.id }) {
+                                    selectedCategory = null
+                                }
+                            },
                             onRemindersChanged = { reminders = it },
                             onWidgetConfigsChanged = { widgetConfigs = it },
                             selectedWidgetId = selectedWidgetId,
@@ -515,6 +563,7 @@ fun MainAppScreen(
                         AdjustTabContent(
                             widgetConfigs = widgetConfigs,
                             isActivated = isActivatedState,
+                            appWidgetIds = appWidgetIds,
                             selectedWidgetId = selectedWidgetId,
                             selectedReminderId = selectedReminder?.id ?: -1L,
                             selectedStyle = currentStyle,

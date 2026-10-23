@@ -14,7 +14,7 @@ import org.junit.Test
  */
 class WidgetConfigBindingTest {
 
-    private fun auto(id: Long) = WidgetConfig(id = id, name = "微件 $id", content = "c", styleJson = "{}")
+    private fun auto(id: Long) = WidgetConfig(id = id, name = "微件 $id", content = "c", styleJson = "{}", autoCreated = true)
 
     private fun userCreated(id: Long) = WidgetConfig(id = id, name = "导入卡片 - 三体", content = "c", styleJson = "{}")
 
@@ -23,6 +23,21 @@ class WidgetConfigBindingTest {
         val configs = listOf(auto(1), auto(2), auto(3), userCreated(4), userCreated(5))
 
         assertEquals(listOf(2L, 3L), WidgetConfigBinding.orphanIds(configs, setOf(1L, 4L)))
+    }
+
+    @Test
+    fun `回收只认 auto_created 列，不再看名称前缀`() {
+        // 旧版只看「微件 」前缀，用户把卡片命名成"微件 开头"会被误回收删内容；
+        // 现在归类只读列，名字与归类彻底解耦
+        val falselyPrefixed = listOf(
+            WidgetConfig(id = 1, name = "微件 测试", content = "c", styleJson = "{}"),
+        )
+        assertEquals(emptyList<Long>(), WidgetConfigBinding.orphanIds(falselyPrefixed, emptySet()))
+
+        val autoWithoutPrefix = listOf(
+            WidgetConfig(id = 2, name = "随便什么名字", content = "c", styleJson = "{}", autoCreated = true),
+        )
+        assertEquals(listOf(2L), WidgetConfigBinding.orphanIds(autoWithoutPrefix, emptySet()))
     }
 
     @Test
@@ -41,6 +56,15 @@ class WidgetConfigBindingTest {
         val configs = listOf(userCreated(1), auto(2), auto(3))
 
         assertEquals(2L, WidgetConfigBinding.findReusableAutoConfig(configs, setOf(9L))?.id)
+    }
+
+    @Test
+    fun `用户前缀命名的行不会被复用覆盖`() {
+        // 「把金句推到桌面」复用空自动行：只允许塞进 autoCreated 行，
+        // 用户的「微件 xx」绝不能被改写内容
+        val rows = listOf(WidgetConfig(id = 3, name = "微件 自建", content = "c", styleJson = "{}"))
+
+        assertNull(WidgetConfigBinding.findReusableAutoConfig(rows, emptySet()))
     }
 
     @Test

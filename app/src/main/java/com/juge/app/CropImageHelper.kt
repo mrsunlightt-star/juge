@@ -100,6 +100,40 @@ object CropImageHelper {
         }
     }
 
+    /**
+     * 背景[文件][path]是否仍被其他配置/组件引用。删除一张「旧背景」前必须先问它：
+     * 两条配置行、甚至组件级样式缓存都可以指向同一张图（同一背景先后应用到多个组件），
+     * 无引用检查的删除会让其中一个组件的背景整块消失（渲染端对缺失文件只会画空底）。
+     *
+     * @param excludingConfigId 排除自己对应的配置行
+     */
+    fun isBackgroundFileStillReferenced(context: Context, path: String, excludingConfigId: Long?): Boolean {
+        if (path.isBlank()) return false
+        if (path.contains("/$TMP_DIR/")) {
+            // 临时文件不存在跨行共用，也从未提交为正式资源，不参与引用判断
+            return false
+        }
+        try {
+            val dbHelper = com.juge.app.data.DbHelper.getInstance(context)
+            val referencedByConfig = dbHelper.getAllWidgetConfigs().any { config ->
+                config.id != excludingConfigId &&
+                    com.juge.app.data.WidgetStyle.fromJsonString(config.styleJson).backgroundImagePath == path
+            }
+            if (referencedByConfig) return true
+            // 组件级样式缓存（widget_bindings_prefs 里的 widget_style_<id>）也持有引用；
+            // 直接扫全部字符串值，key 名字变化也不怕
+            val prefs = context.getSharedPreferences(
+                com.juge.app.ReminderWidgetProvider.PREFS_WIDGET_BINDINGS,
+                Context.MODE_PRIVATE
+            )
+            return prefs.all.values.any { it is String && it.contains(path) }
+        } catch (e: Exception) {
+            // 检查失败按「仍被引用」处理：宁可留下一个无主图片文件，也不回头删用户的内容
+            Timber.w(e, "isBackgroundFileStillReferenced failed")
+            return true
+        }
+    }
+
     // 从 Uri 加载图片，支持防 OOM 的 downsample 与 EXIF 方向矫正
     fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? {
         return try {
@@ -130,35 +164,67 @@ object CropImageHelper {
         }
     }
 
-    // 相册图片可能携带 EXIF 旋转信息，直接解码会得到横躺/倒置的图
+    // 相册图片可能携带 EXIF 旋转/翻转信息，直接解码会得到横躺/镜像的图。
+    // 8 种 orientation 全部处理：只认 90/180/270 的话，FLIP/TRANSPOSE 类照片
+    // （自拍、部分相机与截图）会以左右镜像的姿态落盘，与相册正立画面相反。
     private fun applyExifRotation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
-        val degrees = try {
+        val transform: android.graphics.Matrix? = try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val exif = androidx.exifinterface.media.ExifInterface(input)
-                when (exif.getAttributeInt(
-                    androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                )) {
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                    else -> 0f
-                }
-            } ?: 0f
+                buildExifMatrix(
+                    exif.getAttributeInt(
+                        androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    )
+                )
+            }
         } catch (e: Exception) {
             Timber.w(e, "Failed to read EXIF orientation")
-            0f
+            null
         }
-        if (degrees == 0f) return bitmap
+        if (transform == null || transform.isIdentity) return bitmap
         return try {
-            val matrix = android.graphics.Matrix().apply { postRotate(degrees) }
-            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-            if (rotated != bitmap) bitmap.recycle()
-            rotated
+            val transformed = Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, transform, true
+            )
+            if (transformed != bitmap) bitmap.recycle()
+            transformed
         } catch (e: Exception) {
             Timber.w(e, "Failed to apply EXIF rotation")
             bitmap
         }
+    }
+
+    /** EXIF orientation → 位图变换矩阵；None/Normal 返回 identity */
+    private fun buildExifMatrix(orientation: Int): android.graphics.Matrix {
+        val matrix = android.graphics.Matrix()
+        when (orientation) {
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+                matrix.postScale(-1f, 1f)
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 ->
+                matrix.postRotate(180f)
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> {
+                // FlipV = Rotate180 + FlipH
+                matrix.postScale(-1f, 1f)
+                matrix.postRotate(180f)
+            }
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE -> {
+                // 转置 = 先镜像后旋转 90°；顺序决定镜像轴，勿调换
+                matrix.postScale(-1f, 1f)
+                matrix.postRotate(90f)
+            }
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 ->
+                matrix.postRotate(90f)
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSVERSE -> {
+                // 转置的另一方向：镜像 + 旋转 270°（即逆时针 90°）
+                matrix.postScale(-1f, 1f)
+                matrix.postRotate(270f)
+            }
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 ->
+                matrix.postRotate(270f)
+            else -> Unit // 0/1/未识别：identity
+        }
+        return matrix
     }
 
     // 后台按矩阵裁剪并保存图片
@@ -173,26 +239,16 @@ object CropImageHelper {
         targetHeight: Int = DEFAULT_CROP_HEIGHT
     ): String? {
         return try {
-            val viewAspectRatio = viewWidthPx / viewHeightPx
-            val imageAspectRatio = bitmap.width.toFloat() / bitmap.height
-            val initScale = if (imageAspectRatio > viewAspectRatio) {
-                viewHeightPx / bitmap.height
-            } else {
-                viewWidthPx / bitmap.width
-            }
-            val initX = (viewWidthPx - bitmap.width * initScale) / 2f
-            val initY = (viewHeightPx - bitmap.height * initScale) / 2f
-
-            val R = targetWidth.toFloat() / viewWidthPx
-            val matrix = android.graphics.Matrix()
-            // 1. 初始平移和缩放
-            matrix.postScale(initScale, initScale)
-            matrix.postTranslate(initX, initY)
-            // 2. 手势缩放与平移
-            matrix.postScale(scale, scale, viewWidthPx / 2f, viewHeightPx / 2f)
-            matrix.postTranslate(offset.x, offset.y)
-            // 3. 映射到目标物理尺寸
-            matrix.postScale(R, R)
+            val matrix = cropMatrix(
+                bitmapWidth = bitmap.width.toFloat(),
+                bitmapHeight = bitmap.height.toFloat(),
+                viewWidthPx = viewWidthPx,
+                viewHeightPx = viewHeightPx,
+                scale = scale,
+                offset = offset,
+                targetWidth = targetWidth,
+                targetHeight = targetHeight,
+            )
 
             val croppedBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(croppedBitmap)
@@ -217,6 +273,55 @@ object CropImageHelper {
         } catch (e: Exception) {
             Timber.e(e, "Failed to crop and save bitmap")
             null
+        }
+    }
+
+    /**
+     * 裁剪保存矩阵：把源图坐标映射到输出位图坐标。
+     *
+     * ⚠️ 与 [ImageCropDialog] 里 Canvas 预览的绘制顺序必须严格一致——
+     * 用户在预览框里看到的构图，就是这张矩阵输出的构图。历史上保存端用 `post*`
+     * 链接矩阵，点位顺序与预览相反（pan 被 [初始缩放×R] 再乘一遍、缩放枢轴也换了
+     * 坐标系），结果是预览取到的区域与保存产物对不上。
+     *
+     * 点位顺序（源图上任意一点 p 的旅程，与预览逐层对应）：
+     * S(I) → +init → −c → ×zoom → +c → +pan → ×R
+     * 其中 I=[初始铺满缩放], init=[初始居中偏移], c=[视窗中心], zoom/pan=[手势值],
+     * R=[视窗坐标 → 输出物理像素] 的比例。
+     * `pre*` 系列按书写顺序作用于点（与 Compose Canvas 的绘制顺序同序），照抄即可。
+     */
+    internal fun cropMatrix(
+        bitmapWidth: Float,
+        bitmapHeight: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+        scale: Float,
+        offset: Offset,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): android.graphics.Matrix {
+        val viewAspectRatio = viewWidthPx / viewHeightPx
+        val imageAspectRatio = bitmapWidth / bitmapHeight
+        val initScale = if (imageAspectRatio > viewAspectRatio) {
+            viewHeightPx / bitmapHeight
+        } else {
+            viewWidthPx / bitmapWidth
+        }
+        val initX = (viewWidthPx - bitmapWidth * initScale) / 2f
+        val initY = (viewHeightPx - bitmapHeight * initScale) / 2f
+        val cx = viewWidthPx / 2f
+        val cy = viewHeightPx / 2f
+        val rX = targetWidth.toFloat() / viewWidthPx
+        val rY = targetHeight.toFloat() / viewHeightPx
+
+        return android.graphics.Matrix().apply {
+            preScale(initScale, initScale)   // 1. 初始铺满
+            preTranslate(initX, initY)       // 2. 初始居中
+            preTranslate(-cx, -cy)
+            preScale(scale, scale)           // 3. 手势缩放（绕视窗中心）
+            preTranslate(cx, cy)
+            preTranslate(offset.x, offset.y) // 4. 手势平移（屏幕像素，不被缩放）
+            preScale(rX, rY)                 // 5. 视窗 → 输出物理尺寸
         }
     }
 
@@ -327,6 +432,9 @@ object CropImageHelper {
                                 drawIntoCanvas { canvas ->
                                     canvas.save()
                                     // 应用手势平移和缩放
+                                    // ⚠️ 这里的操作数序定义了「用户看到的构图」，
+                                    // 保存端 [cropMatrix] 与之逐层对应（pre* 链），
+                                    // 两端任何一处改动都要同步另一端
                                     canvas.translate(offset.x, offset.y)
                                     canvas.translate(viewWidth / 2f, viewHeight / 2f)
                                     canvas.scale(scale, scale)

@@ -24,6 +24,8 @@ object AppPrefs {
     private const val KEY_PRIVACY_VERSION = "privacy_accepted_version"
     private const val KEY_LEGACY_MIGRATION_DONE = "legacy_migration_done"
     private const val KEY_MIGRATED = "legacy_split_done"
+    /** 拆分区时旧 app_settings 是否存在过任何键：区分「升级安装」与「全新安装」 */
+    private const val KEY_HAD_LEGACY_DATA = "had_legacy_app_settings"
 
     // 旧 app_settings 中属于「用户资产」的键，迁移到 user_prefs
     private val USER_KEYS = listOf(
@@ -54,6 +56,11 @@ object AppPrefs {
         if (legacy.contains(KEY_LEGACY_MIGRATION_DONE)) {
             consentEdit.putBoolean(KEY_LEGACY_MIGRATION_DONE, legacy.getBoolean(KEY_LEGACY_MIGRATION_DONE, false))
         }
+        // 旧 app_settings 存在过任何键 = 这次是升级安装、带着老版本的数据；
+        // 全新安装这个文件根本不存在。老用户升级时 reminders 里才有「值得导入」的内容，
+        // 全新安装只有种子数据（见 DbHelper.migrateLegacyDataIfNeeded）
+        val hadLegacyData = legacyContainsAnyKey(legacy)
+        consentEdit.putBoolean(KEY_HAD_LEGACY_DATA, hadLegacyData)
         consentEdit.putBoolean(KEY_MIGRATED, true).apply()
 
         val userEdit = user(app).edit()
@@ -78,7 +85,22 @@ object AppPrefs {
         return consent(context).getBoolean(KEY_LEGACY_MIGRATION_DONE, false)
     }
 
+    /**
+     * 装机时是否带着老版本的数据（升级安装）：由 [migrateLegacyIfNeeded] 在首次拆分时记下。
+     * 用于把「老用户升级 → 导入 reminders」与「全新安装 → 只放默认卡片」区分开。
+     */
+    fun isLegacyInstall(context: Context): Boolean {
+        migrateLegacyIfNeeded(context)
+        return consent(context).getBoolean(KEY_HAD_LEGACY_DATA, false)
+    }
+
     fun setLegacyMigrationDone(context: Context) {
         consent(context).edit().putBoolean(KEY_LEGACY_MIGRATION_DONE, true).apply()
+    }
+
+    /** 旧 app_settings 里有没有任何键（隐私同意/迁移标记/颜色都算） */
+    private fun legacyContainsAnyKey(legacy: android.content.SharedPreferences): Boolean {
+        val keys = listOf("privacy_accepted", KEY_LEGACY_MIGRATION_DONE, *USER_KEYS.toTypedArray())
+        return keys.any { legacy.contains(it) }
     }
 }

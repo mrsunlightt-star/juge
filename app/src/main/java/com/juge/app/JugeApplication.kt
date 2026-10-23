@@ -17,7 +17,13 @@ import timber.log.Timber
  */
 class JugeApplication : Application() {
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * 进程级作用域：Application 存活期间不取消。PersistText 落库等
+     * 「比 Activity 生命周期更长寿、但不能永不取消」的写入用它承载——
+     * 挂在 Activity 的 lifecycleScope 上时，返回键销毁 Activity 的那一下
+     * 恰好会把尚未落库的防抖协程一起取消掉。
+     */
+    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

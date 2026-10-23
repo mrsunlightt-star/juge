@@ -116,7 +116,8 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val ACTION_MIUI_UPDATE = "miui.appwidget.action.APPWIDGET_UPDATE"
-        private const val PREFS_WIDGET_BINDINGS = "widget_bindings_prefs"
+        /** 组件绑定与组件级样式缓存所在 prefs。CropImageHelper 清理背景图时也按它查引用 */
+        internal const val PREFS_WIDGET_BINDINGS = "widget_bindings_prefs"
         // goAsync 持有广播的安全上限，需小于系统广播超时（约 10s），留出余量
         private const val BROADCAST_TIMEOUT_MS = 8_000L
         private const val KEY_WIDGET_CONFIG_ID = "widget_config_id_"
@@ -254,13 +255,16 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                     )
                     reusable.id
                 } else {
+                    // Provider 自动建的行：显式记录 autoCreated，孤儿回收时才可能被回收；
+                    // 用户自建的行（列表里）不带这个标记，绝不入回收名单
                     dbHelper.insertWidgetConfig(
                         WidgetConfig(
                             name = "${WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX}$appWidgetId",
                             content = reminder.content,
                             // 记录组件实际网格尺寸（getWidgetSizeString 返回 "4*4" 形式，转为配置表使用的 "4x4"）
                             sizeType = getWidgetSizeString(context, appWidgetId).replace("*", "x"),
-                            styleJson = styleJson
+                            styleJson = styleJson,
+                            autoCreated = true
                         )
                     )
                 }
@@ -381,7 +385,22 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                 if (config == null) {
                     // 未绑定或绑定的配置已被删除：优先分发"当前尚未被桌面其他小组件绑定"的配置，避免重复
                     val configs = dbHelper.getAllWidgetConfigs()
-                    if (configs.isEmpty()) return
+                    if (configs.isEmpty()) {
+                        // 库里一条配置也没有（多为全新安装恰逢迁移尚未完成）：不直接 return，
+                        // 那样桌面只剩透明占位，用户无从区分「组件坏了」还是「还没内容」；
+                        // 用与隐私未同意一致的方式渲染一张引导位图
+                        val fallback = WidgetCanvasRenderer.render(
+                            context = context,
+                            widthDp = minWidthDp,
+                            heightDp = minHeightDp,
+                            content = "打开句阁，添加你的第一条金句",
+                            style = WidgetStyle()
+                        )
+                        views.setImageViewBitmap(R.id.widget_image_view, fallback)
+                        appWidgetManager.updateAppWidget(appWidgetId, views)
+                        fallback.recycle()
+                        return
+                    }
                     val allIds = getAllAppWidgetIds(context)
                     val boundConfigIds = allIds.filter { it != appWidgetId }
                         .map { getBoundConfigId(context, it) }

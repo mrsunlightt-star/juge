@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.juge.app.CropImageHelper
-import com.juge.app.ReminderWidgetProvider
 import com.juge.app.data.UserColorPresets
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
@@ -56,6 +55,11 @@ import com.juge.app.ui.theme.premiumGoldDeep
 fun AdjustTabContent(
     widgetConfigs: List<WidgetConfig>,
     isActivated: Boolean,
+    /**
+     * 桌面组件 id 列表：由 MainAppScreen 持有并在 ON_RESUME 刷新。
+     * 这里不再另取快照——运行期增删组件时两份列表会各自为政
+     */
+    appWidgetIds: IntArray,
     selectedWidgetId: Int,
     selectedReminderId: Long,
     selectedStyle: WidgetStyle,
@@ -69,9 +73,6 @@ fun AdjustTabContent(
     initiallyTutorialExpanded: Boolean = false
 ) {
     val context = LocalContext.current
-    val appWidgetIds = remember {
-        ReminderWidgetProvider.getAllAppWidgetIds(context)
-    }
     val widgetCount = appWidgetIds.size
 
     var pendingCropUri by remember { mutableStateOf<Uri?>(null) }

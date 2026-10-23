@@ -8,18 +8,19 @@ package com.juge.app.data
  *     属于需要回归测试的领域规则，放在 Provider 里就只能靠真机验证；
  *  2. 规则本身不依赖 Android，可以直接用 JVM 单测覆盖。
  *
- * 「自动创建」与「用户创建」的区分只靠名称前缀：Provider 自动建的行统一以
- * [AUTO_CONFIG_NAME_PREFIX] 开头，用户在 App 内建的、以及旧数据迁移导入的行都不带这个前缀。
- * 回收时只碰自动创建的行，避免误删用户内容。
+ * 「自动创建」与「用户创建」的区分由数据库列 [WidgetConfig.autoCreated] 显式记录：
+ * Provider 自动建的行走 `true`，用户在 App 内建的、以及旧数据迁移导入的行都是 `false`。
+ * 回收时只碰自动创建的行，避免误删用户内容；
+ * 旧版本只看名称前缀「微件 」，用户起同样前缀的名字会被误当作自动行删掉，已废弃。
  */
 object WidgetConfigBinding {
 
-    /** 自动创建的配置行名称前缀（例如「微件 42」） */
+    /** 自动创建的配置行名称前缀（例如「微件 42」），仅用于展示命名，不再作为归类依据 */
     const val AUTO_CONFIG_NAME_PREFIX = "微件 "
 
     /** 是否为本 Provider 自动创建（而非用户手动创建 / 迁移导入）的配置行 */
     fun isAutoCreated(config: WidgetConfig): Boolean =
-        config.name.startsWith(AUTO_CONFIG_NAME_PREFIX)
+        config.autoCreated
 
     /**
      * 找出可以回收的孤儿配置 id：自动创建、且当前没有任何组件绑定。
