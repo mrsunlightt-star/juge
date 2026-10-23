@@ -57,7 +57,7 @@ import kotlinx.coroutines.withContext
  *
  * @param onPresetClick 点击回调，只拿到原始 preset；是「仅预览」还是「套用并落库」
  *   （含会员拦截）由调用方决定，统一走 `previewOrApplyPreset`
- * @param showSelectionBorder 是否画选中描边（个性定制页不做选中高亮，只有免费角标与名称配色）
+ * @param showSelectionBorder 是否画选中描边（个性定制页三行统一开启：选中项 3dp 蓝色描边）
  * @param showThumbnailBackground 缩略图底色（先铺一层浅灰，避免无图时露黑）
  * @param imageContentDescription 缩略图的无障碍描述；两处文案不同，故由调用方给定
  * @param nameColor 名称配色规则（两处的"是否高亮"判据不同）
