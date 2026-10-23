@@ -40,7 +40,6 @@ import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
-import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.trackGray
 
 private val controlBlue = selectBlue // 与主界面 selectBlue 同源

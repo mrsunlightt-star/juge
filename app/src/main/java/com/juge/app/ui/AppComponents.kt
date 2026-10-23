@@ -59,7 +59,6 @@ import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textWhite
 
 /**
@@ -129,7 +128,7 @@ fun AppSectionLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 主操作按钮：明亮浅蓝填充 + 深色文字、12dp 圆角、48dp 最小高度、按压轻微缩放。
+ * 主操作按钮：明亮浅蓝填充 + 白色文字、12dp 圆角、48dp 最小高度、按压轻微缩放。
  * 全 App 的“保存/支付/确认/添加”都用这一颗，不再各自 setShadow + background。
  */
 @Composable
