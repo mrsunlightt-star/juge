@@ -282,7 +282,7 @@ private fun IllustrationPresetItems(
             label = "illustrationBorderWidth"
         )
         val borderColor by animateColorAsState(
-            targetValue = if (isSelected) selectBlue else borderBlue,
+            targetValue = if (isSelected) accentBlue else borderBlue,
             animationSpec = AppMotion.color,
             label = "illustrationBorderColor"
         )
