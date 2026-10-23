@@ -93,7 +93,7 @@ fun ThickTrackSlider(
                         .fillMaxWidth(if (enabled) fraction else 0f)
                         .fillMaxHeight()
                         .clip(AppShape.pill)
-                        .background(controlBlue)
+                        .background(accentBlue)
                 )
             }
         }

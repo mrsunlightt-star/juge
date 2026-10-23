@@ -60,8 +60,8 @@ Material 组件也会落在同一套阶梯上。
 
 1. 文字只用 `textPrimary` / `textSecondary` / `textTertiary` 三档，不再出现 #1F2937、#6B7280、
    #9CA3AF 等近似灰；
-2. 卡片描边统一 `borderBlue`，不再用 #F1F5F9 / #E5E7EB 各写一份；
-3. 选中态与主按钮统一使用明亮浅蓝填充 `selectBlue`，其上的文字/图标使用深色 `textPrimary`；危险操作统一 `dangerRed`；
+2. 默认卡片描边统一 `borderBlue`；选中预设和控件的状态描边使用对比度更高的 `accentBlue`；
+3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标使用深色 `textPrimary`，状态描边使用 `accentBlue`；危险操作统一 `dangerRed`；
 4. 新增颜色先加进 `AppColors.kt` 并写清语义，不在界面里直接 `Color(0x…)`；
 5. **对比度是硬门槛**：正文/标题/链接在其背景上 ≥ 4.5:1，图标、状态描边、开关等非文字元素 ≥ 3:1。
    浅色装饰只用于不承载信息的渐变（如 `auroraSky`），不能拿来做白字底色。`selectBlue`

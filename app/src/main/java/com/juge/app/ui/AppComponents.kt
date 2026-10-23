@@ -270,7 +270,7 @@ fun AppFilterChip(
             enabled = true,
             selected = selected,
             borderColor = borderBlue,
-            selectedBorderColor = selectBlue,
+            selectedBorderColor = accentBlue,
         ),
     )
 }

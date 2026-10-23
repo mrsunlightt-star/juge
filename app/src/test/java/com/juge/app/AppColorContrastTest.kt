@@ -1,6 +1,7 @@
 package com.juge.app
 
 import androidx.compose.ui.graphics.Color
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.accentLightBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
@@ -77,6 +78,7 @@ class AppColorContrastTest {
 
     @Test
     fun `图标与状态描边满足 3比1`() {
+        assertContrast("accentBlue 状态描边 on cardBg", accentBlue, cardBg, 3.0)
         assertContrast("premiumGoldDeep 图标 on cardBg", premiumGoldDeep, cardBg, 3.0)
         assertContrast("dangerRed 图标 on cardBg", dangerRed, cardBg, 3.0)
         assertContrast("textTertiary 图标 on cardBg", textTertiary, cardBg, 3.0)

@@ -134,7 +134,7 @@ fun PresetRow(
                         label = "presetBorderWidth"
                     )
                     val borderColor by animateColorAsState(
-                        targetValue = if (showSelectionBorder && selected) selectBlue else borderBlue,
+                        targetValue = if (showSelectionBorder && selected) accentBlue else borderBlue,
                         animationSpec = AppMotion.color,
                         label = "presetBorderColor"
                     )

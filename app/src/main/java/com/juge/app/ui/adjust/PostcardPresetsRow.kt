@@ -195,7 +195,7 @@ private fun RenderedPresetItem(
         label = "postcardBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isSelected) selectBlue else borderBlue,
+        targetValue = if (isSelected) accentBlue else borderBlue,
         animationSpec = AppMotion.color,
         label = "postcardBorderColor"
     )
