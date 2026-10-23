@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -16,21 +15,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.data.LegalDocs
+import com.juge.app.ui.AppDialogTitle
+import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.AppSecondaryButton
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentLightBlue
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
-import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textPrimary
+import com.juge.app.ui.theme.textTertiary
 
 /** 弹窗里可点开的三份文件；[key] 与 [LegalDocs] 的取文对应 */
 private data class LegalEntry(val key: String, val label: String, val icon: ImageVector)
@@ -91,7 +93,7 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 420.dp)
                 .padding(vertical = 16.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = AppShape.dialog,
             colors = CardDefaults.cardColors(containerColor = cardBg),
             border = BorderStroke(1.dp, borderBlue)
         ) {
@@ -100,19 +102,15 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
+                AppDialogTitle(
                     text = "用户服务与隐私协议提示",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1F2937),
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
                 Text(
                     text = "感谢您使用《句阁》！我们非常重视您的隐私与个人信息保护。在您使用本应用的服务（包括金句展示、自定义背景与桌面组件刷新等）之前，请仔细阅读以下协议：",
-                    fontSize = 13.sp,
-                    color = Color(0xFF6B7280),
-                    lineHeight = 18.sp
+                    style = AppType.body,
+                    color = textGray
                 )
 
                 // 协议全文入口：合规要求条款必须能在应用内完整查阅。
@@ -122,7 +120,7 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp)
-                        .border(1.dp, borderBlue, RoundedCornerShape(12.dp))
+                        .border(1.dp, borderBlue, AppShape.button)
                 ) {
                     LEGAL_ENTRIES.forEachIndexed { index, entry ->
                         if (index > 0) {
@@ -132,7 +130,7 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { openDoc = entry.key }
-                                .padding(horizontal = 12.dp, vertical = 11.dp),
+                                .padding(horizontal = 12.dp, vertical = 15.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -144,15 +142,14 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = entry.label,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1F2937),
+                                style = AppType.body,
+                                color = textPrimary,
                                 modifier = Modifier.weight(1f)
                             )
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = null,
-                                tint = Color(0xFF9CA3AF),
+                                tint = textTertiary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -173,16 +170,14 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "${index + 1}.",
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                color = Color(0xFF6B7280),
+                                style = AppType.body,
+                                color = textGray,
                                 modifier = Modifier.width(20.dp)
                             )
                             Text(
                                 text = item,
-                                fontSize = 13.sp,
-                                color = Color(0xFF6B7280),
-                                lineHeight = 18.sp,
+                                style = AppType.body,
+                                color = textGray,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -194,9 +189,8 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                     text = "运营主体：${LegalDocs.ENTITY}\n" +
                         "备案号：${LegalDocs.ICP_LICENSE}\n" +
                         "如有疑问或需注销账号，请联系 ${LegalDocs.EMAIL}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF9CA3AF),
-                    lineHeight = 16.sp,
+                    style = AppType.micro,
+                    color = textTertiary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -207,22 +201,17 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
+                    AppSecondaryButton(
+                        text = "不同意并退出",
                         onClick = onReject,
-                        modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, borderBlue),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = textGray)
-                    ) {
-                        Text("不同意并退出", fontSize = 13.sp)
-                    }
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    Button(
+                    AppPrimaryButton(
+                        text = "同意并继续",
                         onClick = onAgree,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = selectBlue, contentColor = Color.White)
-                    ) {
-                        Text("同意并继续", fontSize = 13.sp, color = Color.White)
-                    }
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

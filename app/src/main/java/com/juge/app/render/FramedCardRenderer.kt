@@ -140,13 +140,24 @@ internal object FramedCardRenderer {
         outerPath: Path,
         spec: FramedCardSpec,
         layout: FramedCardLayout,
-        targetWidth: Int,
-        targetHeight: Int,
         densityScale: Float,
         alpha: Int
     ) {
-        val frame = getPresetImage(context, spec.frameAsset, targetWidth, targetHeight)
-        val accent = getPresetImage(context, spec.accentAsset, targetWidth, targetHeight)
+        // 相框与点缀层按各自的**实际绘制矩形**取图，而不是整卡尺寸：
+        // 相框只占卡宽约 93%、点缀层约 60%，按整卡解码会多分配一倍以上内存，
+        // 在高密度 4×4 上尤其明显。
+        val frame = getPresetImage(
+            context,
+            spec.frameAsset,
+            layout.frameRect.width().toInt().coerceAtLeast(1),
+            layout.frameRect.height().toInt().coerceAtLeast(1),
+        )
+        val accent = getPresetImage(
+            context,
+            spec.accentAsset,
+            layout.accentRect.width().toInt().coerceAtLeast(1),
+            layout.accentRect.height().toInt().coerceAtLeast(1),
+        )
 
         val saveCount = canvas.save()
         canvas.clipPath(outerPath)

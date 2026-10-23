@@ -22,14 +22,20 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF0F766E),
-    secondary = Color(0xFF0284C7),
+    primary = accentBlue,
+    secondary = accentLightBlue,
     tertiary = Color(0xFF047857),
-    background = Color(0xFFF8FAFC),
-    surface = Color(0xFFFFFFFF),
+    background = surfaceMuted,
+    surface = cardBg,
+    surfaceVariant = surfaceSubtle,
     onPrimary = Color.White,
-    onBackground = Color(0xFF0F172A),
-    onSurface = Color(0xFF0F172A)
+    onBackground = textWhite,
+    onSurface = textWhite,
+    onSurfaceVariant = textGray,
+    outline = borderBlue,
+    outlineVariant = borderBlue,
+    error = dangerRed,
+    onError = Color.White
 )
 
 @Composable
@@ -54,6 +60,7 @@ fun MyApplicationTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = AppTypography,
         content = content
     )
 }

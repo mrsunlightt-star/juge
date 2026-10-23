@@ -322,9 +322,11 @@ internal object WidgetRenderKernel {
     // 预设插画缓存：桌面组件每次刷新都会渲染，避免重复全尺寸解码。
     // key 必须带上目标尺寸，否则首次按小尺寸解码的位图会被 4×4 大组件复用，
     // 导致桌面显示被放大的模糊图。
-    // 24MB：整卡插画素材单张全分辨率就有 3~8.5MB（如春天与小狗 1812×1012），
-    // 桌面上同时存在 4×2/4×3/4×4 三种尺寸时三张都要驻留，16MB 会把最不常用的那张挤掉、
-    // 每次刷新重新解码一遍 8MB 位图。
+    //
+    // 缓存的是**按目标绘制框缩放后的位图**，不是源素材：4×4 的方形素材约 1125²≈5MB，
+    // 4×2 约 1125×562≈2.5MB。这样 24MB 能驻留 4~6 张，不同组件尺寸/画框图层之间
+    // 也不会把最不常用的那张挤掉。缓存条目本身超过上限时 LruCache 不会保留
+    // （早先 2048² 素材被密度放大到 6144²≈144MB，正是每次刷新都重新解码的原因）。
     val presetImageCache = object : android.util.LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
@@ -335,7 +337,7 @@ internal object WidgetRenderKernel {
         presetImageCache.get(cacheKey)?.let { if (!it.isRecycled) return it }
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
         if (resId == 0) return null
-        val bmp = decodeResourceSampled(context.resources, resId, targetWidth, targetHeight)
+        val bmp = decodeResourceForTarget(context.resources, resId, targetWidth, targetHeight)
         if (bmp == null) {
             // 矢量资源降级为 Drawable 渲染：必须按目标尺寸栅格化，
             // 否则按 intrinsic 尺寸（或兜底 300×120）生成的小图放大到组件尺寸会发虚。
@@ -376,16 +378,73 @@ internal object WidgetRenderKernel {
         return BitmapFactory.decodeFile(path, opts)
     }
 
-    fun decodeResourceSampled(res: android.content.res.Resources, resId: Int, targetWidth: Int, targetHeight: Int): Bitmap? {
+    /**
+     * 预设位图按**目标绘制框**解码并缩放，代替原来的「2 的幂采样 + 命中就返回」。
+     *
+     * 两件事必须一起做，否则内存/清晰度只能二选一：
+     * 1. `inScaled = false`：`res/drawable` 是 mdpi 基准，`decodeResource` 默认会按
+     *    屏幕密度把素材放大。480dpi 下 2048² 会先变成 6144²（约 144MB），而采样计算
+     *    看的是放大前的尺寸，采样值偏小；这些放大出来的像素既不是素材真实细节，
+     *    又会把 LruCache 直接撑爆。关闭密度缩放后，由渲染器统一缩到目标框。
+     * 2. 只缩到「刚好覆盖目标框」：不再用 `calcInSampleSize` 把 1125 目标砍到 1024，
+     *    避免先欠采样再放大造成的边缘发软。`inSampleSize` 仍会用来压低解码峰值，
+     *    但只在不低于目标框的前提下减半。
+     *
+     * 素材本身小于目标框时保持原尺寸（不强行放大分配），交给 Canvas 放大；
+     * 素材短边小于目标框时也保持原尺寸——多出来的那点放大是素材分辨率的物理上限，
+     * 不是解码策略造成的。
+     */
+    fun decodeResourceForTarget(
+        res: android.content.res.Resources,
+        resId: Int,
+        targetWidth: Int,
+        targetHeight: Int
+    ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeResource(res, resId, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        val srcWidth = bounds.outWidth
+        val srcHeight = bounds.outHeight
+        // 等比缩到刚好覆盖目标框；只缩不放（coerceAtMost(1f)）。
+        val coverScale = maxOf(
+            targetWidth.toFloat() / srcWidth,
+            targetHeight.toFloat() / srcHeight,
+        ).coerceAtMost(1f)
+        val dstWidth = (srcWidth * coverScale).toInt().coerceAtLeast(1)
+        val dstHeight = (srcHeight * coverScale).toInt().coerceAtLeast(1)
+
+        // 采样只用来压低解码峰值：采样后仍必须不小于目标尺寸，绝不欠采样。
+        var sampleSize = 1
+        var sampledWidth = srcWidth
+        var sampledHeight = srcHeight
+        while (sampledWidth / 2 >= dstWidth && sampledHeight / 2 >= dstHeight) {
+            sampledWidth /= 2
+            sampledHeight /= 2
+            sampleSize *= 2
+        }
+
         val opts = BitmapFactory.Options().apply {
-            inSampleSize = calcInSampleSize(bounds.outWidth, bounds.outHeight, targetWidth, targetHeight)
+            inSampleSize = sampleSize
             // 透明 PNG（如信纸抠图）必须强制 ARGB_8888，否则采样后透明区会变成 RGB_565 导致的黑色
             inPreferredConfig = Bitmap.Config.ARGB_8888
+            inScaled = false
         }
-        return BitmapFactory.decodeResource(res, resId, opts)
+        val decoded = BitmapFactory.decodeResource(res, resId, opts) ?: return null
+
+        if (decoded.width == dstWidth && decoded.height == dstHeight) return decoded
+
+        // 用带 FILTER 的 Canvas 做一次高质量缩放，随后立刻回收源位图；
+        // 缓存里只留目标尺寸这一张。
+        val scaled = Bitmap.createBitmap(dstWidth, dstHeight, Bitmap.Config.ARGB_8888)
+        Canvas(scaled).drawBitmap(
+            decoded,
+            null,
+            RectF(0f, 0f, dstWidth.toFloat(), dstHeight.toFloat()),
+            Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG),
+        )
+        decoded.recycle()
+        return scaled
     }
 
     fun calcInSampleSize(outWidth: Int, outHeight: Int, reqWidth: Int, reqHeight: Int): Int {

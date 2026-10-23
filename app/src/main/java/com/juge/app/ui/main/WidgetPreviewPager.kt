@@ -1,6 +1,7 @@
 package com.juge.app.ui.main
 
 import android.graphics.Bitmap
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -24,11 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.juge.app.ReminderWidgetProvider
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.theme.AppMotion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -143,20 +146,24 @@ fun WidgetPreviewPager(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(previewHeightDp.dp)
-                    .clickable {
+                    .clickable(
+                        onClickLabel = "编辑样式",
+                        role = Role.Button,
+                    ) {
                         onEditClick()
                     },
                 contentAlignment = Alignment.TopCenter
             ) {
                 // 用 Crossfade 让预览位图在切换风格时平滑过渡，避免颜色/形状突变造成"晃动"感
-                androidx.compose.animation.Crossfade(
+                Crossfade(
                     targetState = pageBitmap,
+                    animationSpec = AppMotion.standard(),
                     modifier = Modifier.fillMaxSize()
                 ) { bmp ->
                     if (bmp != null) {
                         Image(
                             bitmap = bmp.asImageBitmap(),
-                            contentDescription = "Style Preview",
+                            contentDescription = "组件预览，点击进入个性定制",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
@@ -164,7 +171,7 @@ fun WidgetPreviewPager(
                 }
                 Icon(
                     Icons.Default.Edit,
-                    contentDescription = "Edit Style",
+                    contentDescription = null,
                     tint = Color(pageStyle.fontColor).copy(alpha = 0.6f),
                     modifier = Modifier
                         .padding(8.dp)

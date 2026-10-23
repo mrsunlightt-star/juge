@@ -27,6 +27,7 @@ fun LibraryPane(
     scope: CoroutineScope,
     categories: List<Category>,
     reminders: List<Reminder>,
+    isLoaded: Boolean,
     selectedCategory: Category?,
     editingReminder: Reminder?,
     onEditReminderRequest: (Reminder?) -> Unit,
@@ -45,6 +46,7 @@ fun LibraryPane(
     LibraryTabContent(
         categories = categories,
         reminders = reminders,
+        isLoaded = isLoaded,
         selectedCategory = selectedCategory,
         editingReminder = editingReminder,
         onEditReminderRequest = onEditReminderRequest,

@@ -8,16 +8,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.juge.app.data.LegalDocs
+import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.textSecondary
 
 /**
  * 「跃然纸上」「个性定制」两页底部共用的协议、许可与备案页脚。
  * 备案号需在 App 内可见，点击跳转工信部备案查询系统。
+ * 链接文字纵向补 15dp 内边距，把 18sp 的行高撑到 48dp 触控热区。
  */
 @Composable
 fun LegalFooter(onOpenDoc: (String) -> Unit) {
@@ -31,35 +32,42 @@ fun LegalFooter(onOpenDoc: (String) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
                 text = "《用户协议》",
-                fontSize = 13.sp,
+                style = AppType.link,
                 color = accentLightBlue,
-                modifier = Modifier.clickable { onOpenDoc("user") }
+                modifier = Modifier
+                    .clickable { onOpenDoc("user") }
+                    .padding(vertical = 15.dp)
             )
             Text(
                 text = "《隐私政策》",
-                fontSize = 13.sp,
+                style = AppType.link,
                 color = accentLightBlue,
-                modifier = Modifier.clickable { onOpenDoc("privacy") }
+                modifier = Modifier
+                    .clickable { onOpenDoc("privacy") }
+                    .padding(vertical = 15.dp)
             )
             Text(
                 text = "《开源许可》",
-                fontSize = 13.sp,
+                style = AppType.link,
                 color = accentLightBlue,
-                modifier = Modifier.clickable { onOpenDoc("license") }
+                modifier = Modifier
+                    .clickable { onOpenDoc("license") }
+                    .padding(vertical = 15.dp)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = LegalDocs.ICP_LICENSE,
-            fontSize = 13.sp,
-            color = Color(0xFF94A3B8),
-            modifier = Modifier.clickable {
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(LegalDocs.ICP_QUERY_URL))
-                    )
+            style = AppType.caption,
+            color = textSecondary,
+            modifier = Modifier
+                .clickable {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(LegalDocs.ICP_QUERY_URL))
+                        )
+                    }
                 }
-            }
+                .padding(vertical = 15.dp)
         )
     }
 }

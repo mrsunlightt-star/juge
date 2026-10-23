@@ -1,10 +1,8 @@
 package com.juge.app.ui.legal
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,16 +10,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDialogTitle
+import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
-import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textTertiary
 
 /**
  * 《用户协议》/《隐私政策》/《开源许可》全文查看器。
@@ -41,31 +41,26 @@ fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
                 .widthIn(max = 420.dp)
                 .fillMaxHeight(0.85f)
                 .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = AppShape.dialog,
             colors = CardDefaults.cardColors(containerColor = cardBg),
             border = BorderStroke(1.dp, borderBlue)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(AppSpacing.cardPadding)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = title,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2937)
-                    )
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    AppDialogTitle(title)
+                    IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "关闭",
-                            tint = textGray,
+                            tint = textTertiary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -83,21 +78,18 @@ fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
                 ) {
                     Text(
                         text = body,
-                        fontSize = 13.sp,
-                        color = Color(0xFF4B5563),
-                        lineHeight = 21.sp
+                        style = AppType.body,
+                        color = textGray
                     )
                 }
 
-                Button(
+                AppPrimaryButton(
+                    text = "我知道了",
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = selectBlue, contentColor = Color.White)
-                ) {
-                    Text("我知道了", fontSize = 13.sp, color = Color.White)
-                }
+                        .padding(top = 12.dp)
+                )
             }
         }
     }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,11 +23,14 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.overlayCard
+import com.juge.app.ui.theme.selectBlue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -280,14 +282,13 @@ object CropImageHelper {
                     ) {
                         Text(
                             text = "选择图片背景区域",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = AppType.dialogTitle,
                             color = Color.White
                         )
 
                         Text(
                             text = "单指拖动图片平移，双指捏合进行缩放",
-                            fontSize = 12.sp,
+                            style = AppType.caption,
                             color = Color.Gray
                         )
 
@@ -350,15 +351,16 @@ object CropImageHelper {
                                 onClick = onDismiss,
                                 enabled = !isSaving,
                                 modifier = Modifier.weight(1f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E3A56)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                             ) {
-                                Text("取消", color = Color.White)
+                                Text("取消", style = AppType.button, color = Color.White)
                             }
 
-                            Button(
+                            AppPrimaryButton(
+                                text = "保存并使用",
                                 onClick = {
-                                    if (isSaving) return@Button
+                                    if (isSaving) return@AppPrimaryButton
                                     isSaving = true
                                     val currentBitmap = bitmap!!
                                     scope.launch {
@@ -384,19 +386,10 @@ object CropImageHelper {
                                     }
                                 },
                                 enabled = !isSaving,
+                                loading = isSaving,
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
-                            ) {
-                                if (isSaving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text("保存并使用", color = Color.White)
-                                }
-                            }
+                                containerColor = selectBlue
+                            )
                         }
                     }
                 }
@@ -406,10 +399,10 @@ object CropImageHelper {
                 Box(
                     modifier = Modifier
                         .size(100.dp)
-                        .background(Color(0xFF1E2436), RoundedCornerShape(12.dp)),
+                        .background(overlayCard, AppShape.button),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFF3B82F6))
+                    CircularProgressIndicator(color = selectBlue)
                 }
             }
         }

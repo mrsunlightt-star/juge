@@ -1,46 +1,44 @@
 package com.juge.app.account
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDialogSurface
+import com.juge.app.ui.AppDivider
+import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.AppTextButton
+import com.juge.app.ui.appTextFieldColors
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.dangerRed
+import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textPrimary
+import com.juge.app.ui.theme.textTertiary
 import kotlinx.coroutines.launch
-
-private val ACCOUNT_GRADIENT = listOf(Color(0xFF059669), Color(0xFF0284C7))
 
 /**
  * 账号弹窗：登录 / 注册 / 已登录三种形态。
@@ -62,6 +60,7 @@ fun AccountDialog(
     var isRegister by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var nickname by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -145,209 +144,208 @@ fun AccountDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                val current = snapshot
+        AppDialogSurface(scrollable = true) {
+            val current = snapshot
 
-                Text("账号", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E293B))
+            Text(
+                text = "账号",
+                style = AppType.hero,
+                color = textPrimary
+            )
 
-                if (current == null) {
-                    Text(
-                        "登录后，已购的 PRO 会跟着账号走 —— 换手机、重装应用都能找回。",
-                        fontSize = 12.sp,
-                        color = Color(0xFF4B5563),
-                    )
-                    Divider()
-                    Row(horizontalArrangement = Arrangement.Center) {
-                        TextButton(
-                            onClick = { if (!busy) { isRegister = false; message = "" } },
-                            enabled = !busy,
-                        ) {
-                            Text(
-                                "登录",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isRegister) Color(0xFF9CA3AF) else Color(0xFF0F766E),
-                            )
-                        }
-                        TextButton(
-                            onClick = { if (!busy) { isRegister = true; message = "" } },
-                            enabled = !busy,
-                        ) {
-                            Text(
-                                "注册",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isRegister) Color(0xFF0F766E) else Color(0xFF9CA3AF),
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = username,
-                        onValueChange = { username = it.take(32) },
-                        label = { Text("用户名") },
-                        singleLine = true,
+            if (current == null) {
+                Text(
+                    text = "登录后，已购的 PRO 会跟着账号走 —— 换手机、重装应用都能找回。",
+                    style = AppType.body,
+                    color = textGray
+                )
+                AppDivider()
+                Row(horizontalArrangement = Arrangement.Center) {
+                    AppTextButton(
+                        text = "登录",
+                        onClick = { if (!busy) { isRegister = false; message = "" } },
                         enabled = !busy,
-                        modifier = Modifier.fillMaxWidth(),
+                        color = if (isRegister) textTertiary else accentBlue
                     )
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it.take(64) },
-                        label = { Text("密码") },
-                        singleLine = true,
+                    AppTextButton(
+                        text = "注册",
+                        onClick = { if (!busy) { isRegister = true; message = "" } },
                         enabled = !busy,
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
+                        color = if (isRegister) accentBlue else textTertiary
                     )
-                    if (isRegister) {
-                        OutlinedTextField(
-                            value = nickname,
-                            onValueChange = { nickname = it.take(32) },
-                            label = { Text("昵称（选填）") },
-                            singleLine = true,
-                            enabled = !busy,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                }
 
-                    Text(
-                        if (isRegister) {
-                            "用户名 3~32 位字母、数字或下划线；密码至少 6 位。密码无法自助找回，请牢记。"
-                        } else {
-                            "忘记密码可联系我们，凭支付宝交易记录人工找回。"
-                        },
-                        fontSize = 11.sp,
-                        color = Color(0xFF9CA3AF),
-                    )
-                    if (message.isNotEmpty()) {
-                        Text(message, fontSize = 12.sp, color = Color(0xFFDC2626))
-                    }
-
-                    Button(
-                        onClick = submit,
-                        enabled = !busy && username.isNotBlank() && password.isNotBlank(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(Brush.horizontalGradient(ACCOUNT_GRADIENT), RoundedCornerShape(12.dp)),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        if (busy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp,
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (isRegister) "注册中…" else "登录中…",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                            )
-                        } else {
-                            Text(
-                                if (isRegister) "注册并登录" else "登录",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                            )
-                        }
-                    }
-                    TextButton(onClick = onDismiss, enabled = !busy) {
-                        Text("暂不登录", color = Color(0xFF9CA3AF), fontSize = 12.sp)
-                    }
-                } else {
-                    Text(
-                        "👤 ${current.displayName}",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F766E),
-                    )
-                    Text("@${current.username}", fontSize = 12.sp, color = Color(0xFF9CA3AF))
-                    Text(
-                        if (current.pro) {
-                            "✨ 服务端已记录你的 PRO，换手机登录本账号即可恢复"
-                        } else {
-                            "尚未开通 PRO。开通后换手机登录本账号即可恢复"
-                        },
-                        fontSize = 12.sp,
-                        color = Color(0xFF4B5563),
-                    )
-                    Divider()
-                    Text("退出登录不会收回已解锁的风格。", fontSize = 11.sp, color = Color(0xFF9CA3AF))
-                    if (message.isNotEmpty()) {
-                        Text(message, fontSize = 12.sp, color = Color(0xFFDC2626))
-                    }
-
-                    Button(
-                        onClick = logout,
-                        enabled = !busy,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .shadow(2.dp, RoundedCornerShape(12.dp))
-                            .background(Brush.horizontalGradient(ACCOUNT_GRADIENT), RoundedCornerShape(12.dp)),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Text(
-                            if (busy && !confirmDelete) "处理中…" else "退出登录",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-
-                    if (!confirmDelete) {
-                        TextButton(onClick = { if (!busy) { confirmDelete = true; message = "" } }, enabled = !busy) {
-                            Text("注销账号", color = Color(0xFFDC2626), fontSize = 12.sp)
-                        }
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it.take(32) },
+                    label = { Text("用户名", style = AppType.body) },
+                    singleLine = true,
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShape.button,
+                    textStyle = AppType.body,
+                    colors = appTextFieldColors(),
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it.take(64) },
+                    label = { Text("密码", style = AppType.body) },
+                    singleLine = true,
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (isRegister) ImeAction.Next else ImeAction.Done,
+                    ),
+                    visualTransformation = if (passwordVisible) {
+                        VisualTransformation.None
                     } else {
-                        Divider()
-                        Text(
-                            "注销后将永久删除服务端账号与订单绑定信息，且无法恢复、无法再通过本账号找回 PRO。本机已解锁的风格不受影响。",
-                            fontSize = 12.sp,
-                            color = Color(0xFFDC2626),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(onClick = { if (!busy) confirmDelete = false }, enabled = !busy) {
-                                Text("取消", color = Color(0xFF9CA3AF), fontSize = 13.sp)
-                            }
-                            TextButton(onClick = deleteAccount, enabled = !busy) {
-                                Text(
-                                    if (busy) "注销中…" else "确认注销",
-                                    color = Color(0xFFDC2626),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) {
+                                    Icons.Filled.VisibilityOff
+                                } else {
+                                    Icons.Filled.Visibility
+                                },
+                                contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                            )
                         }
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShape.button,
+                    textStyle = AppType.body,
+                    colors = appTextFieldColors(),
+                )
+                if (isRegister) {
+                    OutlinedTextField(
+                        value = nickname,
+                        onValueChange = { nickname = it.take(32) },
+                        label = { Text("昵称（选填）", style = AppType.body) },
+                        singleLine = true,
+                        enabled = !busy,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = AppShape.button,
+                        textStyle = AppType.body,
+                        colors = appTextFieldColors(),
+                    )
+                }
 
-                    TextButton(onClick = onDismiss, enabled = !busy) {
-                        Text("关闭", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                Text(
+                    text = if (isRegister) {
+                        "用户名 3~32 位字母、数字或下划线；密码至少 6 位。密码无法自助找回，请牢记。"
+                    } else {
+                        "忘记密码可联系我们，凭支付宝交易记录人工找回。"
+                    },
+                    style = AppType.micro,
+                    color = textTertiary,
+                )
+                if (message.isNotEmpty()) {
+                    Text(message, style = AppType.caption, color = dangerRed)
+                }
+
+                AppPrimaryButton(
+                    text = when {
+                        busy && isRegister -> "注册中…"
+                        busy -> "登录中…"
+                        isRegister -> "注册并登录"
+                        else -> "登录"
+                    },
+                    onClick = submit,
+                    enabled = !busy && username.isNotBlank() && password.isNotBlank(),
+                    loading = busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AppTextButton(
+                    text = "暂不登录",
+                    onClick = onDismiss,
+                    enabled = !busy,
+                    color = textTertiary
+                )
+            } else {
+                Text(
+                    text = "👤 ${current.displayName}",
+                    style = AppType.bodyLarge,
+                    color = accentBlue,
+                )
+                Text(
+                    text = "@${current.username}",
+                    style = AppType.caption,
+                    color = textTertiary
+                )
+                Text(
+                    text = if (current.pro) {
+                        "✨ 服务端已记录你的 PRO，换手机登录本账号即可恢复"
+                    } else {
+                        "尚未开通 PRO。开通后换手机登录本账号即可恢复"
+                    },
+                    style = AppType.body,
+                    color = textGray,
+                )
+                AppDivider()
+                Text(
+                    text = "退出登录不会收回已解锁的风格。",
+                    style = AppType.micro,
+                    color = textTertiary
+                )
+                if (message.isNotEmpty()) {
+                    Text(message, style = AppType.caption, color = dangerRed)
+                }
+
+                AppPrimaryButton(
+                    text = if (busy && !confirmDelete) "处理中…" else "退出登录",
+                    onClick = logout,
+                    enabled = !busy,
+                    loading = busy && !confirmDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (!confirmDelete) {
+                    AppTextButton(
+                        text = "注销账号",
+                        onClick = { if (!busy) { confirmDelete = true; message = "" } },
+                        enabled = !busy,
+                        color = dangerRed
+                    )
+                } else {
+                    AppDivider()
+                    Text(
+                        text = "注销后将永久删除服务端账号与订单绑定信息，且无法恢复、无法再通过本账号找回 PRO。本机已解锁的风格不受影响。",
+                        style = AppType.caption,
+                        color = dangerRed,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AppTextButton(
+                            text = "取消",
+                            onClick = { if (!busy) confirmDelete = false },
+                            enabled = !busy,
+                            color = textTertiary
+                        )
+                        AppTextButton(
+                            text = if (busy) "注销中…" else "确认注销",
+                            onClick = deleteAccount,
+                            enabled = !busy,
+                            color = dangerRed
+                        )
                     }
                 }
+
+                AppTextButton(
+                    text = "关闭",
+                    onClick = onDismiss,
+                    enabled = !busy,
+                    color = textTertiary
+                )
             }
         }
     }
-}
-
-/** 与激活弹窗一致的浅分隔线，避免用默认 Divider 的深色 */
-@Composable
-private fun Divider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF1F5F9)))
 }

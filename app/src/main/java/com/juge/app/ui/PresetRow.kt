@@ -1,6 +1,8 @@
 package com.juge.app.ui
 
 import android.graphics.Bitmap
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +34,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceSubtle
+import com.juge.app.ui.theme.textGray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -65,19 +72,19 @@ fun PresetRow(
     showThumbnailBackground: Boolean = false,
     contentScale: ContentScale = ContentScale.Crop,
     imageContentDescription: (index: Int, presetName: String) -> String = { _, presetName -> presetName },
-    titleColor: Color = Color(0xFF64748B),
+    titleColor: Color = textGray,
     titleBottomSpacing: Dp = 10.dp,
     nameFontWeight: FontWeight? = FontWeight.Normal,
-    itemSpacing: Dp = 10.dp,
+    itemSpacing: Dp = AppSpacing.itemGap,
     nameTopPadding: Dp = 5.dp,
     nameColor: (isPro: Boolean, isSelected: Boolean) -> Color = { isPro, _ ->
-        if (isPro) Color(0xFF64748B) else selectBlue
+        if (isPro) textGray else selectBlue
     }
 ) {
     val context = LocalContext.current
     Column(modifier = modifier) {
         if (title != null) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = titleColor)
+            Text(title, style = AppType.sectionTitle, color = titleColor)
             if (titleBottomSpacing > 0.dp) {
                 Spacer(modifier = Modifier.height(titleBottomSpacing))
             }
@@ -119,22 +126,32 @@ fun PresetRow(
                     modifier = Modifier.width(150.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val borderWidth by animateDpAsState(
+                        targetValue = if (showSelectionBorder && selected) 3.dp else 1.dp,
+                        animationSpec = AppMotion.standard(),
+                        label = "presetBorderWidth"
+                    )
+                    val borderColor by animateColorAsState(
+                        targetValue = if (showSelectionBorder && selected) selectBlue else borderBlue,
+                        animationSpec = AppMotion.color,
+                        label = "presetBorderColor"
+                    )
                     Box(
                         modifier = Modifier
                             .width(150.dp)
                             .height(80.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(AppShape.thumbnail)
                             .then(
                                 if (showThumbnailBackground) {
-                                    Modifier.background(Color(0xFFF1F5F9))
+                                    Modifier.background(surfaceSubtle)
                                 } else {
                                     Modifier
                                 }
                             )
                             .border(
-                                width = if (showSelectionBorder && selected) 3.dp else 1.dp,
-                                color = if (showSelectionBorder && selected) selectBlue else Color(0xFFE2E8F0),
-                                shape = RoundedCornerShape(8.dp)
+                                width = borderWidth,
+                                color = borderColor,
+                                shape = AppShape.thumbnail
                             )
                             .clickable { onPresetClick(presetName, preset) }
                     ) {
@@ -153,17 +170,16 @@ fun PresetRow(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(4.dp)
-                                    .background(selectBlue, RoundedCornerShape(4.dp))
+                                    .background(selectBlue, AppShape.badge)
                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                             ) {
-                                Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("免费", style = AppType.badge, color = Color.White)
                             }
                         }
                     }
                     Text(
                         text = presetName,
-                        fontSize = 13.sp,
-                        fontWeight = nameFontWeight,
+                        style = AppType.body.copy(fontWeight = nameFontWeight ?: FontWeight.Normal),
                         color = nameColor(isProPreset, selected),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

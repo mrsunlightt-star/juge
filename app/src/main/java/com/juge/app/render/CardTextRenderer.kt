@@ -231,7 +231,7 @@ internal object CardTextRenderer {
                 TextBox(paddingLeft, textWidth, targetHeight * 0.49f, targetHeight * 0.37f)
             }
             WidgetShape.CUTE_DORO -> {
-                // 可爱Doro：原生 1536×1536 方形构图——角色在上、奶油色留言板在下方，
+                // 可爱Doro：原生 2048×2048 方形构图——角色在上、奶油色留言板在下方，
                 // 留言板约 y 42%~94%；正文从 50% 起、到 90% 止，左右各留 9%，
                 // 避开角色和板的圆角
                 val paddingLeft = targetWidth * 0.09f

@@ -2,9 +2,14 @@ package com.juge.app
 
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -77,6 +82,18 @@ class MainUiBaselineTest {
         scenes["main-adjust-tutorial"] = snapshot("main-adjust-tutorial")
 
         UiBaseline("main", "MainUiBaselineTest").verify(scenes)
+    }
+
+    /**
+     * 删除金句必须先弹确认，不能像改版前那样点一下就直接删库。
+     * 这里只验证交互分支，不纳入截图基线（确认弹窗会多出一个 Compose 根）。
+     */
+    @Test
+    fun `删除金句先弹二次确认`() {
+        compose.onAllNodesWithContentDescription("删除金句").onFirst().performClick()
+        compose.onNodeWithText("删除这条金句？").assertIsDisplayed()
+        compose.onNodeWithText("取消").performClick()
+        compose.onAllNodesWithText("删除这条金句？").assertCountEquals(0)
     }
 
     /** 纵向可滚动容器（LazyColumn）。横向的 ScrollRow 也带滚动动作，必须区分开 */

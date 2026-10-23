@@ -1,6 +1,8 @@
 package com.juge.app.ui.adjust
 
 import android.graphics.Bitmap
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,16 +31,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceSubtle
+import com.juge.app.ui.theme.textGray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -74,8 +80,8 @@ internal fun PostcardPresetsRow(
         // 从 2e9f34b 拆分 AdjustTabContent 起整行标题就丢了，行标题因为搬进了
         // PresetRow(title=) 才活下来（见 StylePresetCard）。
         if (title != null) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-            Spacer(modifier = Modifier.height(10.dp))
+            Text(title, style = AppType.sectionTitle, color = textGray)
+            Spacer(modifier = Modifier.height(AppSpacing.itemGap))
         }
         Row(
                 modifier = Modifier
@@ -181,6 +187,16 @@ private fun RenderedPresetItem(
         }
     }
 
+    val borderWidth by animateDpAsState(
+        targetValue = if (isSelected) 3.dp else 1.dp,
+        animationSpec = AppMotion.standard(),
+        label = "postcardBorderWidth"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) selectBlue else borderBlue,
+        animationSpec = AppMotion.color,
+        label = "postcardBorderColor"
+    )
     Column(
         modifier = Modifier.width(PREVIEW_WIDTH_DP.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -203,11 +219,11 @@ private fun RenderedPresetItem(
                     contentDescription = presetName,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShape.thumbnail)
                         .border(
-                            width = if (isSelected) 3.dp else 1.dp,
-                            color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
-                            shape = RoundedCornerShape(8.dp)
+                            width = borderWidth,
+                            color = borderColor,
+                            shape = AppShape.thumbnail
                         ),
                     contentScale = ContentScale.Fit
                 )
@@ -217,9 +233,8 @@ private fun RenderedPresetItem(
         }
         Text(
             text = presetName,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF64748B),
+            style = AppType.body,
+            color = textGray,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 5.dp)
@@ -235,10 +250,10 @@ private fun BoxScope.PresetFreeBadge(preset: WidgetStyle) {
         modifier = Modifier
             .align(Alignment.TopStart)
             .padding(4.dp)
-            .background(selectBlue, RoundedCornerShape(4.dp))
+            .background(selectBlue, AppShape.badge)
             .padding(horizontal = 5.dp, vertical = 1.dp)
     ) {
-        Text("免费", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text("免费", style = AppType.badge, color = Color.White)
     }
 }
 
@@ -259,6 +274,16 @@ private fun IllustrationPresetItems(
          val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
          val isSelected = selectedStyle.presetImageResName == resName && selectedStyle.shape == targetShape && selectedStyle.backgroundImagePath.isNullOrEmpty()
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
+        val borderWidth by animateDpAsState(
+            targetValue = if (isSelected) 3.dp else 1.dp,
+            animationSpec = AppMotion.standard(),
+            label = "illustrationBorderWidth"
+        )
+        val borderColor by animateColorAsState(
+            targetValue = if (isSelected) selectBlue else borderBlue,
+            animationSpec = AppMotion.color,
+            label = "illustrationBorderColor"
+        )
 
         Column(
             modifier = Modifier.width(150.dp),
@@ -268,12 +293,12 @@ private fun IllustrationPresetItems(
             modifier = Modifier
                 .width(150.dp)
                 .height(80.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFF1F5F9))
+                .clip(AppShape.thumbnail)
+                .background(surfaceSubtle)
                 .border(
-                    width = if (isSelected) 3.dp else 1.dp,
-                    color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
-                    shape = RoundedCornerShape(8.dp)
+                    width = borderWidth,
+                    color = borderColor,
+                    shape = AppShape.thumbnail
                 )
                 .clickable {
                      // 形状与配色都取自素材预设（不继承上一个风格的底色，见 illustrationStyle 注释），
@@ -298,8 +323,8 @@ private fun IllustrationPresetItems(
         }
         Text(
             text = desc,
-            fontSize = 13.sp,
-            color = if (isSelected) selectBlue else Color(0xFF64748B),
+            style = AppType.body,
+            color = if (isSelected) selectBlue else textGray,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 5.dp)

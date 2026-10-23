@@ -1,6 +1,5 @@
 package com.juge.app.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,27 +9,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,44 +34,58 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.cardBg
+import com.juge.app.ui.theme.dangerRed
+import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceMuted
+import com.juge.app.ui.theme.surfaceSubtle
+import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textTertiary
 import kotlin.math.roundToInt
 
-private val SelectBlue = Color(0xFF42B8EC)
-
-/** 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗 */
+/** 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗。视觉 34dp，热区 48dp。 */
 @Composable
 fun AddColorPresetButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 34.dp,
-    corner: Dp = 9.dp,
-    borderColor: Color = Color(0xFFE2E8F0),
-    contentColor: Color = Color(0xFF64748B)
+    corner: Dp = 10.dp,
+    borderColor: Color = borderBlue,
+    contentColor: Color = textGray
 ) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(corner))
-            .background(Color(0xFFF8FAFC))
-            .border(1.dp, borderColor, RoundedCornerShape(corner))
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clickable(onClick = onClick)
     ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = "添加预设颜色",
-            tint = contentColor,
-            modifier = Modifier.size(size * 0.5f)
-        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(size)
+                .clip(RoundedCornerShape(corner))
+                .background(surfaceMuted)
+                .border(1.dp, borderColor, RoundedCornerShape(corner))
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(size * 0.5f)
+            )
+        }
     }
 }
 
@@ -89,31 +98,31 @@ fun DeleteColorPresetDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text("删除这个预设颜色？", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
-        },
+        shape = AppShape.dialog,
+        containerColor = cardBg,
+        title = { AppDialogTitle("删除这个预设颜色？") },
         text = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .clip(RoundedCornerShape(7.dp))
+                        .clip(AppShape.badge)
                         .background(Color(color))
-                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(7.dp))
+                        .border(1.dp, borderBlue, AppShape.badge)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("删除后该颜色会从预设栏移除，不影响已应用的颜色。", fontSize = 13.sp, color = Color(0xFF64748B))
+                Text(
+                    text = "删除后该颜色会从预设栏移除，不影响已应用的颜色。",
+                    style = AppType.body,
+                    color = textGray
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("删除", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
-            }
+            AppTextButton(text = "删除", onClick = onConfirm, color = dangerRed)
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = Color(0xFF64748B))
-            }
+            AppTextButton(text = "取消", onClick = onDismiss)
         }
     )
 }
@@ -123,23 +132,20 @@ fun DeleteColorPresetDialog(
 fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text("此组件无法设置背景颜色", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
-        },
+        shape = AppShape.dialog,
+        containerColor = cardBg,
+        title = { AppDialogTitle("此组件无法设置背景颜色") },
         text = {
             Text(
-                "当前风格的主体四周是透明的（如信纸、撕纸、牛皮手账、猫咪趴、书架），" +
+                text = "当前风格的主体四周是透明的（如信纸、撕纸、牛皮手账、猫咪趴、书架），" +
                     "设置背景色会在主体外围露出一圈卡片背景，因此该风格不提供背景色调整。\n" +
                     "如需更换底色，可切换到其他组件风格。",
-                fontSize = 13.sp,
-                color = Color(0xFF64748B),
-                lineHeight = 20.sp
+                style = AppType.body,
+                color = textGray
             )
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("我知道了", color = Color(0xFF0F766E), fontWeight = FontWeight.Bold)
-            }
+            AppTextButton(text = "我知道了", onClick = onDismiss, color = accentBlue)
         }
     )
 }
@@ -168,37 +174,33 @@ fun ColorPickerDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
+                .clip(AppShape.dialog)
+                .background(cardBg)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.controlGap)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    title,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B),
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color(0xFF94A3B8))
+                AppDialogTitle(text = title, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = textTertiary)
                 }
             }
 
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(AppShape.card)
                     .background(Color(picked))
-                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
+                    .border(1.dp, borderBlue, AppShape.card)
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("颜色编码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)) {
+                AppSectionLabel("颜色编码")
                 OutlinedTextField(
                     value = hexInput,
                     onValueChange = { raw ->
@@ -220,17 +222,10 @@ fun ColorPickerDialog(
                         autoCorrect = false,
                         capitalization = KeyboardCapitalization.Characters
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = AppShape.button,
+                    textStyle = AppType.body,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1E293B),
-                        unfocusedTextColor = Color(0xFF1E293B),
-                        focusedContainerColor = Color(0xFFF1F5F9),
-                        unfocusedContainerColor = Color(0xFFF1F5F9),
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        cursorColor = SelectBlue
-                    )
+                    colors = appTextFieldColors(container = surfaceSubtle)
                 )
             }
 
@@ -280,25 +275,17 @@ fun ColorPickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                AppSecondaryButton(
+                    text = "取消",
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                     modifier = Modifier.weight(1f)
-                ) {
-                    Text("取消", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                }
-                Button(
+                )
+                AppPrimaryButton(
+                    text = "添加",
                     onClick = { onConfirm(picked) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SelectBlue,
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("添加", fontWeight = FontWeight.Bold)
-                }
+                    modifier = Modifier.weight(1f),
+                    containerColor = selectBlue
+                )
             }
         }
     }
@@ -333,14 +320,14 @@ private fun GradientSlider(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-            Text(valueText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+            Text(label, style = AppType.label, color = textGray)
+            Text(valueText, style = AppType.label, color = accentLightBlue)
         }
         GradientTrackSlider(
             gradient = gradient,
             value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange
+            valueRange = valueRange,
+            onValueChange = onValueChange
         )
     }
 }

@@ -1,43 +1,40 @@
 package com.juge.app.ui.adjust
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AddColorPresetButton
+import com.juge.app.ui.AppDivider
+import com.juge.app.ui.AppSectionCard
+import com.juge.app.ui.AppSectionHeader
+import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.selectBlue
 
 /**
@@ -61,142 +58,129 @@ internal fun ColorTextureCard(
     onRequestDeleteBackgroundColor: (Int) -> Unit,
     onBackgroundColorBlocked: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Brush,
-                    contentDescription = null,
-                    tint = accentBlue,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "色彩与质感艺术",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentBlue
-                )
-            }
+    AppSectionCard(modifier = Modifier.fillMaxWidth()) {
+        AppSectionHeader(icon = Icons.Filled.Brush, title = "色彩与质感艺术")
 
-            // 4.1. 字体颜色设置
-            Text("字体颜色", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-            Spacer(modifier = Modifier.height(4.dp))
+        // 4.1. 字体颜色设置
+        AppSectionLabel("字体颜色")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    fontColorPresets.forEach { parsedColor ->
-                        val isSelected = selectedStyle.fontColor == parsedColor
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(Color(parsedColor))
-                                .border(
-                                    width = if (isSelected) 3.dp else 1.dp,
-                                    color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
-                                    shape = RoundedCornerShape(9.dp)
-                                )
-                                .combinedClickable(
-                                    onClick = {
-                                        val newStyle = selectedStyle.copy(fontColor = parsedColor)
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    onLongClick = {
-                                        onRequestDeleteFontColor(parsedColor)
-                                    }
-                                )
-                        )
-                    }
+                fontColorPresets.forEach { parsedColor ->
+                    ColorSwatch(
+                        color = parsedColor,
+                        selected = selectedStyle.fontColor == parsedColor,
+                        onClick = {
+                            val newStyle = selectedStyle.copy(fontColor = parsedColor)
+                            onStyleStateChange(newStyle)
+                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                        },
+                        onLongClick = { onRequestDeleteFontColor(parsedColor) }
+                    )
                 }
-                AddColorPresetButton(onClick = { onRequestAddFontColor() })
             }
-            HorizontalDivider(color = Color(0xFFF1F5F9))
+            AddColorPresetButton(onClick = { onRequestAddFontColor() })
+        }
+        AppDivider()
 
-            // 4.2. 卡片背景颜色设置
-            // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
-            // （与"外框圆角（此形状无需调整）"保持同一套处理方式）
-            val canSetBackgroundColor = WidgetStyle.supportsBackgroundColor(selectedStyle.shape)
-            Box(modifier = Modifier.fillMaxWidth()) {
+        // 4.2. 卡片背景颜色设置
+        // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
+        // （与"外框圆角（此形状无需调整）"保持同一套处理方式）
+        val canSetBackgroundColor = WidgetStyle.supportsBackgroundColor(selectedStyle.shape)
+        Box(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.alpha(if (canSetBackgroundColor) 1f else 0.45f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)
             ) {
-            Text(
-                text = if (canSetBackgroundColor) "小组件背景颜色" else "小组件背景颜色（此形状无法设置）",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (canSetBackgroundColor) Color(0xFF64748B) else Color(0xFF94A3B8)
-            )
+                AppSectionLabel(
+                    if (canSetBackgroundColor) {
+                        "小组件背景颜色"
+                    } else {
+                        "小组件背景颜色（此形状无法设置）"
+                    }
+                )
 
-            // 预设背景色彩
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                // 预设背景色彩
                 Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    backgroundColorPresets.forEach { colorInt ->
-                        val isSelected = selectedStyle.backgroundColor == colorInt
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(Color(colorInt))
-                                .border(
-                                    width = if (isSelected) 3.dp else 1.dp,
-                                    color = if (isSelected) selectBlue else Color(0xFFE2E8F0),
-                                    shape = RoundedCornerShape(9.dp)
-                                )
-                                .combinedClickable(
-                                    onClick = {
-                                        val newStyle = selectedStyle.copy(backgroundColor = colorInt)
-                                        onStyleStateChange(newStyle)
-                                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                    },
-                                    onLongClick = {
-                                        onRequestDeleteBackgroundColor(colorInt)
-                                    }
-                                )
-                        )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        backgroundColorPresets.forEach { colorInt ->
+                            ColorSwatch(
+                                color = colorInt,
+                                selected = selectedStyle.backgroundColor == colorInt,
+                                onClick = {
+                                    val newStyle = selectedStyle.copy(backgroundColor = colorInt)
+                                    onStyleStateChange(newStyle)
+                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                                },
+                                onLongClick = { onRequestDeleteBackgroundColor(colorInt) }
+                            )
+                        }
                     }
+                    AddColorPresetButton(onClick = { onRequestAddBackgroundColor() })
                 }
-                AddColorPresetButton(onClick = { onRequestAddBackgroundColor() })
-            }
-
             }
             if (!canSetBackgroundColor) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clickable { onBackgroundColorBlocked() }
+                        .combinedClickable(onClick = onBackgroundColorBlocked)
                 )
             }
-            }
         }
+    }
+}
+
+/** 色板方块：选中态用蓝色描边，宽度与颜色都平滑过渡 */
+@Composable
+private fun ColorSwatch(
+    color: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val borderWidth by animateDpAsState(
+        targetValue = if (selected) 3.dp else 1.dp,
+        animationSpec = AppMotion.standard(),
+        label = "swatchBorderWidth"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) selectBlue else borderBlue,
+        animationSpec = AppMotion.color,
+        label = "swatchBorderColor"
+    )
+    // 视觉仍是 34dp 色块，外层 48dp 补足触控热区；相邻色块的热区不重叠
+    Box(
+        modifier = Modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(AppShape.chip)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(AppShape.chip)
+                .background(Color(color))
+                .border(width = borderWidth, color = borderColor, shape = AppShape.chip)
+        )
     }
 }

@@ -43,7 +43,7 @@ class PresetDisplaySizeTest {
             "p_boy_room" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：跨栏小子归类为明信片风格，默认 4×4（素材原生 1536×1536）
             "p_hurdle_boy" to WidgetDisplaySize.SQUARE_4X4,
-            // 产品点名：可爱Doro归类为萌宠风格，默认 4×4（原生 1536×1536 方形构图）
+            // 产品点名：可爱Doro归类为萌宠风格，默认 4×4（原生 2048×2048 方形构图）
             "p_cute_doro" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：蓝色鲸鱼归类为萌宠风格，默认 4:2（设计稿 250×110）
             "p_blue_whale" to WidgetDisplaySize.WIDE_4X2,

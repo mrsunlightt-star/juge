@@ -8,17 +8,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.juge.app.CropImageHelper
 import com.juge.app.ReminderWidgetProvider
@@ -36,8 +36,13 @@ import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.requiresProForDesktop
 import com.juge.app.ui.adjust.AdjustTabContent
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.darkBg
 import java.io.File
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,6 +117,7 @@ fun MainAppScreen(
     var categories by remember { mutableStateOf(emptyList<Category>()) }
     var reminders by remember { mutableStateOf(emptyList<Reminder>()) }
     var widgetConfigs by remember { mutableStateOf(emptyList<WidgetConfig>()) }
+    var isLibraryLoaded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -123,6 +129,7 @@ fun MainAppScreen(
                 categories = cats
                 reminders = rems
                 widgetConfigs = configs
+                isLibraryLoaded = true
             }
         }
     }
@@ -232,6 +239,18 @@ fun MainAppScreen(
     // 以 ContentScale.Fit 贴顶显示在盒内，4×2 时卡片约 155dp 高、下方自然留白。
     // 渲染比例正确的前提下，盒子只提供"预览区域"的视觉高度，不影响卡片形状。
     val previewBoxHeightDp = PreviewMetrics.previewBoxHeightDp(previewHeightForPage(pagerState.currentPage))
+
+    // 抽屉上沿在 root 坐标中的位置（px）：顶部海滩图按它精确收边，图片下缘正好落在抽屉上沿，
+    // 两者之间不再露出一条底色缝；抽屉圆角下面也由底板的 darkBg 兜底。
+    // 用实测值而不是固定 dp：状态栏高度、字体缩放、4×4/4×2 预览高度都会挪动抽屉上沿。
+    var drawerTopPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    // 首帧还没量到抽屉位置时沿用原经验值，量到后立即贴合（只在首帧生效，通常不可见）
+    val heroHeight = if (drawerTopPx > 0) {
+        with(density) { drawerTopPx.toDp() }
+    } else {
+        previewBoxHeightDp.dp + 140.dp
+    }
 
     var textContentState by remember(selectedConfig?.id) {
         mutableStateOf(selectedConfig?.content ?: "")
@@ -378,7 +397,7 @@ fun MainAppScreen(
         WidgetSizeHintDialog(hint) { sizeHint = null }
     }
 
-    MainScreenBackground {
+    MainScreenBackground(heroHeight = heroHeight) {
         MainTopBar(
             isActivated = isActivatedState,
             dbHelper = dbHelper,
@@ -412,10 +431,12 @@ fun MainAppScreen(
         ) {
             Text(
                 text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
-                fontSize = 12.sp,
-                color = Color(0xFF0F766E),
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                style = AppType.label,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.30f), AppShape.pill)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             )
         }
 
@@ -425,12 +446,17 @@ fun MainAppScreen(
         Card(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    // 取抽屉上沿的绝对位置交给背景图收边；只在变化时写回，避免无谓重组
+                    val top = coordinates.positionInRoot().y.roundToInt()
+                    if (top != drawerTopPx) drawerTopPx = top
+                },
             colors = CardDefaults.cardColors(
                 containerColor = darkBg
             ),
-            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            border = BorderStroke(1.dp, borderBlue),
+            shape = AppShape.sheet,
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             Column(
@@ -441,11 +467,11 @@ fun MainAppScreen(
                         .align(Alignment.CenterHorizontally)
                         .width(36.dp)
                         .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFFE2E8F0))
+                        .clip(AppShape.handle)
+                        .background(borderBlue)
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.controlGap))
 
                 // 苹果风分段控制器 Segmented Control (全动态测量)
                 SubTabSwitcher(
@@ -453,7 +479,7 @@ fun MainAppScreen(
                     onSelectTab = { scope.launch { subTabPagerState.animateScrollToPage(it) } }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AppSpacing.sectionGap))
 
                 // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
                 // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
@@ -470,6 +496,7 @@ fun MainAppScreen(
                             scope = scope,
                             categories = categories,
                             reminders = reminders,
+                            isLoaded = isLibraryLoaded,
                             selectedCategory = selectedCategory,
                             editingReminder = editingReminderForContent,
                             onEditReminderRequest = { editingReminderForContent = it },

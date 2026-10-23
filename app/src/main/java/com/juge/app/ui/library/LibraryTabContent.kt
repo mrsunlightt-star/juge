@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,11 +28,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.selectBlue
 
 // --- 子Tab：我的文库内容 ---
@@ -42,6 +43,7 @@ import com.juge.app.ui.theme.selectBlue
 fun LibraryTabContent(
     categories: List<Category>,
     reminders: List<Reminder>,
+    isLoaded: Boolean,
     selectedCategory: Category?,
     editingReminder: Reminder?,
     onEditReminderRequest: (Reminder?) -> Unit,
@@ -66,6 +68,7 @@ fun LibraryTabContent(
     // 纯文本及分类修改对话框的控制状态
     var editContentField by remember { mutableStateOf("") }
     var deletingCategory by remember { mutableStateOf<Category?>(null) }
+    var deletingReminder by remember { mutableStateOf<Reminder?>(null) }
     var editCategorySelection by remember { mutableStateOf<Category?>(null) }
 
     // 分类管理中心对话框控制状态
@@ -96,14 +99,15 @@ fun LibraryTabContent(
                 onOpenManager = { showCategoryManagerDialog = true }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(AppSpacing.itemGap))
 
             ReminderList(
                 reminders = filteredReminders,
                 categories = categories,
+                isLoaded = isLoaded,
                 onReminderClick = onReminderClick,
                 onEditRequest = onEditReminderRequest,
-                onDeleteReminder = onDeleteReminder,
+                onDeleteRequest = { deletingReminder = it },
                 onOpenDoc = onOpenDoc
             )
         }
@@ -113,10 +117,10 @@ fun LibraryTabContent(
                 .align(Alignment.BottomEnd)
                 .padding(24.dp)
                 .height(50.dp)
-                .shadow(6.dp, RoundedCornerShape(25.dp))
-                .clip(RoundedCornerShape(25.dp))
+                .shadow(6.dp, AppShape.pill)
+                .clip(AppShape.pill)
                 .background(selectBlue)
-                .clickable {
+                .clickable(role = Role.Button) {
                     if (categories.isEmpty()) {
                         Toast.makeText(context, "请先创建一个分类目录", Toast.LENGTH_SHORT).show()
                     } else {
@@ -128,9 +132,9 @@ fun LibraryTabContent(
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("录入新句", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                Text("录入新句", style = AppType.button, color = Color.White)
             }
         }
     }
@@ -228,6 +232,18 @@ fun LibraryTabContent(
                 deletingCategory = null
             },
             onDismiss = { deletingCategory = null }
+        )
+    }
+
+    // 7. 二次确认删除金句：与分类删除保持一致，避免小热区误触直接删库
+    if (deletingReminder != null) {
+        DeleteReminderDialog(
+            reminder = deletingReminder!!,
+            onConfirm = {
+                onDeleteReminder(deletingReminder!!.id)
+                deletingReminder = null
+            },
+            onDismiss = { deletingReminder = null }
         )
     }
 }

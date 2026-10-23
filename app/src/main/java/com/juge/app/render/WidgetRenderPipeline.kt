@@ -427,7 +427,7 @@ internal object WidgetRenderPipeline {
         val layout = FramedCardRenderer.framedCardRects(scene.outerRect, scene.densityScale, spec)
         FramedCardRenderer.drawFramedCard(
             scene.canvas, scene.context, scene.outerPath, spec, layout,
-            scene.targetWidth, scene.targetHeight, scene.densityScale, scene.alpha
+            scene.densityScale, scene.alpha
         )
     }
 

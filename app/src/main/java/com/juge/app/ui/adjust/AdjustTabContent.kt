@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -32,24 +30,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.juge.app.CropImageHelper
 import com.juge.app.ReminderWidgetProvider
 import com.juge.app.data.UserColorPresets
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.legal.LegalFooter
-import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.warningBg
+import com.juge.app.ui.theme.warningBorder
+import com.juge.app.ui.theme.warningInk
+import com.juge.app.ui.theme.premiumGoldDeep
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -98,9 +98,9 @@ fun AdjustTabContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = AppSpacing.screen)
             .imePadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.sectionGap)
     ) {
         // 1. 国产手机桌面小组件添加指南 (默认折叠)
         item(key = "tutorial_card") {
@@ -117,17 +117,17 @@ fun AdjustTabContent(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFFFBEB), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(12.dp))
+                        .background(warningBg, AppShape.button)
+                        .border(1.dp, warningBorder, AppShape.button)
                         .padding(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = premiumGoldDeep, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "未检测到已放置桌面小组件。您可在下方进行“模拟预览设计”，添加后将自动应用！",
-                            fontSize = 13.sp,
-                            color = Color(0xFF78350F)
+                            style = AppType.body,
+                            color = warningInk
                         )
                     }
                 }
@@ -196,23 +196,16 @@ fun AdjustTabContent(
 
         // 6. 保存修改并同步按钮
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .shadow(3.dp, RoundedCornerShape(12.dp))
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(selectBlue)
-                    .clickable {
-                        val outcome = onApplyToDesktop(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
-                        if (outcome == SaveOutcome.SAVED) {
-                            Toast.makeText(context, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("保存并应用到桌面小组件", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
+            AppPrimaryButton(
+                text = "保存并应用到桌面小组件",
+                onClick = {
+                    val outcome = onApplyToDesktop(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
+                    if (outcome == SaveOutcome.SAVED) {
+                        Toast.makeText(context, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         item {
