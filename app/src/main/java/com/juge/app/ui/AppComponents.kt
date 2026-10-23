@@ -66,7 +66,7 @@ import com.juge.app.ui.theme.textWhite
  * 白色区块卡片：定制页的五个设置区块、教程卡片共用。
  *
  * 统一项：16dp 圆角、1dp 中性描边、无投影、16dp 内边距、12dp 行距；
- * 高度变化走 [AppMotion.resize]，控件显示/隐藏时不会让整页瞬移。
+ * 高度变化默认走 [AppMotion.resize]；嵌套展开控件可关闭，避免重复执行高度动画。
  */
 @Composable
 fun AppSectionCard(
@@ -129,7 +129,7 @@ fun AppSectionLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 主操作按钮：填充深青蓝、12dp 圆角、48dp 最小高度、按压轻微缩放。
+ * 主操作按钮：明亮浅蓝填充 + 深色文字、12dp 圆角、48dp 最小高度、按压轻微缩放。
  * 全 App 的“保存/支付/确认/添加”都用这一颗，不再各自 setShadow + background。
  */
 @Composable
@@ -243,7 +243,7 @@ fun AppTextButton(
 
 /**
  * 筛选胶囊：文字库分类、字体选择、图片填充模式共用。
- * 未选中白底灰字，选中蓝底白字；圆角与边框都走令牌。
+ * 未选中白底灰字，选中浅蓝底深色字；圆角与边框都走令牌。
  */
 @Composable
 fun AppFilterChip(
