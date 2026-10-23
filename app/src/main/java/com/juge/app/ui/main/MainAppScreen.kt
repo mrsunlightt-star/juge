@@ -232,9 +232,10 @@ fun MainAppScreen(
         )
     }
 
-    // 预览区高度随**当前风格的最佳显示尺寸**自适应：4×2 款不预留 4×4 的空间，
-    // 从而让“小组件#N”标签行与“跃然纸上/个性定制”页签行同步上移、去掉底部空洞。
-    // 封顶 268dp 确保 4×4 款不被裁切，下限保住最小可见高度。
+    // 预览区高度随**当前风格的最佳显示尺寸**自适应：4×2 的卡片矮，盒内下方自然留白；
+    // 但显示盒本身高度固定（见 PreviewMetrics.previewBoxHeightDp）——切换 4×2/4×4 时
+    // 标签行、抽屉和背景图都不再跟着上下跳（用户反馈的「页面晃动」）。
+    // 下限保住最小可见高度，封顶到盒高避免 4×4 页内容溢出预览盒。
     fun previewHeightForPage(page: Int): Int {
         val wid = if (appWidgetIds.isNotEmpty()) appWidgetIds[page.coerceIn(0, appWidgetIds.size - 1)] else -1
         val cid = if (wid != -1) ReminderWidgetProvider.getBoundConfigId(context, wid) else -1L
@@ -252,8 +253,10 @@ fun MainAppScreen(
         // 不读桌面组件的入口/实时尺寸：同一个风格挂在不同入口、被拉成不同大小，
         // 预览都要按它自己的尺寸显示（产品规则，2026-10-08）。
         // 高度映射本身是纯函数，已抽到 PreviewMetrics 并有单测覆盖
-        // （下限 180dp、4×4 上限 268dp、横向分割卡固定 130dp 等规则都在那边）。
+        // （下限 180dp、4×4 上限 260dp、横向分割卡固定 130dp 等规则都在那边）。
+        // 这里再封顶到显示盒高度：页内盒不得高于预览盒，否则 4×4 会顶着盒底被裁。
         return PreviewMetrics.previewHeightForStyle(style)
+            .coerceAtMost(PreviewMetrics.PREVIEW_BOX_BASE_DP)
     }
     // 放在 currentStyle 与 previewHeightForPage 声明之后，保证内部引用均已初始化
     // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后

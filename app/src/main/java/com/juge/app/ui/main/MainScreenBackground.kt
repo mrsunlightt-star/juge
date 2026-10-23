@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -142,7 +144,11 @@ fun MainScreenBackground(
  * - 从屏幕最顶端开始绘制，因此状态栏区域也是蓝天；
  * - 裁切默认右上对齐，保留右侧遮阳伞与沙滩，裁掉的是左侧海浪；
  * - 顶部加一层暗压、保证白色顶栏文字在亮蓝天空上也能读；
- * - 底部渐隐到页面底色，和下方的米白抽屉自然衔接。
+ * - 图片比 hero 区多画 [HERO_IMAGE_OVERSCAN] 高度：横图在接近方形的 hero 里高度本就没有
+ *   余量，多出来的部分让画面整体下移一点点，底部最亮的高光沙带被裁出可见区，
+ *   与下方抽屉的接缝不再顶着一条亮带；
+ * - 接缝处先轻微压暗再收进页面底色：页面底色是浅冷灰，若像以前那样从 68% 就开始
+ *   长距离淡出，会把沙滩整个洗白成一条亮带；现在只在最后一小段过渡。
  */
 @Composable
 private fun HeroBackdrop(
@@ -153,14 +159,19 @@ private fun HeroBackdrop(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(height),
+            .height(height)
+            .clipToBounds(),
     ) {
         Image(
             painter = painterResource(imageRes),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             alignment = alignment,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxWidth()
+                // 必须用 requiredHeight：外层盒高度固定，普通 height 会被父约束收敛回原高，
+                // 多绘制的余量根本不会发生（画面也就不会下移）
+                .requiredHeight(height * HERO_IMAGE_OVERSCAN),
         )
         Box(
             modifier = Modifier
@@ -170,10 +181,14 @@ private fun HeroBackdrop(
                         0.00f to Color.Black.copy(alpha = 0.38f),
                         0.16f to Color.Black.copy(alpha = 0.20f),
                         0.32f to Color.Transparent,
-                        0.68f to Color.Transparent,
+                        0.62f to Color.Transparent,
+                        0.86f to Color.Black.copy(alpha = 0.12f),
                         1.00f to darkBg,
                     )
                 ),
         )
     }
 }
+
+/** 图片相对 hero 区多画的高度倍率：底部约 7% 的高光沙带被裁掉，画面视觉上下移 */
+private const val HERO_IMAGE_OVERSCAN = 1.07f

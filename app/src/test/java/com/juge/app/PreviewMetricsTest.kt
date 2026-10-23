@@ -60,19 +60,16 @@ class PreviewMetricsTest {
     }
 
     @Test
-    fun `显示盒高度夹在 244 到 268 之间`() {
-        assertEquals(PreviewMetrics.PREVIEW_BOX_BASE_DP, PreviewMetrics.previewBoxHeightDp(180))
-        assertEquals(PreviewMetrics.PREVIEW_BOX_MAX_DP, PreviewMetrics.previewBoxHeightDp(400))
-        // 260 + 8 = 268，正好在上限
-        assertEquals(268, PreviewMetrics.previewBoxHeightDp(260))
-    }
+    fun `显示盒高度固定，切换规格不移动页面`() {
+        // 用户反馈：在 4×2 与 4×4 风格之间切换时，标签行/抽屉/背景图跟着上下跳。
+        // 显示盒钉死 244dp 后页面不再重排；4×4 位图靠 ContentScale.Fit 缩进盒内。
+        val h2 = PreviewMetrics.previewHeightDp(WidgetShape.RECTANGLE, 2)
+        val h4 = PreviewMetrics.previewHeightDp(WidgetShape.RECTANGLE, 4)
 
-    @Test
-    fun `4x4 的显示盒比 4x2 高`() {
-        val small = PreviewMetrics.previewBoxHeightDp(PreviewMetrics.previewHeightDp(WidgetShape.RECTANGLE, 2))
-        val big = PreviewMetrics.previewBoxHeightDp(PreviewMetrics.previewHeightDp(WidgetShape.RECTANGLE, 4))
-
-        assertTrue(big > small)
+        assertEquals(PreviewMetrics.PREVIEW_BOX_BASE_DP, PreviewMetrics.previewBoxHeightDp(h2))
+        assertEquals(PreviewMetrics.PREVIEW_BOX_BASE_DP, PreviewMetrics.previewBoxHeightDp(h4))
+        // 极端的内部高度也不许把盒子撑大
+        assertEquals(PreviewMetrics.PREVIEW_BOX_BASE_DP, PreviewMetrics.previewBoxHeightDp(400))
     }
 
     @Test
