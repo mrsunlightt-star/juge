@@ -42,7 +42,9 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import kotlinx.coroutines.Dispatchers
@@ -78,7 +80,7 @@ fun PresetRow(
     itemSpacing: Dp = AppSpacing.itemGap,
     nameTopPadding: Dp = 5.dp,
     nameColor: (isPro: Boolean, isSelected: Boolean) -> Color = { isPro, _ ->
-        if (isPro) textGray else selectBlue
+        if (isPro) textGray else accentBlue
     }
 ) {
     val context = LocalContext.current
@@ -173,7 +175,7 @@ fun PresetRow(
                                     .background(selectBlue, AppShape.badge)
                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                             ) {
-                                Text("免费", style = AppType.badge, color = Color.White)
+                                Text("免费", style = AppType.badge, color = textPrimary)
                             }
                         }
                     }

@@ -59,6 +59,7 @@ import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textWhite
 
 /**
@@ -71,12 +72,19 @@ import com.juge.app.ui.theme.textWhite
 fun AppSectionCard(
     modifier: Modifier = Modifier,
     contentPadding: Dp = AppSpacing.cardPadding,
+    animateSize: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize(animationSpec = AppMotion.resize),
+            .then(
+                if (animateSize) {
+                    Modifier.animateContentSize(animationSpec = AppMotion.resize)
+                } else {
+                    Modifier
+                }
+            ),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         border = BorderStroke(1.dp, borderBlue),
         shape = AppShape.card,
@@ -132,7 +140,7 @@ fun AppPrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     containerColor: Color = selectBlue,
-    contentColor: Color = Color.White,
+    contentColor: Color = textPrimary,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -215,6 +223,7 @@ fun AppDangerButton(
         modifier = modifier,
         enabled = enabled,
         containerColor = dangerRed,
+        contentColor = Color.White,
     )
 }
 
@@ -253,7 +262,7 @@ fun AppFilterChip(
         shape = AppShape.chip,
         colors = FilterChipDefaults.filterChipColors(
             labelColor = textGray,
-            selectedLabelColor = Color.White,
+            selectedLabelColor = textPrimary,
             containerColor = containerColor,
             selectedContainerColor = selectBlue,
         ),

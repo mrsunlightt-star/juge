@@ -54,6 +54,7 @@ import com.juge.app.ui.theme.premiumGold
 import com.juge.app.ui.theme.premiumGoldEnd
 import com.juge.app.ui.theme.premiumGoldInk
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.textPrimary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -170,7 +171,7 @@ fun MainTopBar(
                 Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd))
             }
             // 金色底用深棕字，既保留 PRO 的金色识别，又满足 4.5:1
-            val badgeContent = if (isActivated) Color.White else premiumGoldInk
+            val badgeContent = if (isActivated) textPrimary else premiumGoldInk
 
             // 胶囊视觉高约 28dp，外层 48dp 高度补足触控热区
             Box(

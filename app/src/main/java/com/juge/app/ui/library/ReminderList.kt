@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Delete
@@ -59,6 +59,8 @@ internal fun ReminderList(
     onDeleteRequest: (Reminder) -> Unit,
     onOpenDoc: (String) -> Unit
 ) {
+    // 只给初次出现的前几条或后来新增到顶部的条目播放一次进场动画；普通滚动不反复动画。
+    val animatedReminderIds = remember { mutableSetOf<Long>() }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -70,10 +72,14 @@ internal fun ReminderList(
                 EmptyReminderState(hasCategories = categories.isNotEmpty())
             }
         } else {
-            items(reminders, key = { it.id }) { reminder ->
+            itemsIndexed(reminders, key = { _, reminder -> reminder.id }) { index, reminder ->
                 val catName = categories.find { it.id == reminder.categoryId }?.name ?: "普通"
 
-                val visibleState = remember { MutableTransitionState(false) }.apply { targetState = true }
+                val shouldAnimate = index < 4 && reminder.id !in animatedReminderIds
+                if (shouldAnimate) animatedReminderIds.add(reminder.id)
+                val visibleState = remember(reminder.id) {
+                    MutableTransitionState(initialState = !shouldAnimate)
+                }.apply { targetState = true }
                 AnimatedVisibility(
                     visibleState = visibleState,
                     enter = slideInVertically(
@@ -108,7 +114,7 @@ internal fun ReminderList(
                                     Text(
                                         text = catName,
                                         style = AppType.badge,
-                                        color = Color.White,
+                                        color = textPrimary,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }

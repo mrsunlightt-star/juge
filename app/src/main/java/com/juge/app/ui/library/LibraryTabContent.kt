@@ -36,6 +36,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.textPrimary
 
 // --- 子Tab：我的文库内容 ---
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,9 +133,9 @@ fun LibraryTabContent(
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                Icon(Icons.Default.Add, contentDescription = null, tint = textPrimary)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("录入新句", style = AppType.button, color = Color.White)
+                Text("录入新句", style = AppType.button, color = textPrimary)
             }
         }
     }

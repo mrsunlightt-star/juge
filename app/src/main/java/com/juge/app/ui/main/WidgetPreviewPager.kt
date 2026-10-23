@@ -17,9 +17,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -142,6 +145,35 @@ fun WidgetPreviewPager(
                 }
             }
 
+            // 只在切换预设/形状/背景素材时渐隐过渡；正文、颜色和滑条连续调整直接更新，
+            // 避免拖动时每一帧都 Crossfade，导致预览看起来跟手性差或残影。
+            val previewTransitionKey = listOf(
+                pageWidgetId,
+                pageStyle.presetId,
+                pageStyle.shape,
+                pageStyle.backgroundImagePath,
+                pageStyle.bgImageScaleMode,
+            ).joinToString("|")
+            var activeTransitionKey by remember(pageWidgetId) {
+                mutableStateOf(previewTransitionKey)
+            }
+            var previousPreviewBitmap by remember(pageWidgetId) {
+                mutableStateOf(cachedPreview)
+            }
+            var currentPreviewBitmap by remember(pageWidgetId) {
+                mutableStateOf(cachedPreview)
+            }
+
+            LaunchedEffect(previewTransitionKey) {
+                if (activeTransitionKey != previewTransitionKey) {
+                    previousPreviewBitmap = currentPreviewBitmap
+                    activeTransitionKey = previewTransitionKey
+                }
+            }
+            LaunchedEffect(pageBitmap) {
+                if (pageBitmap != null) currentPreviewBitmap = pageBitmap
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,12 +186,18 @@ fun WidgetPreviewPager(
                     },
                 contentAlignment = Alignment.TopCenter
             ) {
-                // 用 Crossfade 让预览位图在切换风格时平滑过渡，避免颜色/形状突变造成"晃动"感
+                // Crossfade 的目标只包含离散的风格身份，不包含 pageBitmap；
+                // 因此切换预设会过渡，而输入文字/拖动颜色滑条不会反复淡入淡出。
                 Crossfade(
-                    targetState = pageBitmap,
+                    targetState = previewTransitionKey,
                     animationSpec = AppMotion.standard(),
                     modifier = Modifier.fillMaxSize()
-                ) { bmp ->
+                ) { transitionKey ->
+                    val bmp = if (transitionKey == activeTransitionKey) {
+                        currentPreviewBitmap
+                    } else {
+                        previousPreviewBitmap
+                    }
                     if (bmp != null) {
                         Image(
                             bitmap = bmp.asImageBitmap(),

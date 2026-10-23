@@ -35,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
+import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.trackGray
 
 private val controlBlue = selectBlue // 与主界面 selectBlue 同源
@@ -160,12 +162,12 @@ fun CheckChip(
         label = "chipBackground"
     )
     val textColor by animateColorAsState(
-        targetValue = if (checked) Color.White else chipTextInk,
+        targetValue = if (checked) textPrimary else chipTextInk,
         animationSpec = AppMotion.color,
         label = "chipText"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (checked) Color.White else controlBlue,
+        targetValue = if (checked) textPrimary else accentBlue,
         animationSpec = AppMotion.color,
         label = "chipBorder"
     )
@@ -194,7 +196,7 @@ fun CheckChip(
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = textPrimary,
                     modifier = Modifier.size(12.dp)
                 )
             }

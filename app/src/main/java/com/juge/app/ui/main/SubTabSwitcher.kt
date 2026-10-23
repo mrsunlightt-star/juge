@@ -34,6 +34,7 @@ import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textPrimary
 
 /**
  * 苹果风分段控制器：「跃然纸上 / 个性定制」。
@@ -92,7 +93,7 @@ fun SubTabSwitcher(
             ).forEach { (label, icon, index) ->
                 val selectedFraction =
                     (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-                val tabTint = lerp(textGray, Color.White, selectedFraction)
+                val tabTint = lerp(textGray, textPrimary, selectedFraction)
                 Box(
                     modifier = Modifier
                         .weight(1f)
