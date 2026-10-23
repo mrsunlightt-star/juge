@@ -22,10 +22,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.juge.app.R
+import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.auroraMint
 import com.juge.app.ui.theme.auroraMist
 import com.juge.app.ui.theme.auroraSky
@@ -44,9 +46,10 @@ import com.juge.app.ui.theme.gridLine
  * [heroImageRes] / [heroAlignment] 用来换图时调整构图：默认把画面右侧的遮阳伞留在
  * 预览卡右侧的可见区；换回月亮图时应改成 `Alignment.TopStart` 或 `TopCenter`。
  *
- * 图片底部用一段渐隐过渡到 [darkBg]，即使不同机型的状态栏/字体高度略有差异，
- * 也不会出现一条生硬的图片截断线；图片下缘以下统一铺 [darkBg]，
- * 抽屉顶部圆角露出的也是页面底色，不再残留极光蓝。
+ * 图片底部不再渐隐到 [darkBg]：那样画面会一路"溶"进抽屉的填充色，接缝两侧色值完全相同，
+ * 边界也就消失了。现在改为在最后约 10% 的高度把画面压暗，图片下缘因此比画面整体更深、
+ * 抽屉比它更亮，接缝处重新出现明暗落差；这段压暗同时充当抽屉上沿的投影带。
+ * 图片下缘以下统一铺 [darkBg]，抽屉顶部圆角露出的仍是页面底色。
  */
 @Composable
 fun MainScreenBackground(
@@ -105,8 +108,8 @@ fun MainScreenBackground(
                     }
 
                     // 3. 抽屉上沿以下统一铺页面底色：图片下缘与抽屉之间的缝隙、
-                    //    以及抽屉顶部圆角缺口露出的区域都是 darkBg，与抽屉连成一体，
-                    //    不会再露出极光渐变或方格网。
+                    //    以及抽屉顶部圆角缺口露出的区域都从这里兜底，
+                    //    不会再露出极光渐变或方格网。缺口上压的阴影在 HeroBackdrop 里。
                     val heroPx = heroHeight.toPx()
                     if (heroPx < size.height) {
                         drawRect(
@@ -147,8 +150,12 @@ fun MainScreenBackground(
  * - 图片比 hero 区多画 [HERO_IMAGE_OVERSCAN] 高度：横图在接近方形的 hero 里高度本就没有
  *   余量，多出来的部分让画面整体下移一点点，底部最亮的高光沙带被裁出可见区，
  *   与下方抽屉的接缝不再顶着一条亮带；
- * - 接缝处先轻微压暗再收进页面底色：页面底色是浅冷灰，若像以前那样从 68% 就开始
- *   长距离淡出，会把沙滩整个洗白成一条亮带；现在只在最后一小段过渡。
+ * - 绘制区比可见 hero 多出一个抽屉圆角高度：抽屉顶部左右圆角切出的缺口必须露出背景图。
+ *   缺口若露出页面底色，它会和面板几乎同色，整块面板就被读成直角（真机反馈）。
+ *   多出来的部分被面板本体盖住，只有两个圆角缺口能看见；
+ * - 接缝两侧必须有色差：页面底色是浅冷灰，图片若淡出到它，边界就没了。现在最后约 10%
+ *   改为向下压暗（最深处 20% 黑）：图片下缘比画面整体更深，抽屉的亮面才立得起来，
+ *   这段压暗也正好替代抽屉自己的上沿投影。
  */
 @Composable
 private fun HeroBackdrop(
@@ -156,10 +163,13 @@ private fun HeroBackdrop(
     imageRes: Int,
     alignment: Alignment,
 ) {
+    val visibleHeightPx = with(LocalDensity.current) { height.toPx() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(height)
+            // 多画一个抽屉圆角的高度：圆角缺口必须露出背景图，露页面底色就会被读成直角。
+            // 多出来的部分被面板本体盖住，只有左右两个圆角缺口可见。
+            .height(height + AppShape.sheetCornerRadius)
             .clipToBounds(),
     ) {
         Image(
@@ -170,7 +180,9 @@ private fun HeroBackdrop(
             modifier = Modifier
                 .fillMaxWidth()
                 // 必须用 requiredHeight：外层盒高度固定，普通 height 会被父约束收敛回原高，
-                // 多绘制的余量根本不会发生（画面也就不会下移）
+                // 多绘制的余量根本不会发生（画面也就不会下移）。
+                // 高度仍按**可见 hero** 计算，不能跟着扩展后的盒高走，
+                // 否则整张图会在扩大渲染盒时再放大 ~8%，构图跟着变。
                 .requiredHeight(height * HERO_IMAGE_OVERSCAN),
         )
         Box(
@@ -181,9 +193,12 @@ private fun HeroBackdrop(
                         0.00f to Color.Black.copy(alpha = 0.38f),
                         0.16f to Color.Black.copy(alpha = 0.20f),
                         0.32f to Color.Transparent,
-                        0.62f to Color.Transparent,
-                        0.86f to Color.Black.copy(alpha = 0.12f),
-                        1.00f to darkBg,
+                        0.90f to Color.Transparent,
+                        1.00f to Color.Black.copy(alpha = 0.20f),
+                        // 渐变以可见 hero 为终点，下方多画的圆角带继续沿用最深压暗色。
+                        // 若按扩展后的总高做渐变，面板上沿只走到约 92%，压暗会被稀释掉。
+                        startY = 0f,
+                        endY = visibleHeightPx,
                     )
                 ),
         )

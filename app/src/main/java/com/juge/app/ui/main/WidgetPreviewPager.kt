@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,8 +26,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.juge.app.R
 import com.juge.app.ReminderWidgetProvider
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetConfig
@@ -220,7 +220,7 @@ fun WidgetPreviewPager(
                     }
                 }
                 Icon(
-                    Icons.Default.Edit,
+                    painter = painterResource(R.drawable.ic_symbol_edit_square),
                     contentDescription = null,
                     tint = Color(pageStyle.fontColor).copy(alpha = 0.6f),
                     modifier = Modifier

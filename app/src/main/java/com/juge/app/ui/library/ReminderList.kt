@@ -1,12 +1,15 @@
 package com.juge.app.ui.library
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,10 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,9 +34,12 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
 import com.juge.app.ui.legal.LegalFooter
@@ -45,6 +50,7 @@ import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textSecondary
 import com.juge.app.ui.theme.textTertiary
@@ -120,26 +126,25 @@ internal fun ReminderList(
                                     )
                                 }
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // 图标视觉仍是 18dp，IconButton 自带 48dp 触控热区
-                                    IconButton(onClick = { onEditRequest(reminder) }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "编辑金句",
-                                            tint = textTertiary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    IconButton(onClick = { onDeleteRequest(reminder) }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "删除金句",
-                                            tint = dangerRed.copy(alpha = 0.8f),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                                    // 34dp 圆形浅底把图标"托"起来：18dp 裸图标在白卡上又小又薄。
+                                    // 触控热区仍由外层 IconButton 保证 48dp。
+                                    CardActionButton(
+                                        iconRes = R.drawable.ic_symbol_edit_square,
+                                        contentDescription = "编辑金句",
+                                        tint = textSecondary,
+                                        background = surfaceSubtle,
+                                        onClick = { onEditRequest(reminder) }
+                                    )
+                                    CardActionButton(
+                                        iconRes = R.drawable.ic_symbol_delete,
+                                        contentDescription = "删除金句",
+                                        tint = dangerRed,
+                                        background = dangerRed.copy(alpha = 0.08f),
+                                        onClick = { onDeleteRequest(reminder) }
+                                    )
                                 }
                             }
                             Spacer(modifier = Modifier.height(AppSpacing.itemGap))
@@ -201,5 +206,37 @@ private fun EmptyReminderState(hasCategories: Boolean) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
+    }
+}
+
+/**
+ * 金句卡片右上角的操作按钮：34dp 圆形浅底 + 20dp 圆角图标。
+ *
+ * 直接用 18dp 裸图标时，在白色卡片上又小又薄；加一层同色系浅底后图标有了"实体"，
+ * 视觉尺寸和可点按的暗示都够用。外圈 [IconButton] 仍提供 48dp 触控热区。
+ */
+@Composable
+private fun CardActionButton(
+    @DrawableRes iconRes: Int,
+    contentDescription: String,
+    tint: Color,
+    background: Color,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(background),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }

@@ -19,7 +19,7 @@ class WidgetStyleJsonTest {
 
     @Test
     fun `default style round-trips through json`() {
-        val json = WidgetStyle().toJsonString()
+        val json = WidgetStyle.DEFAULT.toJsonString()
         val parsed = WidgetStyle.fromJsonString(json)
         assertEquals(WidgetShape.RECTANGLE, parsed.shape)
         assertEquals(12f, parsed.cornerRadiusDp)
@@ -27,6 +27,42 @@ class WidgetStyleJsonTest {
         assertNull(parsed.backgroundImagePath)
         assertNull(parsed.gradientColors)
         assertFalse(parsed.shadow.enabled)
+        // 预设身份必须随默认样式一起落库/读回，否则重开 App 后预设行会失去选中态
+        assertEquals(WidgetStyle.DEFAULT, parsed)
+    }
+
+    @Test
+    fun `默认样式就是纯色圆角预设`() {
+        val pureRound = WidgetStyle.PRESETS.first { it.presetId == "p_pure_round" }
+        assertEquals(pureRound, WidgetStyle.DEFAULT)
+        assertEquals("p_pure_round", WidgetStyle.DEFAULT.presetId)
+        assertEquals(12f, WidgetStyle.DEFAULT.cornerRadiusDp)
+        assertFalse("纯色圆角不投影：白卡直接铺到组件边缘", WidgetStyle.DEFAULT.showCardShadow)
+        assertEquals("纯色圆角不描边：描边会把白边压成灰边", 0f, WidgetStyle.DEFAULT.cardBorderWidthDp)
+    }
+
+    @Test
+    fun `读档时纯色圆角样式跟随预设去掉投影和描边`() {
+        // 旧存档里还带着预设上一版的投影 + 描边，读档后应跟随当前预设；
+        // 用户自己调过的圆角（这里 4dp）必须保留。
+        val legacy = WidgetStyle.PRESETS.first { it.presetId == "p_pure_round" }.copy(
+            cornerRadiusDp = 4f,
+            showCardShadow = true,
+            cardBorderWidthDp = 1f,
+            cardBorderColor = 0x140F172A
+        )
+        val restored = WidgetStyle.fromJsonString(legacy.toJsonString())
+        assertFalse(restored.showCardShadow)
+        assertEquals(0f, restored.cardBorderWidthDp)
+        assertEquals(4f, restored.cornerRadiusDp)
+    }
+
+    @Test
+    fun `青年雕塑预设的投影和描边不被纯色圆角的改动带走`() {
+        val sculpture = WidgetStyle.PRESETS.first { it.presetId == "p_youth_sculpture" }
+        val restored = WidgetStyle.fromJsonString(sculpture.toJsonString())
+        assertTrue(restored.showCardShadow)
+        assertEquals(1f, restored.cardBorderWidthDp)
     }
 
     @Test
@@ -64,9 +100,9 @@ class WidgetStyleJsonTest {
 
     @Test
     fun `null and empty json fall back to defaults`() {
-        assertEquals(WidgetStyle(), WidgetStyle.fromJsonString(null))
-        assertEquals(WidgetStyle(), WidgetStyle.fromJsonString(""))
-        assertEquals(WidgetStyle(), WidgetStyle.fromJsonString("not a json"))
+        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString(null))
+        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString(""))
+        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString("not a json"))
     }
 
     @Test

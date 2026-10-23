@@ -471,7 +471,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                                 put("name", name)
                                 put("content", reminder.content)
                                 put("size_type", "4x2")
-                                put("style_json", reminder.styleJson ?: WidgetStyle().toJsonString())
+                                put("style_json", reminder.styleJson ?: WidgetStyle.DEFAULT.toJsonString())
                                 put("auto_created", 0) // 导入行是用户内容，不参与孤儿回收
                             }
                             db.insert("widget_config", null, values)
@@ -489,7 +489,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                         name = "默认卡片1",
                         content = "弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》",
                         sizeType = "4x2",
-                        styleJson = WidgetStyle().toJsonString()
+                        styleJson = WidgetStyle.DEFAULT.toJsonString()
                     )
                 )
             }

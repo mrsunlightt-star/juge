@@ -248,7 +248,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                 // 否则每次「把金句推到桌面」都会新增一行，配置行只增不减。
                 val boundIds = getAllAppWidgetIds(context).map { getBoundConfigId(context, it) }.toSet()
                 val reusable = WidgetConfigBinding.findReusableAutoConfig(dbHelper.getAllWidgetConfigs(), boundIds)
-                val styleJson = reminder.styleJson ?: WidgetStyle().toJsonString()
+                val styleJson = reminder.styleJson ?: WidgetStyle.DEFAULT.toJsonString()
                 val newId = if (reusable != null) {
                     dbHelper.updateWidgetConfig(
                         reusable.copy(content = reminder.content, styleJson = styleJson)
@@ -368,7 +368,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                     widthDp = minWidthDp,
                     heightDp = minHeightDp,
                     content = "请先打开应用同意《隐私政策》与《用户协议》",
-                    style = WidgetStyle() // 默认极简风格
+                    style = WidgetStyle.DEFAULT // 默认样式：纯色圆角
                 )
             } else {
                 val dbHelper = DbHelper.getInstance(context)
@@ -394,7 +394,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                             widthDp = minWidthDp,
                             heightDp = minHeightDp,
                             content = "打开句阁，添加你的第一条金句",
-                            style = WidgetStyle()
+                            style = WidgetStyle.DEFAULT
                         )
                         views.setImageViewBitmap(R.id.widget_image_view, fallback)
                         appWidgetManager.updateAppWidget(appWidgetId, views)

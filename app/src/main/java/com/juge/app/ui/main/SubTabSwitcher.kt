@@ -1,6 +1,7 @@
 package com.juge.app.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
@@ -61,12 +63,15 @@ fun SubTabSwitcher(
             .coerceIn(0f, 1f)
         val selectedOffset = 3.dp + indicatorWidth * position
 
-        // 视觉底板：42dp 高，居中；上下各 3dp 留给触控热区
+        // 视觉底板：42dp 高，居中；上下各 3dp 留给触控热区。
+        // 底板色比面板只浅一档（#F1F5F9 vs #EEF2F7），不描边就整个糊在面板上，
+        // 分段控制器只剩一颗蓝色滑块在浮着；1dp 边框把它重新做成一个有边的凹槽。
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 3.dp)
                 .background(surfaceSubtle, AppShape.button)
+                .border(1.dp, borderBlue, AppShape.button)
         )
 
         // 背景滑块：36dp 高，落在底板内侧

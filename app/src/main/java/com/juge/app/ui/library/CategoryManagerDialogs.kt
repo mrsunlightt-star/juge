@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -33,9 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.ui.AppDangerButton
 import com.juge.app.ui.AppDialogSurface
@@ -167,7 +167,7 @@ internal fun CategoryManagerDialog(
                                         text = { Text("重命名", style = AppType.body) },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = Icons.Default.Edit,
+                                                painter = painterResource(R.drawable.ic_symbol_edit_square),
                                                 contentDescription = null,
                                                 tint = accentBlue,
                                                 modifier = Modifier.size(18.dp)
@@ -182,7 +182,7 @@ internal fun CategoryManagerDialog(
                                         text = { Text("删除", style = AppType.body, color = dangerRed) },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = Icons.Default.Delete,
+                                                painter = painterResource(R.drawable.ic_symbol_delete),
                                                 contentDescription = null,
                                                 tint = dangerRed,
                                                 modifier = Modifier.size(18.dp)

@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import com.juge.app.data.DbHelper
 import com.juge.app.data.WidgetConfig
+import com.juge.app.data.WidgetStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -117,6 +118,8 @@ class DbHelperTest {
         assertEquals("默认卡片1", configs.single().name)
         assertFalse(configs.any { it.name.startsWith("导入卡片") })
         assertFalse(configs.single().autoCreated)
+        // 全新安装的第一张卡片就是「纯色圆角」：不能落成构造函数默认的 #F5F5F5 无描边样式
+        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString(configs.single().styleJson))
     }
 
     @Test

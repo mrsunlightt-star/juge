@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -13,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -43,8 +46,9 @@ import com.juge.app.ui.adjust.AdjustTabContent
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.darkBg
+import com.juge.app.ui.theme.sheetBorder
+import com.juge.app.ui.theme.sheetHandle
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -498,20 +502,46 @@ fun MainAppScreen(
             colors = CardDefaults.cardColors(
                 containerColor = darkBg
             ),
-            border = BorderStroke(1.dp, borderBlue),
+            border = BorderStroke(1.dp, sheetBorder),
             shape = AppShape.sheet,
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            // 8dp：面板变成亮面后，上沿需要一点落影才"抬"得起来。
+            // 更重的投影交给背景图底部的压暗带，不在这里堆 elevation（否则圆角外围会糊出一圈灰雾）
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
+            // 顶缘内高光：沿圆角画一条 1.5dp 白线，约 32dp 内淡出到透明。
+            // 只提亮"唇口"，不画成一圈双描边——左右和底边贴着屏幕边缘，再描一圈只会显得发胀。
+            // 必须往里缩 1dp：Modifier.border 是 drawContent() 之后再画边框，
+            // Card 自己的 1dp 描边压在所有子内容之上，子级画在同位置的线根本看不见。
+            // 缩进后正好形成"深灰外描边 + 白色内唇线"的两层边。
+            // 唇线只比面板亮 6%（#FFF vs #EEF2F7），1dp 在真机上几乎看不出来，所以
+            // 加宽到 1.5dp，并在它下方压一道 4% 的极轻内阴影，让"卷边"有明暗支撑。
+            val sheetHighlight = Brush.verticalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.95f), Color.Transparent),
+                startY = 0f,
+                endY = with(LocalDensity.current) { 32.dp.toPx() }
+            )
             Column(
-                modifier = Modifier.fillMaxSize().padding(top = 8.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(1.dp)
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                0f to Color.Black.copy(alpha = 0.04f),
+                                24.dp.toPx() to Color.Transparent
+                            )
+                        )
+                    }
+                    .border(1.5.dp, sheetHighlight, AppShape.sheet)
+                    .padding(top = 7.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
-                        .width(36.dp)
+                        .width(40.dp)
                         .height(4.dp)
                         .clip(AppShape.handle)
-                        .background(borderBlue)
+                        .background(sheetHandle)
                 )
 
                 Spacer(modifier = Modifier.height(AppSpacing.controlGap))

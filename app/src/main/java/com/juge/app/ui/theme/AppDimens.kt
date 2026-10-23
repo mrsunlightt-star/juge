@@ -16,7 +16,9 @@ object AppShape {
     val thumbnail = RoundedCornerShape(10.dp)
     val badge = RoundedCornerShape(6.dp)
     val dialog = RoundedCornerShape(20.dp)
-    val sheet = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+    /** 抽屉顶部圆角半径。背景图要按它多画一段，圆角缺口才能露出图片而不是同色的页面底色 */
+    val sheetCornerRadius = 32.dp
+    val sheet = RoundedCornerShape(topStart = sheetCornerRadius, topEnd = sheetCornerRadius)
     val pill = RoundedCornerShape(percent = 50)
     val check = RoundedCornerShape(5.dp)
     val handle = RoundedCornerShape(2.dp)

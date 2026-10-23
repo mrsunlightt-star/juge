@@ -303,7 +303,7 @@ data class WidgetStyle(
             try { enumValueOf<T>(name) } catch (e: IllegalArgumentException) { fallback }
 
         fun fromJsonString(jsonStr: String?): WidgetStyle {
-            if (jsonStr.isNullOrEmpty()) return WidgetStyle()
+            if (jsonStr.isNullOrEmpty()) return DEFAULT
             return try {
                 val json = JSONObject(jsonStr)
                 val parsedPresetId = if (json.has("presetId") && !json.isNull("presetId")) {
@@ -379,29 +379,10 @@ data class WidgetStyle(
                     lineSpacingMultiplier = json.optDouble("lineSpacingMultiplier", 1.0).toFloat().coerceIn(0.5f, 3.0f),
                     letterSpacing = json.optDouble("letterSpacing", 0.0).toFloat().coerceIn(0f, 20f)
                 )
-                parsed.upgradedForFreeStyle().caughtUpWithPreset()
+                parsed.caughtUpWithPreset()
             } catch (e: Exception) {
-                WidgetStyle()
+                DEFAULT
             }
-        }
-
-        /**
-         * 老数据补丁：免费风格的浅阴影 + 细描边是后来才加入的视觉定义，
-         * 早期落库/落组件的样式副本里这两项仍是关闭状态。
-         * 读取时统一补齐，让已经放到桌面的旧组件不必重新套用预设也能立刻获得立体感。
-         */
-        private fun WidgetStyle.upgradedForFreeStyle(): WidgetStyle {
-            if (presetId == null || presetId !in FREE_PRESET_IDS) return this
-            if (showCardShadow && cardBorderWidthDp > 0f) return this
-            return copy(
-                showCardShadow = true,
-                cardBorderWidthDp = if (cardBorderWidthDp > 0f) cardBorderWidthDp else 1f,
-                cardBorderColor = if (cardBorderColor != Color.TRANSPARENT) {
-                    cardBorderColor
-                } else {
-                    Color.parseColor("#140F172A")
-                }
-            )
         }
 
         /**
@@ -448,21 +429,27 @@ data class WidgetStyle(
          * 「字段合法但过时」。预设改版后，桌面上的老组件会拿着旧形状去渲染**新素材**——
          * 可爱四小只就是这么坏掉的：存档里还是左右分割卡，素材却已换成头像条。
          *
-         * 三个字段的迁移边界不同，差别就在于**用户能不能自己调**：
+         * 字段的迁移边界不同，差别就在于**用户能不能自己调**：
          * - **形状**不是用户可调项（界面上没有形状选择器，形状只随预设来），
          *   存档里只要还是上一版的形状，就一定是过时的，直接换成当前预设的形状；
          * - **铺图方式**用户可调（个性定制的「铺图模式」），只在存档值**恰好等于上一版预设值**时
          *   才迁移——用户自己选过的值（不等于旧值）一律保留，哪怕它与新版预设不同；
          * - **方版素材字段**（presetImageResNameSquare）用户不可调、又是后加的字段，
-         *   旧存档没有它就会在 4×4 上继续用横版素材（纵向拉 76%），从当前预设补齐即可。
+         *   旧存档没有它就会在 4×4 上继续用横版素材（纵向拉 76%），从当前预设补齐即可；
+         * - **投影 / 描边**（showCardShadow、cardBorderWidthDp、cardBorderColor）用户不可调，
+         *   始终以当前预设为准：纯色圆角去掉了这两项之后，桌面上已落位的旧组件读档即跟随，
+         *   不会继续带着灰边和 4dp 内缩。
          *
-         * 与 [upgradedForFreeStyle] 同一处调用：都不必重新套用预设。
          * 找不到 presetId 对应的预设（已下架、或用户的自定义样式）时整体跳过。
          */
         private fun WidgetStyle.caughtUpWithPreset(): WidgetStyle {
             val id = presetId ?: return this
             val current = PRESETS.firstOrNull { it.presetId == id } ?: return this
-            var out = this
+            var out = this.copy(
+                showCardShadow = current.showCardShadow,
+                cardBorderWidthDp = current.cardBorderWidthDp,
+                cardBorderColor = current.cardBorderColor
+            )
             PRESET_LEGACY_LOOKS.firstOrNull { it.presetId == id }?.let { legacy ->
                 if (out.shape == legacy.shape) out = out.copy(shape = current.shape)
                 val legacyMode = legacy.bgImageScaleMode
@@ -483,7 +470,7 @@ data class WidgetStyle(
         // 每条都带一个手写的固定 presetId（如 p_pure_round）作为身份标识：套用后随 copy() 保留，
         // 付费判定依据身份而不是字段值（字段匹配可被"改一个字段"绕过），也不依赖列表位置。
         val PRESETS: List<WidgetStyle> = listOf(
-            // 免费默认风格：纯色圆角
+            // 免费预设，同时是 App 的默认样式（[DEFAULT] 直接复用这一条）
             WidgetStyle(
                 presetId = "p_pure_round",
                 bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 无素材：跟随 App 默认落位 4×2
@@ -494,10 +481,8 @@ data class WidgetStyle(
                 font = WidgetFont.DEFAULT,
                 fontSizeSp = 19f,
                 fontBold = false,
-                // 免费默认风格补上浅阴影 + 细描边：桌面组件不再是一张"贴平"的白纸
-                showCardShadow = true,
-                cardBorderWidthDp = 1f,
-                cardBorderColor = Color.parseColor("#140F172A"),
+                // 不加投影/描边：纯白卡面直接铺到组件边缘（投影还会带 4dp 内缩，
+                // 描边会把白边压成灰边，看起来就不是纯白了）
                 textAlign = "CENTER"
             ), // 0. 纯色圆角 (免费)
             WidgetStyle(
@@ -1335,6 +1320,17 @@ data class WidgetStyle(
                 authorSignature = "—— 跨栏小子"
             ), // 69. 跨栏小子 (PRO)
         )
+
+        /**
+         * App 的默认样式：就是免费预设「纯色圆角」。
+         *
+         * 首次安装的默认卡片、Provider 自动创建的配置、隐私/空库兜底与空 JSON 都取这一份，
+         * 所以"没做任何选择"和"选中纯色圆角"是同一个样式（含 presetId，预设行会显示选中）。
+         *
+         * 不要再用 `WidgetStyle()` 当默认样式：构造函数的默认值只是"空白画布"
+         * （底色 #F5F5F5、无描边、无投影），与这条预设不是一回事。
+         */
+        val DEFAULT: WidgetStyle = PRESETS.first { it.presetId == "p_pure_round" }
 
         // 免费预设：按身份 id 判定，未激活用户可直接套用。
         // 当前规则：「纯色圆角」与「青年雕塑」免费，其余风格一律会员专属。
