@@ -54,10 +54,10 @@ object AppType {
         fontWeight = FontWeight.Bold,
     )
 
-    /** 定制页各区块标题：13sp 加粗，配 accentBlue */
+    /** 定制页各区块标题：14sp 加粗，配 accentBlue，和 13sp 正文拉开层级 */
     val sectionTitle = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.1.sp,
     )

@@ -33,7 +33,6 @@ import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textTertiary
-import java.io.File
 
 /** 物理形状与背景材质卡片：圆角、不透明度、自定义背景图与填充模式。 */
 @Composable
@@ -137,10 +136,10 @@ internal fun ShapeBackgroundCard(
                 AppDangerButton(
                     text = "清除背景图",
                     onClick = {
-                        try {
-                            selectedStyle.backgroundImagePath?.let { File(it).delete() }
-                        } catch (e: Exception) {
-                        }
+                        // 只把路径从样式里摘掉，交给 onStyleChange 的落库流程处理文件：
+                        // 1) 保存可能被付费墙拦下（激活被账号同步撤销后必然发生），
+                        //    先删文件再被拦会让 DB/组件的样式指向一个已消失的文件；
+                        // 2) 落库成功后由 persist 按引用计数决定删不删（别处可能还用着）
                         val newStyle = selectedStyle.copy(backgroundImagePath = null)
                         onStyleStateChange(newStyle)
                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)

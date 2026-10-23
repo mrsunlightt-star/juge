@@ -1,6 +1,7 @@
 package com.juge.app
 
 import androidx.compose.ui.graphics.Color
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.accentLightBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
@@ -28,8 +29,8 @@ import kotlin.math.pow
  * 界面里所有文字最终都落在这几组前景/背景上；颜色一改，用 WCAG 相对亮度公式
  * 直接卡住：正文 4.5:1、图标/状态描边 3:1。比肉眼和截图基线更早失败。
  *
- * 例外：选中态浅蓝 [selectBlue] 是用户指定保留的配色，不适用 AA 门槛，
- * 由文末的色值锁定测试保护。
+ * 选中态浅蓝 [selectBlue] 的白字搭配是用户明确选择的品牌例外。
+ * 其对比度约 2.26:1，低于普通文字的 4.5:1；单独锁定色值与预期对比度，不冒充 AA 合规。
  */
 class AppColorContrastTest {
 
@@ -76,18 +77,19 @@ class AppColorContrastTest {
 
     @Test
     fun `图标与状态描边满足 3比1`() {
+        assertContrast("accentBlue 状态描边 on cardBg", accentBlue, cardBg, 3.0)
         assertContrast("premiumGoldDeep 图标 on cardBg", premiumGoldDeep, cardBg, 3.0)
         assertContrast("dangerRed 图标 on cardBg", dangerRed, cardBg, 3.0)
         assertContrast("textTertiary 图标 on cardBg", textTertiary, cardBg, 3.0)
     }
 
     /**
-     * selectBlue 是用户指定保留的「选中态浅蓝」（2026-10-23 明确要求从深青恢复）：
-     * 白字与描边对比度约 2.3:1，低于上面的 AA 门槛，按产品决定豁免。
-     * 这里锁死色值，避免后续无障碍清理顺手把它改深、又回到用户不喜欢的深沉配色。
+     * selectBlue 是用户指定保留的明亮浅蓝底白字搭配。
+     * 对比度低于 AA 标准，作为产品偏好明确记录，不纳入常规 AA 断言。
      */
     @Test
     fun `选中态浅蓝保持用户指定色值`() {
         assertEquals(Color(0xFF42B8EC), selectBlue)
+        assertEquals(2.26, contrast(Color.White, selectBlue), 0.03)
     }
 }

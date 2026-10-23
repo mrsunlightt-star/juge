@@ -208,24 +208,28 @@ fun MainTopBar(
             }
 
             // ⚠️ 开发期临时开关：一键在「已激活 / 未激活」之间切换，用于验证付费墙与锁定态。
-            // 发布前必须整块删除——留着等于把付费墙拆了。
-            DevProToggle(
-                activated = isActivated,
-                onToggle = { checked ->
-                    if (checked) {
-                        trialManager.activate(TrialManager.PAY_METHOD_DEV)
-                    } else {
-                        trialManager.resetActivation()
+            // 只在 debug 构建组进 UI：注释里写的"发布前整块删除"靠人记得总会忘——
+            // 它一旦随正式包发布，等于把付费墙拆了（顶部一枚开关即可全量解锁）。
+            // 要恢复调试能力，构建变体选 debug 即可。
+            if (com.juge.app.BuildConfig.DEBUG) {
+                DevProToggle(
+                    activated = isActivated,
+                    onToggle = { checked ->
+                        if (checked) {
+                            trialManager.activate(TrialManager.PAY_METHOD_DEV)
+                        } else {
+                            trialManager.resetActivation()
+                        }
+                        onActivatedChange(checked)
+                        ReminderWidgetProvider.triggerUpdateAllWidgets(context)
+                        Toast.makeText(
+                            context,
+                            if (checked) "开发开关：已切换到 PRO" else "开发开关：已切换到免费",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                    onActivatedChange(checked)
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                    Toast.makeText(
-                        context,
-                        if (checked) "开发开关：已切换到 PRO" else "开发开关：已切换到免费",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            )
+                )
+            }
         }
     }
 }

@@ -31,7 +31,7 @@ App 界面统一使用**系统中文无衬线字体**。`assets/fonts/` 下的 7
 | `AppType.hero` | 20 / 26 | ExtraBold | PRO / 账号弹窗的强调标题 |
 | `AppType.dialogTitle` | 18 / 24 | Bold | 普通弹窗标题 |
 | `AppType.title` | 16 / 22 | Bold | 卡片级标题（预留） |
-| `AppType.sectionTitle` | 13 / 18 | Bold | 定制页区块标题、预设行标题 |
+| `AppType.sectionTitle` | 14 / 20 | Bold | 定制页区块标题、预设行标题 |
 | `AppType.label` | 12 / 16 | Bold | 控件标签、小按钮、页签角标 |
 | `AppType.body` | 13 / 20 | Regular | 标准正文与说明 |
 | `AppType.bodyStrong` | 13 / 20 | SemiBold | 需要强调的正文 |
@@ -50,7 +50,7 @@ Material 组件也会落在同一套阶梯上。
 
 `ui/theme/AppColors.kt` 分两层：
 
-- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（深青蓝，填充按钮/选中态/角标）、
+- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（明亮浅蓝填充，按用户偏好搭配白色文字/图标）、
   `accentLightBlue`（协议链接）、`premiumGold` / `premiumGoldEnd`（PRO 金色渐变填充）、
   `premiumGoldDeep`（白底上的金色图标/文字）、`premiumGoldInk`（金色底上的深棕文字）。
 - **语义色**：`textPrimary` / `textSecondary` / `textTertiary`、`borderBlue`、`surfaceSubtle`、
@@ -60,12 +60,13 @@ Material 组件也会落在同一套阶梯上。
 
 1. 文字只用 `textPrimary` / `textSecondary` / `textTertiary` 三档，不再出现 #1F2937、#6B7280、
    #9CA3AF 等近似灰；
-2. 卡片描边统一 `borderBlue`，不再用 #F1F5F9 / #E5E7EB 各写一份；
-3. 选中态与主按钮统一 `selectBlue`，危险操作统一 `dangerRed`；
+2. 默认卡片描边统一 `borderBlue`；选中预设和控件的状态描边使用对比度更高的 `accentBlue`；
+3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标按用户偏好使用白色，状态描边使用 `accentBlue`；危险操作统一 `dangerRed`；
 4. 新增颜色先加进 `AppColors.kt` 并写清语义，不在界面里直接 `Color(0x…)`；
 5. **对比度是硬门槛**：正文/标题/链接在其背景上 ≥ 4.5:1，图标、状态描边、开关等非文字元素 ≥ 3:1。
-   浅色装饰只用于不承载信息的渐变（如 `auroraSky`），不能拿来做白字底色。`selectBlue` 已按
-   白字 5.4:1 取值，改色前先用对比度工具复核，不要凭肉眼判断。
+   常规文字/背景组合必须满足 AA 对比度要求。但用户明确偏好 `selectBlue`（`#42B8EC`）配白字，
+   该组合约为 2.26:1，低于 4.5:1，是有意保留的产品例外；`AppColorContrastTest` 锁定色值和例外说明。
+   请勿将此例外扩展到长正文或大段说明文字。
 
 ## 4. 形状与间距
 
@@ -129,15 +130,15 @@ Material 组件也会落在同一套阶梯上。
 - **预设缩略图 / 色板**：选中描边宽度与颜色平滑过渡；
 - **主/次按钮**：按压缩放到 0.97，松开回弹；
 - **教程卡片**：箭头旋转 180°，内容展开/收起带高度与淡入淡出；
-- **预览区**：风格切换 Crossfade 220ms；
-- **列表**：金句卡片进场 360ms（滑入 + 淡入）。
+- **预览区**：仅预设/形状/背景素材身份切换时 Crossfade 220ms；正文、颜色、滑条连续调整直接更新；
+- **列表**：仅前四条首次出现或新增到前四条的金句卡片进场 360ms（滑入 + 淡入）；普通滚动不重复播放。
 
 不要新增超过 400ms 的动画，也不要给同一次交互叠加两套不同时长的动画。
 需要新动效时，先在 `AppMotion.kt` 里加令牌，再在界面引用。
 
 ## 6. 共用组件
 
-- `AppSectionCard`：白色圆角卡片 + 1dp 描边 + 16dp 内边距 + 12dp 行距，高度变化自动动画；
+- `AppSectionCard`：白色圆角卡片 + 1dp 描边 + 16dp 内边距 + 12dp 行距，默认高度变化自动动画；嵌套展开控件可关闭尺寸动画以避免叠加；
 - `AppSectionHeader`：16dp 线性图标 + `sectionTitle`；
 - `AppSectionLabel`：`label` 色 `textSecondary`；
 - `AppPrimaryButton` / `AppSecondaryButton` / `AppDangerButton` / `AppTextButton`：

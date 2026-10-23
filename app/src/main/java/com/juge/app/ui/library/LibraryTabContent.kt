@@ -190,6 +190,9 @@ fun LibraryTabContent(
             },
             onSave = {
                 onEditReminderSave(editingReminder.id, editContentField, editCategorySelection!!.id)
+                // 保存后立即关闭：此前只写库不关闭，弹窗停在原位、没有任何完成反馈，
+                // 用户会再点一次或误以为失败（其余弹窗都有各自的关闭路径）
+                onEditReminderRequest(null)
             },
             onDismiss = { onEditReminderRequest(null) }
         )

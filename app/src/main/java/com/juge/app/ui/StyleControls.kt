@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
@@ -91,7 +92,7 @@ fun ThickTrackSlider(
                         .fillMaxWidth(if (enabled) fraction else 0f)
                         .fillMaxHeight()
                         .clip(AppShape.pill)
-                        .background(controlBlue)
+                        .background(accentBlue)
                 )
             }
         }
@@ -165,7 +166,7 @@ fun CheckChip(
         label = "chipText"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (checked) Color.White else controlBlue,
+        targetValue = if (checked) Color.White else accentBlue,
         animationSpec = AppMotion.color,
         label = "chipBorder"
     )

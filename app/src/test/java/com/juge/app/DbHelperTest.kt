@@ -90,6 +90,8 @@ class DbHelperTest {
 
     @Test
     fun `旧数据迁移只执行一次`() {
+        // 模拟升级用户：装机带着老版本的数据（老 app_settings 存在过键）
+        markLegacyInstall()
         val catId = db.getAllCategories().first().id
         db.insertReminder("待迁移的唯一金句", catId)
         assertFalse(db.getAllWidgetConfigs().any { it.content == "待迁移的唯一金句" })
@@ -102,6 +104,63 @@ class DbHelperTest {
         migrated.forEach { db.deleteWidgetConfig(it.id) }
         db.migrateLegacyDataIfNeeded()
         assertFalse(db.getAllWidgetConfigs().any { it.content == "待迁移的唯一金句" })
+    }
+
+    @Test
+    fun `全新安装不导入种子金句，只放一张默认卡片`() {
+        // 全新安装没有老 app_settings 数据：库里的 3 条种子不应该被包装成「导入卡片」
+        markLegacyInstall(legacy = false)
+        db.migrateLegacyDataIfNeeded()
+
+        val configs = db.getAllWidgetConfigs()
+        assertEquals(1, configs.size)
+        assertEquals("默认卡片1", configs.single().name)
+        assertFalse(configs.any { it.name.startsWith("导入卡片") })
+        assertFalse(configs.single().autoCreated)
+    }
+
+    @Test
+    fun `迁移在并发调用下只导入一份`() {
+        // 现场并发：两个线程同时进 migrate（主界面启动 + 组件刷新都走这两个入口）
+        markLegacyInstall()
+        val catId = db.getAllCategories().first().id
+        db.insertReminder("并发迁移的金句", catId)
+
+        val barrier = java.util.concurrent.CyclicBarrier(2)
+        val executors = List(2) { java.util.concurrent.Executors.newSingleThreadExecutor() }
+        try {
+            // 必须先提交两个任务再收结果：先 get() 后 submit() 会让第一个线程
+            // 永远卡在屏障上等一个还没启动的伙伴，整个测试进程会静默挂死
+            val futures = executors.map { exec ->
+                exec.submit {
+                    barrier.await()
+                    db.migrateLegacyDataIfNeeded()
+                    barrier.await()
+                }
+            }
+            futures.forEach { it.get(30, java.util.concurrent.TimeUnit.SECONDS) }
+        } finally {
+            // 单线程池线程是非守护线程，不 shutdown 会让 Gradle test worker 的 JVM 永远退不出去
+            executors.forEach { it.shutdownNow() }
+        }
+        val contents = db.getAllWidgetConfigs().filter { it.content == "并发迁移的金句" }
+        assertEquals("并发进入迁移不得重复导入", 1, contents.size)
+    }
+
+    /** 给本测试进程制造「升级安装」或「全新安装」的现场（见 AppPrefs.isLegacyInstall） */
+    private fun markLegacyInstall(legacy: Boolean = true) {
+        val app = RuntimeEnvironment.getApplication()
+        if (legacy) {
+            app.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("privacy_accepted", true)
+                .apply()
+        }
+        // AppPrefs 的拆分迁移发生在第一次读取时，确保此刻还没被任何人触碰过
+        assertFalse(
+            app.getSharedPreferences("consent_prefs", Context.MODE_PRIVATE)
+                .getBoolean("legacy_split_done", false)
+        )
     }
 
     @Test

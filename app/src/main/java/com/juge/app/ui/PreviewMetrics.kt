@@ -16,9 +16,8 @@ object PreviewMetrics {
     /** 预览显示区域的最小高度 */
     const val MIN_PREVIEW_HEIGHT_DP = 180
 
-    /** 显示盒基础高度与上限 */
+    /** 显示盒基础高度：预览区的**固定**视觉高度 */
     const val PREVIEW_BOX_BASE_DP = 244
-    const val PREVIEW_BOX_MAX_DP = 268
 
     /** 横向分割卡是固定高度，不随行数变化 */
     private const val SPLIT_CARD_HORIZONTAL_HEIGHT_DP = 130
@@ -51,11 +50,15 @@ object PreviewMetrics {
         return adaptive.coerceAtLeast(MIN_PREVIEW_HEIGHT_DP)
     }
 
-    /** 显示盒高度：夹在基础高度与上限之间，保证更高的规格（如 4×4）不被裁切 */
-    fun previewBoxHeightDp(previewHeightDp: Int): Int =
-        PREVIEW_BOX_BASE_DP
-            .coerceAtLeast(previewHeightDp + 8)
-            .coerceAtMost(PREVIEW_BOX_MAX_DP)
+    /**
+     * 显示盒高度：**固定 244dp**，不随风格规格变化。
+     *
+     * 曾经按 4×4 撑高到 268dp，结果一切换 4×2/4×4，预览盒就带着标签行、抽屉和
+     * 背景图整体上下跳 24dp（用户反馈「页面跟着晃」）。4×4 位图改用
+     * `ContentScale.Fit` 等比缩进盒内（250→244dp，约 2.4%，肉眼不可辨），
+     * 4×2 维持原有留白；预览比例与页面位置都稳定。
+     */
+    fun previewBoxHeightDp(previewHeightDp: Int): Int = PREVIEW_BOX_BASE_DP
 
     /**
      * 某个风格在 App 内预览区占的高度：只认它自己的最佳显示尺寸

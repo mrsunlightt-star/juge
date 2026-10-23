@@ -344,9 +344,13 @@ data class WidgetStyle(
                         TextShadow()
                     },
                     // 反序列化新增字段并兼容处理默认值
+                    // gradientColors 逐元素尽力解析：数组里混入一个非整型（旧版本/手改数据）
+                    // 只丢掉颜色数组这一项，不再让整个 catch 把全份样式替换成默认
                     gradientColors = if (json.has("gradientColors") && !json.isNull("gradientColors")) {
-                        val arr = json.getJSONArray("gradientColors")
-                        List(arr.length()) { arr.getInt(it) }
+                        runCatching {
+                            val arr = json.getJSONArray("gradientColors")
+                            List(arr.length()) { arr.getInt(it) }
+                        }.getOrNull()
                     } else {
                         null
                     },

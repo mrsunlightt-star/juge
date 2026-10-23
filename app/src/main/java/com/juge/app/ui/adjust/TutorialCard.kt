@@ -62,7 +62,8 @@ internal fun TutorialCard(
     )
     AppSectionCard(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = AppSpacing.cardPadding
+        contentPadding = AppSpacing.cardPadding,
+        animateSize = false,
     ) {
         // 头部与展开区包在同一个 Column 里：AnimatedVisibility 收起时是零高度，
         // 若作为 AppSectionCard 的直接子项，卡片的内层 spacedBy 仍会留出一条空隙。

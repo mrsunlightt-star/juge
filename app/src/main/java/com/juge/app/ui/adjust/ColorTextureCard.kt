@@ -35,6 +35,7 @@ import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
 
 /**
@@ -163,7 +164,7 @@ private fun ColorSwatch(
         label = "swatchBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) selectBlue else borderBlue,
+        targetValue = if (selected) accentBlue else borderBlue,
         animationSpec = AppMotion.color,
         label = "swatchBorderColor"
     )

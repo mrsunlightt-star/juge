@@ -39,12 +39,12 @@ object UserColorPresets {
         merge(context, KEY_BACKGROUND, KEY_BACKGROUND_HIDDEN, ColorPresets.BACKGROUND_COLORS)
 
     fun addFontColor(context: Context, color: Int): List<Int> {
-        add(context, KEY_FONT, color)
+        addUserColor(context, KEY_FONT, ColorPresets.FONT_COLORS, color)
         return fontColors(context)
     }
 
     fun addBackgroundColor(context: Context, color: Int): List<Int> {
-        add(context, KEY_BACKGROUND, color)
+        addUserColor(context, KEY_BACKGROUND, ColorPresets.BACKGROUND_COLORS, color)
         return backgroundColors(context)
     }
 
@@ -63,15 +63,19 @@ object UserColorPresets {
         val visibleBuiltIns = builtIns
             .map { android.graphics.Color.parseColor(it) }
             .filterNot { hidden.contains(it) }
-        return visibleBuiltIns + load(context, userKey)
+        // 用户列表再加一层去重：用户自添加色若与某个内置色相同（吸色很容易吸出同值），
+        // 历史/手改数据都可能出现重复项，展示成两个一模一样的色块
+        val userColors = load(context, userKey).filterNot { it in visibleBuiltIns }
+        return visibleBuiltIns + userColors
     }
 
     private fun delete(context: Context, userKey: String, hiddenKey: String, builtIns: List<String>, color: Int) {
         if (builtIns.any { android.graphics.Color.parseColor(it) == color }) {
             add(context, hiddenKey, color)
-        } else {
-            remove(context, userKey, color)
         }
+        // 不管是不是内置色，用户列表里同值的那份一起清掉：
+        // 否则用户自添加的重复色会永久残留（且因命中内置色分支而永远无法删除）
+        remove(context, userKey, color)
     }
 
     private fun load(context: Context, key: String): List<Int> =
@@ -84,6 +88,13 @@ object UserColorPresets {
         val current = load(context, key)
         if (current.contains(color)) return
         prefs(context).edit().putString(key, (current + color).joinToString(",")).apply()
+    }
+
+    /** 用户自添加新色：与任一内置色相同时直接忽略，避免面板出现重复色块 */
+    private fun addUserColor(context: Context, key: String, builtIns: List<String>, color: Int) {
+        val builtInValues = builtIns.map { android.graphics.Color.parseColor(it) }
+        if (color in builtInValues) return
+        add(context, key, color)
     }
 
     private fun remove(context: Context, key: String, color: Int) {

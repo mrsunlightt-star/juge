@@ -337,13 +337,28 @@ object WidgetCanvasRenderer {
         return bitmap
     }
 
-    /** 预览缓存只保留最近使用的 [PREVIEW_DISK_MAX_FILES] 张，避免长期堆积 */
+    /**
+     * 预览缓存只保留最近使用的 [PREVIEW_DISK_MAX_FILES] 张，避免长期堆积；
+     * 顺带清理残存的 .png.tmp 中间文件——写盘进程被杀（后台限制/OOM kill）时
+     * rename 尚未发生，tmp 文件会留下来，而这个目录没有 prewarm 那样统一的清理点。
+     */
     private fun trimPreviewCache(context: Context) {
-        val files = File(context.applicationContext.cacheDir, PREVIEW_DISK_DIR)
-            .listFiles()?.filter { it.isFile && it.name.endsWith(".png") } ?: return
+        val dir = File(context.applicationContext.cacheDir, PREVIEW_DISK_DIR)
+        val now = System.currentTimeMillis()
+        dir.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.endsWith(".png.tmp") &&
+                file.lastModified() < now - STALE_PREVIEW_TMP_MS
+            ) {
+                file.delete()
+            }
+        }
+        val files = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".png") } ?: return
         if (files.size <= PREVIEW_DISK_MAX_FILES) return
         files.sortedByDescending { it.lastModified() }
             .drop(PREVIEW_DISK_MAX_FILES)
             .forEach { it.delete() }
     }
+
+    /** tmp 文件 30 分钟后视为写盘中断的残留（正常 compress + rename 远用不了这么久） */
+    private const val STALE_PREVIEW_TMP_MS = 30 * 60 * 1000L
 }

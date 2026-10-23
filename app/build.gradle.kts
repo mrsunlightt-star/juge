@@ -50,6 +50,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG 用于把 DevProToggle 圈进 debug 构建（release 无偿失去该开关）
+        buildConfig = true
     }
     testOptions {
         // WidgetStyle 默认值与 PRESETS 使用 android.graphics.Color.parseColor，

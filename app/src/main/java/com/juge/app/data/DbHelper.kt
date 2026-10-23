@@ -60,7 +60,8 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 name TEXT NOT NULL,
                 content TEXT NOT NULL,
                 size_type TEXT NOT NULL DEFAULT '4x2',
-                style_json TEXT
+                style_json TEXT,
+                auto_created INTEGER NOT NULL DEFAULT 0
             )
         """.trimIndent())
 
@@ -100,6 +101,14 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
             Timber.i("Migrating to version 6: creating indexes")
             createIndexes(db)
         }
+
+        // 版本 7：widget_config 增加 auto_created 列，显式区分「Provider 自动建」与「用户建」的行，
+        // 存量行按旧的名称前缀推断回填（用户起了同前缀名字的存量行会被记成自动行，属历史数据的
+        // 已发生状态，往前只有走名称推断这一条路可走；新建行二不再靠前缀）
+        if (oldVersion < 7) {
+            Timber.i("Migrating to version 7: adding widget_config.auto_created")
+            addWidgetConfigAutoCreatedColumn(db)
+        }
     }
 
     override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -131,10 +140,32 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 name TEXT NOT NULL,
                 content TEXT NOT NULL,
                 size_type TEXT NOT NULL DEFAULT '4x2',
-                style_json TEXT
+                style_json TEXT,
+                auto_created INTEGER NOT NULL DEFAULT 0
             )
         """.trimIndent())
+        addWidgetConfigAutoCreatedColumn(db)
         createIndexes(db)
+    }
+
+    /**
+     * 幂等补上 widget_config.auto_created 列（兼容旧库直接建表的 onDowngrade 路径），
+     * 存量行按旧版规则（名称前缀「微件 」）回填。
+     */
+    private fun addWidgetConfigAutoCreatedColumn(db: SQLiteDatabase) {
+        val hasColumn = runCatching {
+            db.rawQuery("PRAGMA table_info(widget_config)", null).use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                var found = false
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIdx) == "auto_created") found = true
+                }
+                found
+            }
+        }.getOrDefault(false)
+        if (hasColumn) return
+        db.execSQL("ALTER TABLE widget_config ADD COLUMN auto_created INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE widget_config SET auto_created = 1 WHERE name LIKE '微件 %'")
     }
 
     private fun createIndexes(db: SQLiteDatabase) {
@@ -324,6 +355,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
             put("content", config.content)
             put("size_type", config.sizeType)
             put("style_json", config.styleJson)
+            put("auto_created", if (config.autoCreated) 1 else 0)
         }
         return db.insert("widget_config", null, values)
     }
@@ -352,7 +384,10 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     fun getAllWidgetConfigs(): List<WidgetConfig> {
         val list = mutableListOf<WidgetConfig>()
         val db = readableDatabase
-        db.rawQuery("SELECT id, name, content, size_type, style_json FROM widget_config ORDER BY id ASC", null).use { cursor ->
+        db.rawQuery(
+            "SELECT id, name, content, size_type, style_json, auto_created FROM widget_config ORDER BY id ASC",
+            null
+        ).use { cursor ->
             while (cursor.moveToNext()) {
                 list.add(parseWidgetConfig(cursor))
             }
@@ -362,7 +397,10 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
 
     fun getWidgetConfigById(id: Long): WidgetConfig? {
         val db = readableDatabase
-        db.rawQuery("SELECT id, name, content, size_type, style_json FROM widget_config WHERE id = ?", arrayOf(id.toString())).use { cursor ->
+        db.rawQuery(
+            "SELECT id, name, content, size_type, style_json, auto_created FROM widget_config WHERE id = ?",
+            arrayOf(id.toString())
+        ).use { cursor ->
             if (cursor.moveToFirst()) {
                 return parseWidgetConfig(cursor)
             }
@@ -371,15 +409,33 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     }
 
     private fun parseWidgetConfig(cursor: Cursor): WidgetConfig {
+        // onDowngrade 补建的是带列的新表，但极端场景（外部覆盖旧 APK 建的老结构）没有该列：
+        // 列缺失时按旧版规则用名称前缀兜底，避免getColumnIndexOrThrow 直接炸
+        val autoIdx = cursor.getColumnIndex("auto_created")
         return WidgetConfig(
             id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
             name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
             content = cursor.getString(cursor.getColumnIndexOrThrow("content")),
             sizeType = cursor.getString(cursor.getColumnIndexOrThrow("size_type")),
-            styleJson = cursor.getString(cursor.getColumnIndexOrThrow("style_json"))
+            styleJson = cursor.getString(cursor.getColumnIndexOrThrow("style_json")),
+            autoCreated = if (autoIdx >= 0) cursor.getInt(autoIdx) == 1 else cursor.getString(
+                cursor.getColumnIndexOrThrow("name")
+            ).startsWith(WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX)
         )
     }
 
+    /**
+     * 老版本数据（reminders 一把梭远早于 widget_config）导入配置行。只跑一次。
+     *
+     * 两个入口（主界面启动的 IO 协程、组件刷新的后台线程）会并发进入，
+     * 因此整段用 synchronized 包住：否则两个线程都能看到「未迁移 + 配置为空」，
+     * 把全部金句各导入一遍，产生成对的重复配置行。
+     *
+     * 配置为空时的三条分支：老用户（升级前装过老版本 → 有历史 app_settings 数据）导入 readings；
+     * 全新安装没有老数据，只放一张「默认卡片1」当起点；
+     * 迁移标记完成写入在最后，同样受锁保护。
+     */
+    @Synchronized
     fun migrateLegacyDataIfNeeded() {
         if (AppPrefs.isLegacyMigrationDone(appContext)) return
 
@@ -400,36 +456,42 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
 
         // 2. 如果 widget_config 为空，则把 reminders 转换并写入配置库中
         if (configCount == 0) {
-            val reminders = getAllReminders()
-            if (reminders.isNotEmpty()) {
-                db.beginTransaction()
-                try {
-                    for (reminder in reminders) {
-                        val name = if (reminder.content.length > 5) {
-                            "导入卡片 - " + reminder.content.take(5) + "..."
-                        } else {
-                            "导入卡片 - " + reminder.content
+            if (AppPrefs.isLegacyInstall(appContext)) {
+                val reminders = getAllReminders()
+                if (reminders.isNotEmpty()) {
+                    db.beginTransaction()
+                    try {
+                        for (reminder in reminders) {
+                            val name = if (reminder.content.length > 5) {
+                                "导入卡片 - " + reminder.content.take(5) + "..."
+                            } else {
+                                "导入卡片 - " + reminder.content
+                            }
+                            val values = ContentValues().apply {
+                                put("name", name)
+                                put("content", reminder.content)
+                                put("size_type", "4x2")
+                                put("style_json", reminder.styleJson ?: WidgetStyle().toJsonString())
+                                put("auto_created", 0) // 导入行是用户内容，不参与孤儿回收
+                            }
+                            db.insert("widget_config", null, values)
                         }
-                        val values = ContentValues().apply {
-                            put("name", name)
-                            put("content", reminder.content)
-                            put("size_type", "4x2")
-                            put("style_json", reminder.styleJson ?: WidgetStyle().toJsonString())
-                        }
-                        db.insert("widget_config", null, values)
+                        db.setTransactionSuccessful()
+                    } finally {
+                        db.endTransaction()
                     }
-                    db.setTransactionSuccessful()
-                } finally {
-                    db.endTransaction()
                 }
             } else {
-                // 如果 reminders 也为空，插入默认配置
-                insertWidgetConfig(WidgetConfig(
-                    name = "默认卡片1",
-                    content = "弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》",
-                    sizeType = "4x2",
-                    styleJson = WidgetStyle().toJsonString()
-                ))
+                // 全新安装：库里只有种子金句，不值得包装成「导入卡片」；
+                // 放一张默认卡片当起点，语义上也没了"从老版本带来"的误导
+                insertWidgetConfig(
+                    WidgetConfig(
+                        name = "默认卡片1",
+                        content = "弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》",
+                        sizeType = "4x2",
+                        styleJson = WidgetStyle().toJsonString()
+                    )
+                )
             }
         }
 
@@ -439,7 +501,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
 
     companion object {
         private const val DATABASE_NAME = "reminders.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
 
         @Volatile
         private var instance: DbHelper? = null

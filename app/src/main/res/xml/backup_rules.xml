@@ -15,6 +15,10 @@
     <!-- 登录凭证（Bearer Token）：不随普通 App 数据备份，新设备重新登录即可 -->
     <exclude domain="sharedpref" path="account_prefs.xml"/>
 
+    <!-- 未结算购买订单号：同一订单在换机后由谁查询受登录态限制，
+         游客订单随备份漂到新设备会撞上「权益只绑定设备」的承诺，故留在本机 -->
+    <exclude domain="sharedpref" path="pro_purchase_prefs.xml"/>
+
     <!-- 隐私同意状态：新设备应重新征求同意，不静默继承 -->
     <exclude domain="sharedpref" path="consent_prefs.xml"/>
 

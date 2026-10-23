@@ -14,6 +14,8 @@ import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.PresetRow
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.textGray
 
 /** 组件风格卡片：经典/萌宠横滑预设 + 明信片（含插画）行。 */
 @Composable
@@ -48,7 +50,15 @@ internal fun StylePresetCard(
                         onSelectPreset(selectedWidgetId, selectedReminderId, it)
                     }
                 },
-                showSelectionBorder = false,
+                // 选中态三行统一（与明信片行一致）：3dp 蓝色描边 + 名称变蓝。
+                // 不能像以前那样关掉——用户会以为经典/萌宠行没有选中反馈
+                isSelected = { preset ->
+                    preset.presetId != null && preset.presetId == selectedStyle.presetId
+                },
+                showSelectionBorder = true,
+                nameColor = { isPro, isSelected ->
+                    if (isSelected || !isPro) accentBlue else textGray
+                },
                 contentScale = ContentScale.Fit,
                 imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
             )
@@ -66,7 +76,13 @@ internal fun StylePresetCard(
                         onSelectPreset(selectedWidgetId, selectedReminderId, it)
                     }
                 },
-                showSelectionBorder = false,
+                isSelected = { preset ->
+                    preset.presetId != null && preset.presetId == selectedStyle.presetId
+                },
+                showSelectionBorder = true,
+                nameColor = { isPro, isSelected ->
+                    if (isSelected || !isPro) accentBlue else textGray
+                },
                 contentScale = ContentScale.Fit,
                 imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
             )

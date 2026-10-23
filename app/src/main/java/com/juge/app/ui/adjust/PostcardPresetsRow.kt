@@ -43,6 +43,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
@@ -193,7 +194,7 @@ private fun RenderedPresetItem(
         label = "postcardBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isSelected) selectBlue else borderBlue,
+        targetValue = if (isSelected) accentBlue else borderBlue,
         animationSpec = AppMotion.color,
         label = "postcardBorderColor"
     )
@@ -280,7 +281,7 @@ private fun IllustrationPresetItems(
             label = "illustrationBorderWidth"
         )
         val borderColor by animateColorAsState(
-            targetValue = if (isSelected) selectBlue else borderBlue,
+            targetValue = if (isSelected) accentBlue else borderBlue,
             animationSpec = AppMotion.color,
             label = "illustrationBorderColor"
         )
@@ -324,7 +325,7 @@ private fun IllustrationPresetItems(
         Text(
             text = desc,
             style = AppType.body,
-            color = if (isSelected) selectBlue else textGray,
+            color = if (isSelected) accentBlue else textGray,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 5.dp)
