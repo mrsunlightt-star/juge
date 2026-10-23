@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +77,7 @@ internal fun ReminderList(
                 val catName = categories.find { it.id == reminder.categoryId }?.name ?: "普通"
 
                 val shouldAnimate = index < 4 && reminder.id !in animatedReminderIds
-                if (shouldAnimate) animatedReminderIds.add(reminder.id)
+                if (shouldAnimate) SideEffect { animatedReminderIds.add(reminder.id) }
                 val visibleState = remember(reminder.id) {
                     MutableTransitionState(initialState = !shouldAnimate)
                 }.apply { targetState = true }
