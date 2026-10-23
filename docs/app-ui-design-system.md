@@ -50,7 +50,7 @@ Material 组件也会落在同一套阶梯上。
 
 `ui/theme/AppColors.kt` 分两层：
 
-- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（明亮浅蓝填充，配深色文字/图标）、
+- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（明亮浅蓝填充，按用户偏好搭配白色文字/图标）、
   `accentLightBlue`（协议链接）、`premiumGold` / `premiumGoldEnd`（PRO 金色渐变填充）、
   `premiumGoldDeep`（白底上的金色图标/文字）、`premiumGoldInk`（金色底上的深棕文字）。
 - **语义色**：`textPrimary` / `textSecondary` / `textTertiary`、`borderBlue`、`surfaceSubtle`、
@@ -61,11 +61,12 @@ Material 组件也会落在同一套阶梯上。
 1. 文字只用 `textPrimary` / `textSecondary` / `textTertiary` 三档，不再出现 #1F2937、#6B7280、
    #9CA3AF 等近似灰；
 2. 默认卡片描边统一 `borderBlue`；选中预设和控件的状态描边使用对比度更高的 `accentBlue`；
-3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标使用深色 `textPrimary`，状态描边使用 `accentBlue`；危险操作统一 `dangerRed`；
+3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标按用户偏好使用白色，状态描边使用 `accentBlue`；危险操作统一 `dangerRed`；
 4. 新增颜色先加进 `AppColors.kt` 并写清语义，不在界面里直接 `Color(0x…)`；
 5. **对比度是硬门槛**：正文/标题/链接在其背景上 ≥ 4.5:1，图标、状态描边、开关等非文字元素 ≥ 3:1。
-   浅色装饰只用于不承载信息的渐变（如 `auroraSky`），不能拿来做白字底色。`selectBlue`
-   保留为明亮填充色，必须配 `textPrimary` 深色前景；`AppColorContrastTest` 会检查该组合。
+   常规文字/背景组合必须满足 AA 对比度要求。但用户明确偏好 `selectBlue`（`#42B8EC`）配白字，
+   该组合约为 2.26:1，低于 4.5:1，是有意保留的产品例外；`AppColorContrastTest` 锁定色值和例外说明。
+   请勿将此例外扩展到长正文或大段说明文字。
 
 ## 4. 形状与间距
 

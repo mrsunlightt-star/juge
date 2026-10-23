@@ -29,8 +29,8 @@ import kotlin.math.pow
  * 界面里所有文字最终都落在这几组前景/背景上；颜色一改，用 WCAG 相对亮度公式
  * 直接卡住：正文 4.5:1、图标/状态描边 3:1。比肉眼和截图基线更早失败。
  *
- * 选中态浅蓝 [selectBlue] 作为背景填充保留；其上的文字/图标必须使用深色
- * [textPrimary]，并由单独断言验证前景与填充的对比度。
+ * 选中态浅蓝 [selectBlue] 的白字搭配是用户明确选择的品牌例外。
+ * 其对比度约 2.26:1，低于普通文字的 4.5:1；单独锁定色值与预期对比度，不冒充 AA 合规。
  */
 class AppColorContrastTest {
 
@@ -61,7 +61,6 @@ class AppColorContrastTest {
     @Test
     fun `正文与链接满足 WCAG AA 4点5比1`() {
         assertContrast("textPrimary on cardBg", textPrimary, cardBg, 4.5)
-        assertContrast("textPrimary on selectBlue", textPrimary, selectBlue, 4.5)
         assertContrast("textSecondary on cardBg", textSecondary, cardBg, 4.5)
         assertContrast("textSecondary on darkBg", textSecondary, darkBg, 4.5)
         assertContrast("textSecondary on surfaceSubtle", textSecondary, surfaceSubtle, 4.5)
@@ -85,11 +84,12 @@ class AppColorContrastTest {
     }
 
     /**
-     * selectBlue 是用户指定保留的明亮「选中态浅蓝」。
-     * 填充色锁定为 #42B8EC；前景使用 textPrimary 深墨色，并在上面的 AA 测试中验证。
+     * selectBlue 是用户指定保留的明亮浅蓝底白字搭配。
+     * 对比度低于 AA 标准，作为产品偏好明确记录，不纳入常规 AA 断言。
      */
     @Test
     fun `选中态浅蓝保持用户指定色值`() {
         assertEquals(Color(0xFF42B8EC), selectBlue)
+        assertEquals(2.26, contrast(Color.White, selectBlue), 0.03)
     }
 }

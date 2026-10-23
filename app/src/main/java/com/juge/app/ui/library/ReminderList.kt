@@ -115,7 +115,7 @@ internal fun ReminderList(
                                     Text(
                                         text = catName,
                                         style = AppType.badge,
-                                        color = textPrimary,
+                                        color = Color.White,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }

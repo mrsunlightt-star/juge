@@ -133,9 +133,9 @@ fun LibraryTabContent(
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = textPrimary)
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("录入新句", style = AppType.button, color = textPrimary)
+                Text("录入新句", style = AppType.button, color = Color.White)
             }
         }
     }

@@ -44,7 +44,6 @@ import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
-import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import kotlinx.coroutines.Dispatchers
@@ -175,7 +174,7 @@ fun PresetRow(
                                     .background(selectBlue, AppShape.badge)
                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                             ) {
-                                Text("免费", style = AppType.badge, color = textPrimary)
+                                Text("免费", style = AppType.badge, color = Color.White)
                             }
                         }
                     }

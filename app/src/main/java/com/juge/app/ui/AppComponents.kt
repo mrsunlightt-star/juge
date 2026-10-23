@@ -140,7 +140,7 @@ fun AppPrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     containerColor: Color = selectBlue,
-    contentColor: Color = textPrimary,
+    contentColor: Color = Color.White,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -243,7 +243,7 @@ fun AppTextButton(
 
 /**
  * 筛选胶囊：文字库分类、字体选择、图片填充模式共用。
- * 未选中白底灰字，选中浅蓝底深色字；圆角与边框都走令牌。
+ * 未选中白底灰字，选中浅蓝底白字；圆角与边框都走令牌。
  */
 @Composable
 fun AppFilterChip(
@@ -262,7 +262,7 @@ fun AppFilterChip(
         shape = AppShape.chip,
         colors = FilterChipDefaults.filterChipColors(
             labelColor = textGray,
-            selectedLabelColor = textPrimary,
+            selectedLabelColor = Color.White,
             containerColor = containerColor,
             selectedContainerColor = selectBlue,
         ),

@@ -162,12 +162,12 @@ fun CheckChip(
         label = "chipBackground"
     )
     val textColor by animateColorAsState(
-        targetValue = if (checked) textPrimary else chipTextInk,
+        targetValue = if (checked) Color.White else chipTextInk,
         animationSpec = AppMotion.color,
         label = "chipText"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (checked) textPrimary else accentBlue,
+        targetValue = if (checked) Color.White else accentBlue,
         animationSpec = AppMotion.color,
         label = "chipBorder"
     )
@@ -196,7 +196,7 @@ fun CheckChip(
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
-                    tint = textPrimary,
+                    tint = Color.White,
                     modifier = Modifier.size(12.dp)
                 )
             }
