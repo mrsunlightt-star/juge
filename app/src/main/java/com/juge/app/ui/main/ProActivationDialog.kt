@@ -18,14 +18,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppTextButton
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.premiumGoldDeep
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textPrimary
@@ -50,19 +52,17 @@ fun ProActivationDialog(
                     imageVector = Icons.Filled.WorkspacePremium,
                     contentDescription = null,
                     tint = premiumGoldDeep,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
+                AppText(
                     text = "PRO 会员",
-                    style = AppType.hero,
-                    color = textPrimary
+                    role = AppTextRole.hero
                 )
             }
-            Text(
+            AppText(
                 text = "${ProPurchase.PRICE_TEXT} 一次性买断 · 永久有效",
-                style = AppType.bodyStrong,
-                color = accentBlue
+                role = AppTextRole.bodyStrongAccent
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -71,19 +71,17 @@ fun ProActivationDialog(
                     "自定义背景图（本地照片）无限制使用",
                     "多组件独立配置，一次激活永久保留"
                 ).forEach { benefit ->
-                    Text(
+                    AppText(
                         text = "✓ $benefit",
-                        style = AppType.body,
-                        color = textGray
+                        role = AppTextRole.bodySecondary
                     )
                 }
             }
 
             if (isActivated) {
-                Text(
+                AppText(
                     text = "✨ 您已是 PRO 会员，感谢支持！",
-                    style = AppType.bodyStrong,
-                    color = accentBlue
+                    role = AppTextRole.bodyStrongAccent
                 )
                 AppPrimaryButton(
                     text = "好的",
@@ -91,10 +89,9 @@ fun ProActivationDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                Text(
+                AppText(
                     text = "点击下方按钮，将拉起支付宝完成支付。",
-                    style = AppType.micro,
-                    color = textTertiary
+                    role = AppTextRole.micro
                 )
                 AppPrimaryButton(
                     text = if (isPaying) "支付确认中…" else "支付宝支付 ${ProPurchase.PRICE_TEXT}",
@@ -103,10 +100,9 @@ fun ProActivationDialog(
                     enabled = !isPaying,
                     loading = isPaying
                 )
-                Text(
+                AppText(
                     text = "支付成功后自动激活，无需手动操作。",
-                    style = AppType.micro,
-                    color = textTertiary
+                    role = AppTextRole.micro
                 )
                 AppTextButton(
                     text = "暂不需要",
@@ -126,7 +122,7 @@ fun ProActivationDialog(
                 },
                 onClick = onOpenAccount,
                 enabled = !isPaying,
-                color = accentLightBlue
+                color = accentBlue
             )
         }
     }

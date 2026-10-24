@@ -1,0 +1,80 @@
+package com.juge.app.ui.theme
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
+
+/**
+ * 全 App 的**语义文字角色**：字号、字重、颜色三位一体，在这里只有一个出处。
+ *
+ * 之前界面里 `style = AppType.x, color = y` 成对散落在几十个调用点，同一层级
+ * 在不同页面各配一色，层级管理无从谈起。现在界面文字一律写
+ * `AppText(text, role = AppTextRole.bodySecondary)`——想改「次级正文」的任何一项，
+ * 只改这里的定义。
+ *
+ * 角色命名 = 字级 + 语义变体：
+ * - 无后缀：该字级的标准色（标题/正文用主墨色，caption/micro 用辅助灰）；
+ * - `Secondary/Tertiary`：同字级的次级/辅助色；
+ * - `Accent`：强调色（链接、区块标题、可点提示）；
+ * - `Neutral`：分组标题等不参与强调的场景；
+ * - `OnFill`：填充色（蓝底/彩底）上的白字。
+ *
+ * 少数动态颜色场景（页签随滑动渐变、徽章随状态换色）用 `AppText` 的 `color`
+ * 参数覆写：**字级与字重仍从角色取**，只有颜色临时决定。
+ * 上下文色（Material 按钮内的 `contentColor`、输入框 label 等）继续用
+ * `AppType` 字级 + 组件给的动态色，不经过角色。
+ */
+data class TextRole(val style: TextStyle, val color: Color) {
+    /** 仅取字级与字重、颜色由调用方动态决定的场景使用（罕见） */
+    fun withColor(color: Color) = copy(color = color)
+}
+
+object AppTextRole {
+
+    // —— 弹窗/卡片标题 ——
+    val dialogTitle = TextRole(AppType.dialogTitle, textPrimary)
+    val title = TextRole(AppType.title, textPrimary)
+    val hero = TextRole(AppType.hero, textPrimary)
+
+    // —— 区块/分组标题 ——
+    val sectionTitleAccent = TextRole(AppType.sectionTitle, accentBlue)
+    val sectionTitleInk = TextRole(AppType.sectionTitle, textPrimary)
+    val sectionTitleNeutral = TextRole(AppType.sectionTitle, textSecondary)
+
+    // —— 控件标签 ——
+    // 14sp：与它们身下的选项文字（chip 14sp）同级——标签比选项还小会显得层级倒挂
+    // （用户反馈）。AppType.label(12sp) 保留给徽章类小字（PRO 徽章等直接用 AppType）。
+    private val labelStyle = AppType.label.copy(fontSize = 14.sp, lineHeight = 20.sp)
+    val label = TextRole(labelStyle, textSecondary)
+    val labelAccent = TextRole(labelStyle, accentBlue)
+
+    // —— 正文 ——
+    val body = TextRole(AppType.body, textPrimary)
+    val bodySecondary = TextRole(AppType.body, textSecondary)
+    val bodyTertiary = TextRole(AppType.body, textTertiary)
+    val bodyStrong = TextRole(AppType.bodyStrong, textPrimary)
+    val bodyStrongSecondary = TextRole(AppType.bodyStrong, textSecondary)
+    val bodyStrongAccent = TextRole(AppType.bodyStrong, accentBlue)
+    val bodyLarge = TextRole(AppType.bodyLarge, textPrimary)
+
+    // —— 辅助/注释 ——
+    val caption = TextRole(AppType.caption, textTertiary)
+    val captionSecondary = TextRole(AppType.caption, textSecondary)
+    val captionAccent = TextRole(AppType.caption, accentBlue)
+    val micro = TextRole(AppType.micro, textTertiary)
+
+    // —— 链接 ——
+    val link = TextRole(AppType.link, accentBlue)
+
+    // —— 填充色上的白字（角标、按钮、选中胶囊） ——
+    val badgeOnFill = TextRole(AppType.badge, Color.White)
+    val buttonOnFill = TextRole(AppType.button, Color.White)
+    val chipOnFill = TextRole(AppType.chip, Color.White)
+
+    // —— 未选中胶囊 ——
+    val chip = TextRole(AppType.chip, textSecondary)
+
+    // —— 品牌标题（英雄图上的白字，阴影由调用方叠加） ——
+    val brand = TextRole(AppType.brand, Color.White)
+    val brandSub = TextRole(AppType.brandSub, Color.White.copy(alpha = 0.82f))
+}

@@ -34,13 +34,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.accentFillStrong
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.trackGray
+import com.juge.app.ui.theme.rememberAppHaptics
 
 private val controlBlue = selectBlue // 与主界面 selectBlue 同源
 
@@ -50,7 +53,13 @@ private fun SliderThumb(enabled: Boolean) {
     Box(
         modifier = Modifier
             .size(16.dp)
-            .shadow(3.dp, CircleShape, clip = false)
+            .shadow(
+                elevation = AppShadows.control,
+                shape = CircleShape,
+                clip = false,
+                ambientColor = AppShadows.ambientShadow,
+                spotColor = AppShadows.spotShadow,
+            )
             .background(if (enabled) Color.White else disabledGray, CircleShape)
     )
 }
@@ -92,7 +101,7 @@ fun ThickTrackSlider(
                         .fillMaxWidth(if (enabled) fraction else 0f)
                         .fillMaxHeight()
                         .clip(AppShape.pill)
-                        .background(accentBlue)
+                        .background(accentFillStrong)
                 )
             }
         }
@@ -170,6 +179,7 @@ fun CheckChip(
         animationSpec = AppMotion.color,
         label = "chipBorder"
     )
+    val haptics = rememberAppHaptics()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -179,9 +189,12 @@ fun CheckChip(
             .clickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = onClick
+                onClick = {
+                    haptics.tap()
+                    onClick()
+                }
             )
-            .padding(horizontal = 12.dp, vertical = 15.dp)
+            .padding(horizontal = 12.dp, vertical = 16.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -204,7 +217,7 @@ fun CheckChip(
         Text(
             label,
             style = AppType.chip.copy(
-                fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium
+                fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium
             ),
             color = textColor,
             maxLines = 1

@@ -11,8 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.juge.app.data.LegalDocs
+import com.juge.app.ui.AppText
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.textSecondary
 
 /**
@@ -23,6 +26,7 @@ import com.juge.app.ui.theme.textSecondary
 @Composable
 fun LegalFooter(onOpenDoc: (String) -> Unit) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -30,44 +34,50 @@ fun LegalFooter(onOpenDoc: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
+            AppText(
                 text = "《用户协议》",
-                style = AppType.link,
-                color = accentLightBlue,
+                role = AppTextRole.link,
                 modifier = Modifier
-                    .clickable { onOpenDoc("user") }
-                    .padding(vertical = 15.dp)
+                    .clickable {
+                        haptics.click()
+                        onOpenDoc("user")
+                    }
+                    .padding(vertical = 16.dp)
             )
-            Text(
+            AppText(
                 text = "《隐私政策》",
-                style = AppType.link,
-                color = accentLightBlue,
+                role = AppTextRole.link,
                 modifier = Modifier
-                    .clickable { onOpenDoc("privacy") }
-                    .padding(vertical = 15.dp)
+                    .clickable {
+                        haptics.click()
+                        onOpenDoc("privacy")
+                    }
+                    .padding(vertical = 16.dp)
             )
-            Text(
-                text = "《开源许可》",
-                style = AppType.link,
-                color = accentLightBlue,
+            AppText(
+                text = "《字体许可》",
+                role = AppTextRole.link,
                 modifier = Modifier
-                    .clickable { onOpenDoc("license") }
-                    .padding(vertical = 15.dp)
+                    .clickable {
+                        haptics.click()
+                        onOpenDoc("license")
+                    }
+                    .padding(vertical = 16.dp)
             )
         }
-        Text(
+        AppText(
             text = LegalDocs.ICP_LICENSE,
-            style = AppType.caption,
-            color = textSecondary,
+            role = AppTextRole.captionSecondary,
             modifier = Modifier
                 .clickable {
+                    haptics.click()
                     runCatching {
                         context.startActivity(
                             Intent(Intent.ACTION_VIEW, Uri.parse(LegalDocs.ICP_QUERY_URL))
                         )
                     }
                 }
-                .padding(vertical = 15.dp)
+                .padding(vertical = 16.dp)
         )
     }
 }

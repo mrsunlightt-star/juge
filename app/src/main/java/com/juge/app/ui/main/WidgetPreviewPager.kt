@@ -35,6 +35,7 @@ import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.rememberAppHaptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -190,6 +191,7 @@ fun WidgetPreviewPager(
                 }
             }
 
+            val haptics = rememberAppHaptics()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -198,6 +200,7 @@ fun WidgetPreviewPager(
                         onClickLabel = "编辑样式",
                         role = Role.Button,
                     ) {
+                        haptics.tap()
                         onEditClick()
                     },
                 contentAlignment = Alignment.TopCenter

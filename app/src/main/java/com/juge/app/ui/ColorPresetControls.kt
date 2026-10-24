@@ -40,11 +40,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.juge.app.ui.AppText
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
@@ -53,6 +55,7 @@ import com.juge.app.ui.theme.surfaceMuted
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textTertiary
+import com.juge.app.ui.theme.rememberAppHaptics
 import kotlin.math.roundToInt
 
 /** 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗。视觉 34dp，热区 48dp。 */
@@ -65,11 +68,15 @@ fun AddColorPresetButton(
     borderColor: Color = borderBlue,
     contentColor: Color = textGray
 ) {
+    val haptics = rememberAppHaptics()
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .clickable(onClick = onClick)
+            .clickable {
+                haptics.tap()
+                onClick()
+            }
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -111,10 +118,9 @@ fun DeleteColorPresetDialog(
                         .border(1.dp, borderBlue, AppShape.badge)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text(
+                AppText(
                     text = "删除后该颜色会从预设栏移除，不影响已应用的颜色。",
-                    style = AppType.body,
-                    color = textGray
+                    role = AppTextRole.bodySecondary
                 )
             }
         },
@@ -136,12 +142,11 @@ fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
         containerColor = cardBg,
         title = { AppDialogTitle("此组件无法设置背景颜色") },
         text = {
-            Text(
+            AppText(
                 text = "当前风格的主体四周是透明的（如信纸、撕纸、牛皮手账、猫咪趴、书架），" +
                     "设置背景色会在主体外围露出一圈卡片背景，因此该风格不提供背景色调整。\n" +
                     "如需更换底色，可切换到其他组件风格。",
-                style = AppType.body,
-                color = textGray
+                role = AppTextRole.bodySecondary
             )
         },
         confirmButton = {
@@ -320,8 +325,8 @@ private fun GradientSlider(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, style = AppType.label, color = textGray)
-            Text(valueText, style = AppType.label, color = accentLightBlue)
+            AppText(label, role = AppTextRole.label)
+            AppText(valueText, role = AppTextRole.labelAccent)
         }
         GradientTrackSlider(
             gradient = gradient,

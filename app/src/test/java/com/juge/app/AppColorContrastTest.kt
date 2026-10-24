@@ -2,7 +2,7 @@ package com.juge.app
 
 import androidx.compose.ui.graphics.Color
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.accentFillStrong
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.darkBg
@@ -65,8 +65,8 @@ class AppColorContrastTest {
         assertContrast("textSecondary on darkBg", textSecondary, darkBg, 4.5)
         assertContrast("textSecondary on surfaceSubtle", textSecondary, surfaceSubtle, 4.5)
         assertContrast("textTertiary on cardBg", textTertiary, cardBg, 4.5)
-        assertContrast("accentLightBlue on cardBg", accentLightBlue, cardBg, 4.5)
-        assertContrast("accentLightBlue on darkBg", accentLightBlue, darkBg, 4.5)
+        assertContrast("accentBlue on cardBg", accentBlue, cardBg, 4.5)
+        assertContrast("accentBlue on darkBg", accentBlue, darkBg, 4.5)
         assertContrast("premiumGoldInk on premiumGold", premiumGoldInk, premiumGold, 4.5)
         assertContrast("premiumGoldInk on premiumGoldEnd", premiumGoldInk, premiumGoldEnd, 4.5)
         assertContrast("dangerRed on cardBg", dangerRed, cardBg, 4.5)
@@ -78,6 +78,7 @@ class AppColorContrastTest {
     @Test
     fun `图标与状态描边满足 3比1`() {
         assertContrast("accentBlue 状态描边 on cardBg", accentBlue, cardBg, 3.0)
+        assertContrast("accentFillStrong 填充 on cardBg", accentFillStrong, cardBg, 3.0)
         assertContrast("premiumGoldDeep 图标 on cardBg", premiumGoldDeep, cardBg, 3.0)
         assertContrast("dangerRed 图标 on cardBg", dangerRed, cardBg, 3.0)
         assertContrast("textTertiary 图标 on cardBg", textTertiary, cardBg, 3.0)

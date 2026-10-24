@@ -160,7 +160,7 @@ object LegalDocs {
     """.trimIndent()
 
     /**
-     * 《开源许可》——内置字体授权情况。
+     * 《字体许可》——内置字体授权情况。
      *
      * 内置字体均为第三方开源字体，为减小安装包体积已做子集化裁剪（按《通用规范汉字表》
      * 8105 字 + 常用符号，属于对字体的修改，仅删除冷僻字形，不改动保留字形的轮廓）。
@@ -341,7 +341,7 @@ Article 5 (Governing Law)
     fun titleOf(key: String): String = when (key) {
         "user" -> "《用户协议》"
         "privacy" -> "《隐私政策》"
-        "license" -> "《开源许可》"
+        "license" -> "《字体许可》"
         else -> ""
     }
 

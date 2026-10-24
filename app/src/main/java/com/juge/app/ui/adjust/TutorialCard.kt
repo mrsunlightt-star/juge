@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,16 +32,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.findHostActivity
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textWhite
+import com.juge.app.ui.theme.rememberAppHaptics
 
 /**
  * 桌面组件添加教程卡片。
@@ -55,6 +59,7 @@ internal fun TutorialCard(
     onToggleExpand: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = AppMotion.standard(),
@@ -71,40 +76,35 @@ internal fun TutorialCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(vertical = 15.dp)
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                    ) {
+                        haptics.tap()
+                        onToggleExpand()
+                    }
+                    .padding(vertical = 16.dp)
                     .semantics {
                         stateDescription = if (isExpanded) "已展开" else "已收起"
                     },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                AppText(
+                    text = "桌面组件添加教程",
+                    role = AppTextRole.sectionTitleInk
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Widgets,
-                        contentDescription = null,
-                        tint = textWhite,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(AppSpacing.iconGap))
-                    Text(
-                        text = "桌面组件添加教程",
-                        style = AppType.sectionTitle,
-                        color = textWhite
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
+                    AppText(
                         text = if (isExpanded) "收起" else "展开",
-                        style = AppType.caption,
-                        color = accentBlue
+                        role = AppTextRole.captionAccent
                     )
                     Icon(
                         imageVector = Icons.Filled.KeyboardArrowDown,
                         contentDescription = null,
                         tint = accentBlue,
                         modifier = Modifier
-                            .size(18.dp)
+                            .size(16.dp)
                             .rotate(chevronRotation)
                     )
                 }
@@ -119,15 +119,13 @@ internal fun TutorialCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)) {
                     Spacer(modifier = Modifier.height(AppSpacing.itemGap))
-                    Text(
+                    AppText(
                         text = "国产手机系统的桌面组件添加入口比较隐蔽，且大多不允许 App 内一键添加到桌面，请在桌面通过系统入口手动添加：",
-                        style = AppType.bodyStrong,
-                        color = textGray
+                        role = AppTextRole.bodyStrongSecondary
                     )
-                    Text(
+                    AppText(
                         text = "通用步骤：回到桌面 -> 双指捏合（或长按桌面空白处）-> 点击“添加小部件 / 卡片 / 窗口小工具” -> 找到「句阁 / DeskQuotes」-> 拖动到桌面。",
-                        style = AppType.bodyStrong,
-                        color = accentBlue
+                        role = AppTextRole.bodyStrongAccent
                     )
 
                     // 从桌面快捷方式引导进入时附带一键回桌面：
@@ -149,22 +147,20 @@ internal fun TutorialCard(
                             imageVector = Icons.Filled.Lightbulb,
                             contentDescription = null,
                             tint = textWhite,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(AppSpacing.iconGap))
-                        Text(
+                        AppText(
                             text = "常见国产手机添加与权限教程：",
-                            style = AppType.bodyStrong,
-                            color = textWhite
+                            role = AppTextRole.bodyStrong
                         )
                     }
-                    Text(
+                    AppText(
                         text = "• 华为 / 鸿蒙系统：在桌面双指捏合 -> 选择“服务卡片” -> 滑动到最下方选择“窗口小工具” -> 找到“句阁 / DeskQuotes”拖动到桌面。\n" +
                             "• 小米 / HyperOS / MIUI：桌面双指捏合 -> 点击“添加小部件” -> 搜索“句阁”或滑动选择安卓原生小部件添加。\n" +
                             "• OPPO / VIVO：桌面双指捏合 -> 点击“卡片 / 插件” -> 选择“句阁”添加。\n" +
                             "• 点击桌面组件没有反应？：请确保在手机的“应用设置 -> 权限管理”中，为本应用开启【后台弹出界面】和【悬浮窗】权限，防止系统拦截从桌面组件打开主界面的跳转。",
-                        style = AppType.body,
-                        color = textGray
+                        role = AppTextRole.bodySecondary
                     )
                 }
             }

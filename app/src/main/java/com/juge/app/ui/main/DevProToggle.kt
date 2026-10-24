@@ -14,6 +14,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.juge.app.data.TrialManager
+import com.juge.app.ui.AppText
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.disabledGray
@@ -37,9 +39,9 @@ fun DevProToggle(activated: Boolean, onToggle: (Boolean) -> Unit) {
             .padding(start = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        AppText(
             text = "开发",
-            style = AppType.micro,
+            role = AppTextRole.micro,
             color = premiumGoldDeep
         )
         Switch(

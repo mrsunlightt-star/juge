@@ -36,12 +36,14 @@ import com.juge.app.CropImageHelper
 import com.juge.app.data.UserColorPresets
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.legal.LegalFooter
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -70,6 +72,8 @@ fun AdjustTabContent(
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onApplyToDesktop: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onOpenDoc: (String) -> Unit,
+    /** 风格行内向右滑时翻回「跃然纸上」：横滑行会抢手势，由宿主接回外层 pager */
+    onSwipeBack: () -> Unit,
     initiallyTutorialExpanded: Boolean = false
 ) {
     val context = LocalContext.current
@@ -125,9 +129,9 @@ fun AdjustTabContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Warning, contentDescription = null, tint = premiumGoldDeep, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
+                        AppText(
                             text = "未检测到已放置桌面小组件。您可在下方进行“模拟预览设计”，添加后将自动应用！",
-                            style = AppType.body,
+                            role = AppTextRole.body,
                             color = warningInk
                         )
                     }
@@ -145,7 +149,8 @@ fun AdjustTabContent(
                 selectedReminderId = selectedReminderId,
                 onSelectPreset = onSelectPreset,
                 onStyleStateChange = onStyleStateChange,
-                onStyleChange = onStyleChange
+                onStyleChange = onStyleChange,
+                onSwipeBack = onSwipeBack
             )
         }
 

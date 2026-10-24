@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 及以下的冷启动窗口底：品牌浅蓝 + 居中 launcher 图标，
+     与 Android 12+ 系统启动画面（values-v31）观感一致。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:drawable="@mipmap/ic_launcher"
+        android:gravity="center" />
+</layer-list>

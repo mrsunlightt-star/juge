@@ -17,7 +17,13 @@ import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.textGray
 
-/** 组件风格卡片：经典/萌宠横滑预设 + 明信片（含插画）行。 */
+/**
+ * 组件风格卡片：经典/萌宠横滑预设 + 明信片（含插画）行。
+ *
+ * [onSwipeBack] 由宿主接到「跃然纸上 / 个性定制」的 pager：每个风格行各自判断边界
+ * （见 [com.juge.app.ui.pageBackAtRowStart]）。行内仍可双向滚动；只有一行已经滚到
+ * 最左端、右滑没有更多风格可露出时，继续右滑才交给外层翻回「跃然纸上」。
+ */
 @Composable
 internal fun StylePresetCard(
     selectedStyle: WidgetStyle,
@@ -27,10 +33,11 @@ internal fun StylePresetCard(
     selectedReminderId: Long,
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
-    onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
+    onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
+    onSwipeBack: () -> Unit
 ) {
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
-        AppSectionHeader(icon = Icons.Filled.Palette, title = "组件风格")
+        AppSectionHeader(title = "组件风格")
 
         // 风格预设区：按分类展示（经典风格 → 萌宠风格 → 明信片风格）
         // 间距统一交给外层 Column 的 spacedBy，这里不再叠加 Spacer/分割线
@@ -56,11 +63,14 @@ internal fun StylePresetCard(
                     preset.presetId != null && preset.presetId == selectedStyle.presetId
                 },
                 showSelectionBorder = true,
+                // 统一卡片盒比 4×2 内容高，浅灰衬底把上下留白变成"卡纸"而不是空白
+                showThumbnailBackground = true,
                 nameColor = { isPro, isSelected ->
                     if (isSelected || !isPro) accentBlue else textGray
                 },
                 contentScale = ContentScale.Fit,
-                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
+                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
+                onSwipeBack = onSwipeBack
             )
 
             // 2. 萌宠风格（位于经典与明信片之间）
@@ -80,11 +90,14 @@ internal fun StylePresetCard(
                     preset.presetId != null && preset.presetId == selectedStyle.presetId
                 },
                 showSelectionBorder = true,
+                // 统一卡片盒比 4×2 内容高，浅灰衬底把上下留白变成"卡纸"而不是空白
+                showThumbnailBackground = true,
                 nameColor = { isPro, isSelected ->
                     if (isSelected || !isPro) accentBlue else textGray
                 },
                 contentScale = ContentScale.Fit,
-                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
+                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
+                onSwipeBack = onSwipeBack
             )
 
             // 3. 明信片风格（精选卡片插画）
@@ -101,7 +114,8 @@ internal fun StylePresetCard(
                 selectedReminderId = selectedReminderId,
                 onSelectPreset = onSelectPreset,
                 onStyleStateChange = onStyleStateChange,
-                onStyleChange = onStyleChange
+                onStyleChange = onStyleChange,
+                onSwipeBack = onSwipeBack
             )
         }
     }

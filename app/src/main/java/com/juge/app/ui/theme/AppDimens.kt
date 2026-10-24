@@ -12,7 +12,12 @@ import androidx.compose.ui.unit.dp
 object AppShape {
     val card = RoundedCornerShape(16.dp)
     val button = RoundedCornerShape(12.dp)
-    val chip = RoundedCornerShape(10.dp)
+
+    /** 胶囊选项（筛选 chip、勾选 chip）：统一全胶囊，与 AppShape.pill 同一圆角语言 */
+    val chip = RoundedCornerShape(percent = 50)
+
+    /** 方形缩略色块/小卡片的圆角（胶囊化后仍需直角变体的场景） */
+    val swatch = RoundedCornerShape(10.dp)
     val thumbnail = RoundedCornerShape(10.dp)
     val badge = RoundedCornerShape(6.dp)
     val dialog = RoundedCornerShape(20.dp)
@@ -25,8 +30,8 @@ object AppShape {
 }
 
 object AppSpacing {
-    /** 页面左右安全边距 */
-    val screen = 16.dp
+    /** 页面左右安全边距：与顶栏一致，对齐 iOS layoutMargins（20pt） */
+    val screen = 20.dp
 
     /** 卡片内边距 */
     val cardPadding = 16.dp
@@ -35,7 +40,7 @@ object AppSpacing {
     val sectionGap = 16.dp
 
     /** 区块内控件之间的间距 */
-    val itemGap = 10.dp
+    val itemGap = 12.dp
 
     /** 区块内需要呼吸感的行间距 */
     val controlGap = 12.dp
@@ -44,5 +49,5 @@ object AppSpacing {
     val tight = 4.dp
 
     /** 图标与文字之间的标准间距 */
-    val iconGap = 6.dp
+    val iconGap = 8.dp
 }

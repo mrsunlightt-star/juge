@@ -5,8 +5,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppTextButton
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
@@ -43,11 +45,10 @@ internal fun WidgetSizeHintDialog(hint: WidgetSizeHint, onDismiss: () -> Unit) {
         containerColor = cardBg,
         title = { AppDialogTitle("建议调整桌面组件尺寸") },
         text = {
-            Text(
+            AppText(
                 text = "当前桌面组件是 ${hint.current}，「${hint.styleName}」的最佳显示尺寸是 ${hint.target}。\n\n" +
                     "你可以在桌面长按组件，直接拖动边缘把它拉成 ${hint.target}，不需要删除后重新添加。",
-                style = AppType.body,
-                color = textGray
+                role = AppTextRole.bodySecondary
             )
         },
         confirmButton = {

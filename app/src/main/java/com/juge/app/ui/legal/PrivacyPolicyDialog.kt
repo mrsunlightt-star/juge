@@ -1,6 +1,5 @@
 package com.juge.app.ui.legal
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
@@ -22,17 +22,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.data.LegalDocs
+import com.juge.app.ui.AppFormGroup
+import com.juge.app.ui.AppScrollbar
+import com.juge.app.ui.AppFormRow
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppSecondaryButton
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.accentLightBlue
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textTertiary
+import com.juge.app.ui.theme.rememberAppHaptics
 
 /** 弹窗里可点开的三份文件；[key] 与 [LegalDocs] 的取文对应 */
 private data class LegalEntry(val key: String, val label: String, val icon: ImageVector)
@@ -40,7 +48,7 @@ private data class LegalEntry(val key: String, val label: String, val icon: Imag
 private val LEGAL_ENTRIES = listOf(
     LegalEntry("user", "《用户协议》", Icons.AutoMirrored.Filled.MenuBook),
     LegalEntry("privacy", "《隐私政策》", Icons.Filled.PrivacyTip),
-    LegalEntry("license", "《开源许可》", Icons.Filled.Code),
+    LegalEntry("license", "《字体许可》", Icons.Filled.Code),
 )
 
 /**
@@ -71,10 +79,14 @@ private val SUMMARY_ITEMS = listOf(
 fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
     // 当前展开的协议全文：null / "user" / "privacy"
     var openDoc by remember { mutableStateOf<String?>(null) }
+    val haptics = rememberAppHaptics()
 
-    // 摘要滚动区的上限跟着屏幕高度走：写死 300dp 时，小屏叠上系统放大字号会把
-    // 下面两个按钮顶出屏幕，而按钮恰恰是这个弹窗唯一不能藏起来的东西。
-    val summaryMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.32f).dp
+    // 弹窗整体瘦身：标题与按钮固定，中间内容（简介 + 协议入口 + 摘要 + 备案信息）
+    // 合并成一个限高滚动区，滚动上限约为屏幕 45%——全文可完整读（合规要求），
+    // 但弹窗不再撑到接近全屏。用比例而不是写死 dp：小屏叠上系统放大字号也不会
+    // 把按钮顶出屏幕，按钮恰恰是这个弹窗唯一不能藏起来的东西。
+    val contentMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.45f).dp
+    val scrollState = rememberScrollState()
 
     Dialog(
         onDismissRequest = {},
@@ -92,10 +104,16 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 420.dp)
-                .padding(vertical = 16.dp),
+                .padding(vertical = 16.dp)
+                .shadow(
+                    elevation = AppShadows.dialog,
+                    shape = AppShape.dialog,
+                    clip = false,
+                    ambientColor = AppShadows.ambientShadow,
+                    spotColor = AppShadows.spotShadow,
+                ),
             shape = AppShape.dialog,
             colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = BorderStroke(1.dp, borderBlue)
         ) {
             Column(
                 modifier = Modifier
@@ -107,95 +125,92 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                Text(
-                    text = "感谢您使用《句阁》！我们非常重视您的隐私与个人信息保护。在您使用本应用的服务（包括金句展示、自定义背景与桌面组件刷新等）之前，请仔细阅读以下协议：",
-                    style = AppType.body,
-                    color = textGray
-                )
+                // 中间滚动区：简介、协议入口、摘要、备案信息一起滚。
+                // 滚动条是独立覆盖层（AppScrollbar）：不随内容滚动、不压文字，
+                // 右缘 24dp 触摸带可直接按住拖动滚动内容。
+                Box(modifier = Modifier.heightIn(max = contentMaxHeight)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .padding(end = 14.dp)
+                    ) {
+                    AppText(
+                        text = "感谢您使用《句阁》！我们非常重视您的隐私与个人信息保护。在您使用本应用的服务（包括金句展示、自定义背景与桌面组件刷新等）之前，请仔细阅读以下协议：",
+                        role = AppTextRole.bodySecondary
+                    )
 
-                // 协议全文入口：合规要求条款必须能在应用内完整查阅。
-                // 竖排成清单而不是一行并排三个——并排时三个书名号挤在一起像小标题，
-                // 看不出可以点开；整行可点 + 右侧箭头是「还有下一层」的通用写法。
+                // 摘要逐条成列，序号独占一条对齐栏
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .border(1.dp, borderBlue, AppShape.button)
+                        .padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    LEGAL_ENTRIES.forEachIndexed { index, entry ->
-                        if (index > 0) {
-                            HorizontalDivider(color = borderBlue)
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { openDoc = entry.key }
-                                .padding(horizontal = 12.dp, vertical = 15.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = entry.icon,
-                                contentDescription = null,
-                                tint = accentLightBlue,
-                                modifier = Modifier.size(18.dp)
+                    SUMMARY_ITEMS.forEachIndexed { index, item ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            AppText(
+                                text = "${index + 1}.",
+                                role = AppTextRole.bodySecondary,
+                                modifier = Modifier.width(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = entry.label,
-                                style = AppType.body,
-                                color = textPrimary,
+                            AppText(
+                                text = item,
+                                role = AppTextRole.bodySecondary,
                                 modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = textTertiary,
-                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
 
-                // 摘要在小屏或系统放大字号下可能超高，做成可滚动区域，
-                // 保证「同意 / 不同意」两个按钮始终留在屏内
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .heightIn(max = summaryMaxHeight)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    SUMMARY_ITEMS.forEachIndexed { index, item ->
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "${index + 1}.",
-                                style = AppType.body,
-                                color = textGray,
-                                modifier = Modifier.width(20.dp)
+                    // 协议全文入口：合规要求条款必须能在应用内完整查阅。
+                // 竖排成清单而不是一行并排三个——并排时三个书名号挤在一起像小标题，
+                // 看不出可以点开；整行可点 + 右侧箭头是「还有下一层」的通用写法。
+                // iOS 分组列表：图标 + 标签 + 右箭头，行分隔线由 AppFormRow 画
+                AppFormGroup(modifier = Modifier.padding(top = 16.dp)) {
+                    LEGAL_ENTRIES.forEachIndexed { index, entry ->
+                        AppFormRow(
+                            label = entry.label,
+                            showDivider = index < LEGAL_ENTRIES.lastIndex,
+                            onClick = { openDoc = entry.key },
+                        ) {
+                            Icon(
+                                imageVector = entry.icon,
+                                contentDescription = null,
+                                tint = accentBlue,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                text = item,
-                                style = AppType.body,
-                                color = textGray,
-                                modifier = Modifier.weight(1f)
+                            Spacer(modifier = Modifier.width(AppSpacing.iconGap))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = textTertiary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
 
                 // 三行分开写：挤成一段自动折行时，备案号会被从中间断开
-                Text(
-                    text = "运营主体：${LegalDocs.ENTITY}\n" +
-                        "备案号：${LegalDocs.ICP_LICENSE}\n" +
-                        "如有疑问或需注销账号，请联系 ${LegalDocs.EMAIL}",
-                    style = AppType.micro,
-                    color = textTertiary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 16.dp)
-                )
+                    AppText(
+                        text = "运营主体：${LegalDocs.ENTITY}\n" +
+                            "备案号：${LegalDocs.ICP_LICENSE}\n" +
+                            "如有疑问或需注销账号，请联系 ${LegalDocs.EMAIL}",
+                        role = AppTextRole.micro,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 16.dp)
+                    )
+                }
+                    AppScrollbar(
+                        state = scrollState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(top = 4.dp, bottom = 4.dp),
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

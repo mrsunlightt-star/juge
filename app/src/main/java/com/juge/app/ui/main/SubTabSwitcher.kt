@@ -1,7 +1,7 @@
 package com.juge.app.ui.main
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -28,11 +28,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.juge.app.ui.AppText
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.cardBg
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
@@ -48,6 +51,7 @@ fun SubTabSwitcher(
     pagerState: PagerState,
     onSelectTab: (Int) -> Unit
 ) {
+    val haptics = rememberAppHaptics()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -64,14 +68,15 @@ fun SubTabSwitcher(
         val selectedOffset = 3.dp + indicatorWidth * position
 
         // 视觉底板：42dp 高，居中；上下各 3dp 留给触控热区。
-        // 底板色比面板只浅一档（#F1F5F9 vs #EEF2F7），不描边就整个糊在面板上，
-        // 分段控制器只剩一颗蓝色滑块在浮着；1dp 边框把它重新做成一个有边的凹槽。
+        // 整条控制是一颗**完整的白色胶囊**（iOS 分段控制同款）：蓝色滑块坐在里面，
+        // 两个页签不再各自画胶囊——两颗相邻圆角胶囊在接缝处必然留下楔形缝隙
+        // （用户反馈的「上下两个白色三角形」），单轨道从结构上消灭这个问题；
+        // 白色轨道本身也提供了「这是一个控件」的实体感。
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 3.dp)
-                .background(surfaceSubtle, AppShape.button)
-                .border(1.dp, borderBlue, AppShape.button)
+                .background(cardBg, AppShape.pill)
         )
 
         // 背景滑块：36dp 高，落在底板内侧
@@ -80,7 +85,13 @@ fun SubTabSwitcher(
                 .offset(x = selectedOffset, y = 6.dp)
                 .width(indicatorWidth)
                 .height(36.dp)
-                .shadow(2.dp, AppShape.chip)
+                .shadow(
+                    elevation = AppShadows.control,
+                    shape = AppShape.chip,
+                    clip = false,
+                    ambientColor = AppShadows.ambientShadow,
+                    spotColor = AppShadows.spotShadow,
+                )
                 .background(selectBlue, AppShape.chip)
         )
 
@@ -104,7 +115,14 @@ fun SubTabSwitcher(
                         .fillMaxHeight()
                         .selectable(
                             selected = pagerState.currentPage == index,
-                            onClick = { onSelectTab(index) },
+                            // 不画 Material 波纹：全宽 selectable 的矩形波纹与胶囊滑块割裂，
+                            // 触感反馈（haptics.tap）+ 滑块弹簧位移就是按下反馈（iOS 分段控制同款）。
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                            onClick = {
+                                if (pagerState.currentPage != index) haptics.tap()
+                                onSelectTab(index)
+                            },
                             role = Role.Tab,
                         ),
                     contentAlignment = Alignment.Center
@@ -114,12 +132,12 @@ fun SubTabSwitcher(
                             imageVector = icon,
                             contentDescription = null,
                             tint = tabTint,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(
+                        AppText(
                             text = label,
-                            style = AppType.chip.copy(fontWeight = FontWeight.Bold),
+                            role = AppTextRole.chip,
                             color = tabTint,
                             maxLines = 1
                         )

@@ -1,11 +1,10 @@
 package com.juge.app.ui.main
 
 import android.content.Context
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -13,14 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -39,15 +38,21 @@ import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetStyle
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.AppText
 import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.requiresProForDesktop
 import com.juge.app.ui.adjust.AdjustTabContent
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.darkBg
-import com.juge.app.ui.theme.sheetBorder
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeInputScale
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.hazeEffect
 import com.juge.app.ui.theme.sheetHandle
 import java.io.File
 import kotlin.math.roundToInt
@@ -56,7 +61,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalHazeApi::class
+)
 @Composable
 fun MainAppScreen(
     dbHelper: DbHelper,
@@ -444,7 +452,18 @@ fun MainAppScreen(
         WidgetSizeHintDialog(hint) { sizeHint = null }
     }
 
-    MainScreenBackground(heroHeight = heroHeight) {
+    // 抽屉毛玻璃：背景源在 MainScreenBackground（极光/海滩图），
+    // 面板本体在这里做实时模糊采样。
+    val hazeState = remember { HazeState() }
+    // 软件渲染下 Haze 会退回 RenderScript，而 Robolectric 的软件画布拿不到输入 Surface（NPE）。
+    // 测试环境没有真实模糊能力，直接关掉 blur、走 Haze 自带的 tint 回退。
+    val composeView = LocalView.current
+    SideEffect {
+        hazeState.blurEnabled =
+            composeView.isHardwareAccelerated && Build.FINGERPRINT != "robolectric"
+    }
+
+    MainScreenBackground(heroHeight = heroHeight, hazeState = hazeState) {
         MainTopBar(
             isActivated = isActivatedState,
             dbHelper = dbHelper,
@@ -476,9 +495,9 @@ fun MainAppScreen(
                 .padding(vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
+            AppText(
                 text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
-                style = AppType.label,
+                role = AppTextRole.label,
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
@@ -491,48 +510,49 @@ fun MainAppScreen(
 
         // 下 2/3 面板容器 (苹果风格大抽屉)
         Card(
+            colors = CardDefaults.cardColors(
+                // 面板本体透明，材质（白色半透明底 + 背景实时模糊）由 hazeEffect 绘制
+                containerColor = Color.Transparent
+            ),
+            shape = AppShape.sheet,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                // 先裁剪再模糊：haze 的模糊层默认是矩形，不裁的话会从抽屉圆角
+                // 外面露出一圈方角（用户反馈的「矩形渲染层」）
+                .clip(AppShape.sheet)
+                .hazeEffect(
+                    state = hazeState,
+                    // 白 45% tint（比 HazeMaterials.thin 的 60% 更透一档，用户确认）：
+                    // 面板顶边透出模糊的海滩图带，玻璃质感由它提供；噪点保持 0
+                    style = HazeStyle(
+                        backgroundColor = Color.White,
+                        tint = HazeTint(Color.White.copy(alpha = 0.45f)),
+                        blurRadius = 24.dp,
+                        noiseFactor = 0f,
+                    ),
+                ) {
+                    // 模糊输入按 0.5× 采样：模糊前的像素量降到 1/4，Haze 会把模糊半径
+                    // 按同一比例换算，观感基本不变。抽屉是静态毛玻璃，不值得为它全分辨率采样。
+                    inputScale = HazeInputScale.Fixed(0.5f)
+                    // 模糊层的边缘默认是矩形：不指定形状的话，磨砂会从抽屉圆角
+                    // 外面露出方形的一块（用户反馈的「矩形渲染」）。与抽屉同圆角。
+                    blurredEdgeTreatment = BlurredEdgeTreatment(AppShape.sheet)
+                }
                 .onGloballyPositioned { coordinates ->
                     // 取抽屉上沿的绝对位置交给背景图收边；只在变化时写回，避免无谓重组
                     val top = coordinates.positionInRoot().y.roundToInt()
                     if (top != drawerTopPx) drawerTopPx = top
                 },
-            colors = CardDefaults.cardColors(
-                containerColor = darkBg
-            ),
-            border = BorderStroke(1.dp, sheetBorder),
-            shape = AppShape.sheet,
-            // 8dp：面板变成亮面后，上沿需要一点落影才"抬"得起来。
-            // 更重的投影交给背景图底部的压暗带，不在这里堆 elevation（否则圆角外围会糊出一圈灰雾）
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            // 不给任何 elevation（Card 默认还有 1dp，必须显式归零）：
+            // 用户要求去掉描边、高光、落影，面板与背景的边界只由毛玻璃 tint 区分
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            // 顶缘内高光：沿圆角画一条 1.5dp 白线，约 32dp 内淡出到透明。
-            // 只提亮"唇口"，不画成一圈双描边——左右和底边贴着屏幕边缘，再描一圈只会显得发胀。
-            // 必须往里缩 1dp：Modifier.border 是 drawContent() 之后再画边框，
-            // Card 自己的 1dp 描边压在所有子内容之上，子级画在同位置的线根本看不见。
-            // 缩进后正好形成"深灰外描边 + 白色内唇线"的两层边。
-            // 唇线只比面板亮 6%（#FFF vs #EEF2F7），1dp 在真机上几乎看不出来，所以
-            // 加宽到 1.5dp，并在它下方压一道 4% 的极轻内阴影，让"卷边"有明暗支撑。
-            val sheetHighlight = Brush.verticalGradient(
-                colors = listOf(Color.White.copy(alpha = 0.95f), Color.Transparent),
-                startY = 0f,
-                endY = with(LocalDensity.current) { 32.dp.toPx() }
-            )
+            // 顶缘不画白色「唇线」高光，也不画深灰外描边与落影（用户要求去掉），
+            // 原先托住唇线的 4% 内阴影一并移除。
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(1.dp)
-                    .drawBehind {
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.04f),
-                                24.dp.toPx() to Color.Transparent
-                            )
-                        )
-                    }
-                    .border(1.5.dp, sheetHighlight, AppShape.sheet)
                     .padding(top = 7.dp)
             ) {
                 Box(
@@ -614,6 +634,10 @@ fun MainAppScreen(
                                 onApplyToDesktop(wId, rId, text, newStyle)
                             },
                             onOpenDoc = { showLegalDoc = it },
+                            // 风格行内右滑直接翻回「跃然纸上」，不再等横滑行回卷到头
+                            onSwipeBack = {
+                                scope.launch { subTabPagerState.animateScrollToPage(0) }
+                            },
                             initiallyTutorialExpanded = startTutorialExpanded
                         )
                     }

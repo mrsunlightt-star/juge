@@ -2,6 +2,7 @@ package com.juge.app.ui.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,8 +31,12 @@ import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppSectionLabel
+import com.juge.app.ui.AppFormGroup
+import com.juge.app.ui.AppFormRow
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.appTextFieldColors
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -42,6 +45,7 @@ import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textTertiary
 import com.juge.app.ui.theme.textWhite
+import com.juge.app.ui.theme.rememberAppHaptics
 
 /** 新建分类目录弹窗。分类名由调用方持有，避免弹窗自己再持有一份状态。 */
 @Composable
@@ -61,10 +65,9 @@ internal fun AddCategoryDialog(
                 value = name,
                 onValueChange = onNameChange,
                 placeholder = {
-                    Text(
+                    AppText(
                         text = "输入分类名称，如“电影”",
-                        style = AppType.body,
-                        color = textTertiary
+                        role = AppTextRole.bodyTertiary
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -106,6 +109,7 @@ internal fun AddReminderDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface(scrollable = true) {
+            val haptics = rememberAppHaptics()
             AppDialogTitle("新增记录到句阁")
 
             // 放大文本输入框，设定固定高度以显示更多内容
@@ -138,21 +142,26 @@ internal fun AddReminderDialog(
                 Box(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
-                        .clickable(onClick = onRequestNewCategory),
+                        .clickable(
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                        ) {
+                            haptics.click()
+                            onRequestNewCategory()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "+ 新建目录", style = AppType.link, color = accentBlue)
+                    AppText(text = "+ 新建目录", role = AppTextRole.link)
                 }
             }
 
-            // 压缩单选行高的归类列表
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                categories.forEach { cat ->
-                    CategoryRadioRow(
-                        name = cat.name,
+            // iOS 分组列表：标签左、选中行右侧打勾，整行可点
+            AppFormGroup {
+                categories.forEachIndexed { index, cat ->
+                    AppFormRow(
+                        label = cat.name,
                         selected = selectedCategory?.id == cat.id,
+                        showDivider = index < categories.lastIndex,
                         onClick = { onSelectCategory(cat) }
                     )
                 }
@@ -194,6 +203,7 @@ internal fun EditReminderDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface(scrollable = true) {
+            val haptics = rememberAppHaptics()
             AppDialogTitle("编辑金句内容")
 
             // 放大文本输入框
@@ -220,21 +230,26 @@ internal fun EditReminderDialog(
                 Box(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
-                        .clickable(onClick = onRequestNewCategory),
+                        .clickable(
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                        ) {
+                            haptics.click()
+                            onRequestNewCategory()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(text = "+ 新建目录", style = AppType.link, color = accentBlue)
                 }
             }
 
-            // 压缩间距的分类列表
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                categories.forEach { cat ->
-                    CategoryRadioRow(
-                        name = cat.name,
+            // iOS 分组列表：标签左、选中行右侧打勾，整行可点
+            AppFormGroup {
+                categories.forEachIndexed { index, cat ->
+                    AppFormRow(
+                        label = cat.name,
                         selected = selectedCategory?.id == cat.id,
+                        showDivider = index < categories.lastIndex,
                         onClick = { onSelectCategory(cat) }
                     )
                 }
@@ -259,36 +274,6 @@ internal fun EditReminderDialog(
     }
 }
 
-/** 分类单选行：选中态用极浅蓝色底，不再让每行自己的圆角与配色漂移 */
-@Composable
-private fun CategoryRadioRow(
-    name: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppShape.chip)
-            .clickable(onClick = onClick)
-            .background(if (selected) selectBlue.copy(alpha = 0.12f) else Color.Transparent)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 不覆写尺寸：Material3 RadioButton 自带 48dp 触控热区，24dp 只是视觉圆点
-        RadioButton(
-            selected = selected,
-            onClick = onClick,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = selectBlue,
-                unselectedColor = textTertiary
-            )
-        )
-        Spacer(modifier = Modifier.width(AppSpacing.iconGap))
-        Text(text = name, style = AppType.body, color = textWhite)
-    }
-}
-
 /** 二次确认删除单条金句：删除不可恢复，且卡片上还有编辑按钮，必须防误触。 */
 @Composable
 internal fun DeleteReminderDialog(
@@ -302,10 +287,9 @@ internal fun DeleteReminderDialog(
     ) {
         AppDialogSurface {
             AppDialogTitle("删除这条金句？")
-            Text(
+            AppText(
                 text = "「${reminder.content}」删除后无法恢复。",
-                style = AppType.body,
-                color = textGray,
+                role = AppTextRole.bodySecondary,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )

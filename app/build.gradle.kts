@@ -12,7 +12,7 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.juge.app"
-    compileSdk = 35
+    compileSdk = 37
 
     signingConfigs {
         create("release") {
@@ -74,6 +74,8 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.exifinterface)
     implementation(libs.coil.compose)
+    implementation(libs.haze)
+    implementation(libs.haze.materials)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.timber)
     implementation(libs.alipay.sdk)

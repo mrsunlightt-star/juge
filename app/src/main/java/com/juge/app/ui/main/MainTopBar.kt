@@ -47,12 +47,14 @@ import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.brandInkSoft
 import com.juge.app.ui.theme.premiumGold
 import com.juge.app.ui.theme.premiumGoldEnd
 import com.juge.app.ui.theme.premiumGoldInk
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +85,7 @@ fun MainTopBar(
     onOpenPro: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
     var isRefreshing by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -117,6 +120,7 @@ fun MainTopBar(
                         onClickLabel = "刷新数据",
                         role = Role.Button,
                     ) {
+                        haptics.click()
                         isRefreshing = true
                         scope.launch {
                             try {
@@ -142,14 +146,20 @@ fun MainTopBar(
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .shadow(2.dp, CircleShape)
+                        .shadow(
+                            elevation = AppShadows.control,
+                            shape = CircleShape,
+                            clip = false,
+                            ambientColor = AppShadows.ambientShadow,
+                            spotColor = AppShadows.spotShadow,
+                        )
                         .background(Color.White, CircleShape)
                         .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(20.dp),
                             color = brandInkSoft,
                             strokeWidth = 2.dp
                         )
@@ -158,7 +168,7 @@ fun MainTopBar(
                             Icons.Default.Refresh,
                             contentDescription = "刷新数据",
                             tint = brandInkSoft,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -180,7 +190,10 @@ fun MainTopBar(
                     .clickable(
                         onClickLabel = "打开 PRO 激活",
                         role = Role.Button,
-                    ) { onOpenPro() },
+                    ) {
+                        haptics.click()
+                        onOpenPro()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Row(

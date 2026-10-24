@@ -12,6 +12,10 @@ import androidx.compose.ui.unit.sp
  * 会让标题、正文和按钮看起来不是一套。这里只定义**层级**，颜色由调用方按语义指定
  * （标题用 accentBlue、正文用 textWhite/textGray、辅助说明用 textTertiary）。
  *
+ * 字重原则：**层级靠字号与颜色拉开，不靠加粗**。全粗只留给一屏最大的品牌标题；
+ * 其余层级从 Bold 降到 SemiBold（中文粗体渲染偏重，Bold 到处用会显得「用力」，
+ * 「不用力」恰是质感的一部分）。
+ *
  * App UI 统一使用系统中文无衬线字体；`assets/fonts` 下的 7 款字体只服务于桌面上
  * 用户可选的组件正文，不参与应用界面排版。
  */
@@ -36,7 +40,7 @@ object AppType {
     val hero = TextStyle(
         fontSize = 20.sp,
         lineHeight = 26.sp,
-        fontWeight = FontWeight.ExtraBold,
+        fontWeight = FontWeight.Bold,
         letterSpacing = (-0.2).sp,
     )
 
@@ -44,21 +48,21 @@ object AppType {
     val dialogTitle = TextStyle(
         fontSize = 18.sp,
         lineHeight = 24.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
     )
 
     /** 卡片/区块内的小标题（非 accent 色场景） */
     val title = TextStyle(
         fontSize = 16.sp,
         lineHeight = 22.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
     )
 
-    /** 定制页各区块标题：14sp 加粗，配 accentBlue，和 13sp 正文拉开层级 */
+    /** 定制页各区块标题：14sp 半粗，配 accentBlue，和 13sp 正文拉开层级 */
     val sectionTitle = TextStyle(
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.1.sp,
     )
 
@@ -66,27 +70,27 @@ object AppType {
     val label = TextStyle(
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.1.sp,
     )
 
-    /** 标准正文与说明文字 */
+    /** 标准正文与说明文字：iOS body 17pt 与 Material bodyMedium 14sp 之间的平衡点 */
     val body = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
         fontWeight = FontWeight.Normal,
     )
 
     val bodyStrong = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
         fontWeight = FontWeight.SemiBold,
     )
 
-    /** 金句正文：比界面正文大一档，行距更松 */
+    /** 金句正文：界面正文的阅读档，行距更松 */
     val bodyLarge = TextStyle(
-        fontSize = 15.sp,
-        lineHeight = 23.sp,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
         fontWeight = FontWeight.Normal,
     )
 
@@ -106,9 +110,9 @@ object AppType {
 
     /** 角标：免费 / PRO / 分类标签 */
     val badge = TextStyle(
-        fontSize = 10.sp,
-        lineHeight = 12.sp,
-        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.2.sp,
     )
 
@@ -116,20 +120,20 @@ object AppType {
     val button = TextStyle(
         fontSize = 14.sp,
         lineHeight = 18.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
     )
 
     /** 胶囊按钮、页签文字 */
     val chip = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
         fontWeight = FontWeight.Medium,
     )
 
     /** 文字链接、TextButton */
     val link = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
         fontWeight = FontWeight.Medium,
     )
 }

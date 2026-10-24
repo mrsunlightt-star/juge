@@ -23,7 +23,7 @@ private val DarkColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = accentBlue,
-    secondary = accentLightBlue,
+    secondary = accentFillStrong,
     tertiary = Color(0xFF047857),
     background = surfaceMuted,
     surface = cardBg,

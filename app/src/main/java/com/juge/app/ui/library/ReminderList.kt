@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -42,12 +42,15 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
+import com.juge.app.ui.AppText
 import com.juge.app.ui.legal.LegalFooter
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
@@ -68,6 +71,7 @@ internal fun ReminderList(
 ) {
     // 只给初次出现的前几条或后来新增到顶部的条目播放一次进场动画；普通滚动不反复动画。
     val animatedReminderIds = remember { mutableSetOf<Long>() }
+    val haptics = rememberAppHaptics()
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -98,11 +102,18 @@ internal fun ReminderList(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .shadow(
+                                elevation = AppShadows.card,
+                                shape = AppShape.card,
+                                clip = false,
+                                ambientColor = AppShadows.ambientShadow,
+                                spotColor = AppShadows.spotShadow,
+                            )
                             .clickable {
+                                haptics.tap()
                                 onReminderClick(reminder)
                             },
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, borderBlue),
                         shape = AppShape.card,
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
@@ -118,10 +129,9 @@ internal fun ReminderList(
                                     shape = AppShape.badge,
                                     color = selectBlue
                                 ) {
-                                    Text(
+                                    AppText(
                                         text = catName,
-                                        style = AppType.badge,
-                                        color = Color.White,
+                                        role = AppTextRole.badgeOnFill,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -148,10 +158,9 @@ internal fun ReminderList(
                                 }
                             }
                             Spacer(modifier = Modifier.height(AppSpacing.itemGap))
-                            Text(
+                            AppText(
                                 text = reminder.content,
-                                style = AppType.bodyLarge,
-                                color = textPrimary
+                                role = AppTextRole.bodyLarge
                             )
                         }
                     }
@@ -163,7 +172,7 @@ internal fun ReminderList(
             Spacer(modifier = Modifier.height(80.dp))
         }
         item {
-            // 页脚放在按钮上方：滚到底时《开源许可》不会被浮动按钮遮住
+            // 页脚放在按钮上方：滚到底时《字体许可》不会被浮动按钮遮住
             LegalFooter(onOpenDoc)
         }
         item {
@@ -189,20 +198,18 @@ private fun EmptyReminderState(hasCategories: Boolean) {
             modifier = Modifier.size(34.dp)
         )
         Spacer(modifier = Modifier.height(AppSpacing.itemGap))
-        Text(
+        AppText(
             text = if (hasCategories) "这里还没有金句" else "还没有分类目录",
-            style = AppType.bodyStrong,
-            color = textPrimary
+            role = AppTextRole.bodyStrong
         )
         Spacer(modifier = Modifier.height(AppSpacing.tight))
-        Text(
+        AppText(
             text = if (hasCategories) {
                 "点击右下角「录入新句」，把喜欢的句子收进来。"
             } else {
                 "先到「分类管理」建一个目录，再录入第一句。"
             },
-            style = AppType.body,
-            color = textSecondary,
+            role = AppTextRole.bodySecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
@@ -223,7 +230,11 @@ private fun CardActionButton(
     background: Color,
     onClick: () -> Unit
 ) {
-    IconButton(onClick = onClick) {
+    val haptics = rememberAppHaptics()
+    IconButton(onClick = {
+        haptics.click()
+        onClick()
+    }) {
         Box(
             modifier = Modifier
                 .size(34.dp)

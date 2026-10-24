@@ -37,6 +37,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.R
 import com.juge.app.data.Category
+import com.juge.app.ui.AppFormGroup
+import com.juge.app.ui.AppFormRow
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDangerButton
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
@@ -44,6 +47,7 @@ import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.appTextFieldColors
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -84,118 +88,107 @@ internal fun CategoryManagerDialog(
 
             AppDivider()
 
-            // 分类项列表 (支持滑动，高度自适应)
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(categories.size) { index ->
-                    val cat = categories[index]
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(surfaceSubtle, AppShape.chip)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = cat.name,
-                            style = AppType.body,
-                            color = textPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
+            // 分类项列表 (支持滑动，高度自适应)：iOS 分组卡 + 行分隔线
+            AppFormGroup {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                ) {
+                    items(categories.size) { index ->
+                        val cat = categories[index]
+                        AppFormRow(
+                            label = cat.name,
+                            showDivider = index < categories.lastIndex,
+                            trailing = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        IconButton(
+                            onClick = {
+                                if (index > 0) {
+                                    val prevCat = categories[index - 1]
+                                    onSwapOrder(cat.id, cat.sortOrder, prevCat.id, prevCat.sortOrder)
+                                }
+                            },
+                            enabled = index > 0
                         ) {
-                            // 排序：上移按钮
-                            IconButton(
-                                onClick = {
-                                    if (index > 0) {
-                                        val prevCat = categories[index - 1]
-                                        onSwapOrder(cat.id, cat.sortOrder, prevCat.id, prevCat.sortOrder)
-                                    }
-                                },
-                                enabled = index > 0
-                            ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = "上移分类",
+                                tint = if (index > 0) textPrimary else disabledGray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // 排序：下移按钮
+                        IconButton(
+                            onClick = {
+                                if (index < categories.size - 1) {
+                                    val nextCat = categories[index + 1]
+                                    onSwapOrder(cat.id, cat.sortOrder, nextCat.id, nextCat.sortOrder)
+                                }
+                            },
+                            enabled = index < categories.size - 1
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "下移分类",
+                                tint = if (index < categories.size - 1) textPrimary else disabledGray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // 重命名/删除收进溢出菜单：4 颗 28dp 按钮并排既挤又容易误触
+                        Box {
+                            var menuExpanded by remember { mutableStateOf(false) }
+                            IconButton(onClick = { menuExpanded = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.KeyboardArrowUp,
-                                    contentDescription = "上移分类",
-                                    tint = if (index > 0) textPrimary else disabledGray,
-                                    modifier = Modifier.size(18.dp)
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "更多分类操作",
+                                    tint = textPrimary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
-
-                            // 排序：下移按钮
-                            IconButton(
-                                onClick = {
-                                    if (index < categories.size - 1) {
-                                        val nextCat = categories[index + 1]
-                                        onSwapOrder(cat.id, cat.sortOrder, nextCat.id, nextCat.sortOrder)
-                                    }
-                                },
-                                enabled = index < categories.size - 1
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "下移分类",
-                                    tint = if (index < categories.size - 1) textPrimary else disabledGray,
-                                    modifier = Modifier.size(18.dp)
+                                DropdownMenuItem(
+                                    text = { Text("重命名", style = AppType.body) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_symbol_edit_square),
+                                            contentDescription = null,
+                                            tint = accentBlue,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onRenameRequest(cat)
+                                    }
                                 )
-                            }
-
-                            // 重命名/删除收进溢出菜单：4 颗 28dp 按钮并排既挤又容易误触
-                            Box {
-                                var menuExpanded by remember { mutableStateOf(false) }
-                                IconButton(onClick = { menuExpanded = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "更多分类操作",
-                                        tint = textPrimary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = menuExpanded,
-                                    onDismissRequest = { menuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("重命名", style = AppType.body) },
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_symbol_edit_square),
-                                                contentDescription = null,
-                                                tint = accentBlue,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            menuExpanded = false
-                                            onRenameRequest(cat)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("删除", style = AppType.body, color = dangerRed) },
-                                        leadingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_symbol_delete),
-                                                contentDescription = null,
-                                                tint = dangerRed,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            menuExpanded = false
-                                            onDeleteRequest(cat)
-                                        }
-                                    )
-                                }
+                                DropdownMenuItem(
+                                    text = { AppText("删除", role = AppTextRole.body, color = dangerRed) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_symbol_delete),
+                                            contentDescription = null,
+                                            tint = dangerRed,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onDeleteRequest(cat)
+                                    }
+                                )
                             }
                         }
+                    
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -207,7 +200,7 @@ internal fun CategoryManagerDialog(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)
             ) {
                 OutlinedTextField(
                     value = inlineNewCatName,

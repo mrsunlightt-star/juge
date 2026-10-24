@@ -20,14 +20,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -37,26 +35,30 @@ import coil.compose.AsyncImage
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.AppText
+import com.juge.app.ui.PresetThumbnailBox
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.pageBackAtRowStart
+import com.juge.app.ui.presetThumbnailSize
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textSecondary
+import com.juge.app.ui.theme.rememberAppHaptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** 行内每个条目的缩略图尺寸：三类缩略图统一长宽，一行内不会宽窄不一 */
-private const val PREVIEW_WIDTH_DP = 150
-private const val PREVIEW_HEIGHT_DP = 80
-
 /**
  * 明信片风格行：首位整幅贴图、代码绘制的大卡、按真实渲染的场景卡、插画素材。
- * 四类缩略图统一 150×80，名称以独立文本显示在缩略图下方。
+ *
+ * 四类缩略图共用 [presetThumbnailSize]：宽度统一、高度按各自的最佳显示尺寸等比，
+ * 4×4 的明信片得到正方形缩略图，不会再被压成扁卡。名称以独立文本显示在缩略图下方。
  */
 @Composable
 internal fun PostcardPresetsRow(
@@ -68,11 +70,14 @@ internal fun PostcardPresetsRow(
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
+    /** 行已到最左端、右滑无内容可再露出时，继续右滑交给外层翻回「跃然纸上」 */
+    onSwipeBack: () -> Unit = {},
     title: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    Column(modifier = modifier) {
+    val scrollState = rememberScrollState()
+    Column(modifier = modifier.pageBackAtRowStart(scrollState, onSwipeBack)) {
         // 行标题与经典/萌宠行同款（13sp / Bold / #64748B，见 PresetRow 的 title 分支）。
         //
         // ⚠️ 行标题**不带**「· 4×4」那类尺寸后缀：每款风格的最佳显示尺寸本就各不相同
@@ -81,14 +86,15 @@ internal fun PostcardPresetsRow(
         // 从 2e9f34b 拆分 AdjustTabContent 起整行标题就丢了，行标题因为搬进了
         // PresetRow(title=) 才活下来（见 StylePresetCard）。
         if (title != null) {
-            Text(title, style = AppType.sectionTitle, color = textGray)
+            AppText(title, role = AppTextRole.sectionTitleNeutral)
             Spacer(modifier = Modifier.height(AppSpacing.itemGap))
         }
         Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .horizontalScroll(scrollState),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
+                // 所有条目共用同一外框，名称自然落在同一条基线上
                 verticalAlignment = Alignment.CenterVertically
             ) {
             // 首位：整幅贴图预设（按产品要求排在明信片行第一个）。
@@ -166,24 +172,29 @@ private fun RenderedPresetItem(
     onApply: (WidgetStyle) -> Unit
 ) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
+    // 缩略图按这款风格自己的最佳显示尺寸取比例（4×2 矮宽、4×4 正方形）
+    val thumbSize = presetThumbnailSize(preset)
     val bitmap by produceState<Bitmap?>(
         // 缓存已在则同帧就有图：滚动回来看不到空白帧。
         // 缓存 key 含尺寸，这里必须与下面 renderThumbnail 传的尺寸一致，否则永远 miss、必然闪一帧
-        initialValue = WidgetCanvasRenderer.cachedThumbnail(PREVIEW_WIDTH_DP, PREVIEW_HEIGHT_DP, preset),
+        initialValue = WidgetCanvasRenderer.cachedThumbnail(
+            thumbSize.width, thumbSize.height, preset
+        ),
         preset, presetName
     ) {
         value = withContext(Dispatchers.Default) {
             try {
                 WidgetCanvasRenderer.renderThumbnail(
                     context = context,
-                    widthDp = PREVIEW_WIDTH_DP,
-                    heightDp = PREVIEW_HEIGHT_DP,
+                    widthDp = thumbSize.width,
+                    heightDp = thumbSize.height,
                     // 缩略图内不写风格名，名称显示在下方标签
                     content = "",
                     style = preset
                 )
             } catch (t: Throwable) {
-                Bitmap.createBitmap(PREVIEW_WIDTH_DP, PREVIEW_HEIGHT_DP, Bitmap.Config.ARGB_8888)
+                Bitmap.createBitmap(thumbSize.width, thumbSize.height, Bitmap.Config.ARGB_8888)
             }
         }
     }
@@ -199,14 +210,18 @@ private fun RenderedPresetItem(
         label = "postcardBorderColor"
     )
     Column(
-        modifier = Modifier.width(PREVIEW_WIDTH_DP.dp),
+        modifier = Modifier.width(PresetThumbnailBox.width.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .width(PREVIEW_WIDTH_DP.dp)
-                .height(PREVIEW_HEIGHT_DP.dp)
+                .width(PresetThumbnailBox.width.dp)
+                .height(PresetThumbnailBox.height.dp)
+                // 盒内等比显示后，横卡上下/方卡左右会有留白，用浅灰衬底当卡纸
+                .clip(AppShape.thumbnail)
+                .background(surfaceSubtle)
                 .clickable {
+                    haptics.tap()
                     val newPresetStyle = preset.copy(
                         backgroundOpacity = selectedStyle.backgroundOpacity,
                         cornerRadiusDp = selectedStyle.cornerRadiusDp
@@ -232,13 +247,12 @@ private fun RenderedPresetItem(
 
             PresetFreeBadge(preset)
         }
-        Text(
+        AppText(
             text = presetName,
-            style = AppType.body,
-            color = textGray,
+            role = AppTextRole.bodySecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp)
+            modifier = Modifier.padding(top = 4.dp)
         )
     }
 }
@@ -252,9 +266,9 @@ private fun BoxScope.PresetFreeBadge(preset: WidgetStyle) {
             .align(Alignment.TopStart)
             .padding(4.dp)
             .background(selectBlue, AppShape.badge)
-            .padding(horizontal = 5.dp, vertical = 1.dp)
+            .padding(horizontal = 4.dp, vertical = 1.dp)
     ) {
-        Text("免费", style = AppType.badge, color = Color.White)
+        AppText("免费", role = AppTextRole.badgeOnFill)
     }
 }
 
@@ -270,6 +284,7 @@ private fun IllustrationPresetItems(
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
 ) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
     WidgetStyle.ILLUSTRATION_PRESETS.forEachIndexed { _, (resName, desc) ->
          val matchingPreset = WidgetStyle.PRESETS.find { it.presetImageResName == resName }
          val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
@@ -287,13 +302,13 @@ private fun IllustrationPresetItems(
         )
 
         Column(
-            modifier = Modifier.width(150.dp),
+            modifier = Modifier.width(PresetThumbnailBox.width.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
         Box(
             modifier = Modifier
-                .width(150.dp)
-                .height(80.dp)
+                .width(PresetThumbnailBox.width.dp)
+                .height(PresetThumbnailBox.height.dp)
                 .clip(AppShape.thumbnail)
                 .background(surfaceSubtle)
                 .border(
@@ -302,6 +317,7 @@ private fun IllustrationPresetItems(
                     shape = AppShape.thumbnail
                 )
                 .clickable {
+                     haptics.tap()
                      // 形状与配色都取自素材预设（不继承上一个风格的底色，见 illustrationStyle 注释），
                      // 圆角与不透明度沿用用户当前设置，与经典/萌宠/明信片行的预设行为一致
                      val newStyle = WidgetStyle.illustrationStyle(resName, selectedStyle).copy(
@@ -318,17 +334,18 @@ private fun IllustrationPresetItems(
                 model = resId,
                 contentDescription = desc,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                error = androidx.compose.ui.graphics.painter.ColorPainter(Color.LightGray)
+                // 盒内等比完整显示：4×4 素材不再为了填满 168×120 的盒子被裁掉上下
+                contentScale = ContentScale.Fit,
+                error = androidx.compose.ui.graphics.painter.ColorPainter(surfaceSubtle)
             )
         }
-        Text(
+        AppText(
             text = desc,
-            style = AppType.body,
-            color = if (isSelected) accentBlue else textGray,
+            role = AppTextRole.body,
+            color = if (isSelected) accentBlue else textSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp)
+            modifier = Modifier.padding(top = 4.dp)
         )
         }
     }

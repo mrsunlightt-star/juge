@@ -38,7 +38,7 @@ LazyRow(
     modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = AppSpacing.screen),
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
     verticalAlignment = Alignment.CenterVertically
 ) {
     item {

@@ -33,8 +33,10 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 
 // --- 子Tab：我的文库内容 ---
@@ -59,6 +61,7 @@ fun LibraryTabContent(
     onOpenDoc: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val haptics = rememberAppHaptics()
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddReminderDialog by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
@@ -117,10 +120,17 @@ fun LibraryTabContent(
                 .align(Alignment.BottomEnd)
                 .padding(24.dp)
                 .height(50.dp)
-                .shadow(6.dp, AppShape.pill)
+                .shadow(
+                    elevation = AppShadows.dialog,
+                    shape = AppShape.pill,
+                    clip = false,
+                    ambientColor = AppShadows.ambientShadow,
+                    spotColor = AppShadows.spotShadow,
+                )
                 .clip(AppShape.pill)
                 .background(selectBlue)
                 .clickable(role = Role.Button) {
+                    haptics.click()
                     if (categories.isEmpty()) {
                         Toast.makeText(context, "请先创建一个分类目录", Toast.LENGTH_SHORT).show()
                     } else {
@@ -128,7 +138,7 @@ fun LibraryTabContent(
                         showAddReminderDialog = true
                     }
                 }
-                .padding(horizontal = 22.dp),
+                .padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

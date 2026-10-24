@@ -13,8 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -24,7 +26,7 @@ import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textTertiary
 
 /**
- * 《用户协议》/《隐私政策》/《开源许可》全文查看器。
+ * 《用户协议》/《隐私政策》/《字体许可》全文查看器。
  * 合规要求：条款必须能在应用内完整查阅，且可随时关闭返回。
  */
 @Composable
@@ -61,7 +63,7 @@ fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
                             Icons.Default.Close,
                             contentDescription = "关闭",
                             tint = textTertiary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -76,10 +78,9 @@ fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Text(
+                    AppText(
                         text = body,
-                        style = AppType.body,
-                        color = textGray
+                        role = AppTextRole.bodySecondary
                     )
                 }
 

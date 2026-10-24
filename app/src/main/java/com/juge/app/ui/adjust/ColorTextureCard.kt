@@ -36,6 +36,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 
 /**
@@ -60,13 +61,13 @@ internal fun ColorTextureCard(
     onBackgroundColorBlocked: () -> Unit
 ) {
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
-        AppSectionHeader(icon = Icons.Filled.Brush, title = "色彩与质感艺术")
+        AppSectionHeader(title = "色彩与质感艺术")
 
         // 4.1. 字体颜色设置
         AppSectionLabel("字体颜色")
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -113,7 +114,7 @@ internal fun ColorTextureCard(
                 // 预设背景色彩
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
@@ -169,19 +170,29 @@ private fun ColorSwatch(
         label = "swatchBorderColor"
     )
     // 视觉仍是 34dp 色块，外层 48dp 补足触控热区；相邻色块的热区不重叠
+    val haptics = rememberAppHaptics()
     Box(
         modifier = Modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-            .clip(AppShape.chip)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .clip(AppShape.swatch)
+            .combinedClickable(
+                onClick = {
+                    haptics.tap()
+                    onClick()
+                },
+                onLongClick = {
+                    haptics.tap()
+                    onLongClick()
+                },
+            ),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
                 .size(34.dp)
-                .clip(AppShape.chip)
+                .clip(AppShape.swatch)
                 .background(Color(color))
-                .border(width = borderWidth, color = borderColor, shape = AppShape.chip)
+                .border(width = borderWidth, color = borderColor, shape = AppShape.swatch)
         )
     }
 }

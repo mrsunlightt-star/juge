@@ -21,10 +21,12 @@ import com.juge.app.ui.AppFilterChip
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
+import com.juge.app.ui.AppText
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.appTextFieldColors
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -43,7 +45,7 @@ internal fun TextStyleCard(
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
 ) {
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
-        AppSectionHeader(icon = Icons.Filled.EditNote, title = "文本内容与字形定制")
+        AppSectionHeader(title = "文本内容与字形定制")
 
         // 金句输入（最多 500 字）
         OutlinedTextField(
@@ -55,10 +57,9 @@ internal fun TextStyleCard(
                 }
             },
             placeholder = {
-                Text(
+                AppText(
                     text = "输入桌面小组件上显示的金句",
-                    style = AppType.body,
-                    color = textTertiary
+                    role = AppTextRole.bodyTertiary
                 )
             },
             modifier = Modifier.fillMaxWidth(),
@@ -114,7 +115,7 @@ internal fun TextStyleCard(
         // 加粗 / 倾斜 / 文字阴影：带勾选框的胶囊选项
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)
         ) {
             CheckChip(
                 checked = selectedStyle.fontBold,

@@ -9,8 +9,10 @@
     </style>
 
     <!-- 冷启动主题。Android 12+ 上由 values-v31 补上系统启动画面的配置
-         （背景取主界面顶部同色、图标透明），退场时与主界面首屏无缝衔接；
-         低版本上它与 Theme.MyApplication 完全一致。 -->
-    <style name="Theme.MyApplication.Starting" parent="Theme.MyApplication" />
+         （品牌浅蓝底 + launcher 图标）；低版本上用同款观感的 windowBackground
+         兜底，冷启动不再闪白屏。 -->
+    <style name="Theme.MyApplication.Starting" parent="Theme.MyApplication">
+        <item name="android:windowBackground">@drawable/splash_window_background</item>
+    </style>
 
 </resources>

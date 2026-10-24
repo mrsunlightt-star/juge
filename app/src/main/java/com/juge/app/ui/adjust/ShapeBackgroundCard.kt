@@ -24,8 +24,10 @@ import com.juge.app.ui.AppSecondaryButton
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
+import com.juge.app.ui.AppText
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.ThickTrackSlider
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
@@ -49,7 +51,7 @@ internal fun ShapeBackgroundCard(
     val context = LocalContext.current
     val hasImage = !selectedStyle.backgroundImagePath.isNullOrEmpty()
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
-        AppSectionHeader(icon = Icons.Filled.Wallpaper, title = "物理形状与背景材质")
+        AppSectionHeader(title = "物理形状与背景材质")
 
         // 背景圆角尺寸 Slider (适用于卡片类形状)
         // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
@@ -59,14 +61,13 @@ internal fun ShapeBackgroundCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = if (canAdjustCorner) {
+            // 与其他控件标签（背景不透明度/自定义背景图等）同一角色：label = 12sp/半粗/次级灰
+            AppSectionLabel(
+                if (canAdjustCorner) {
                     "外框圆角大小: ${selectedStyle.cornerRadiusDp.toInt()} dp"
                 } else {
                     "外框圆角（此形状无需调整）"
-                },
-                style = AppType.label,
-                color = if (canAdjustCorner) chipTextInk else textTertiary
+                }
             )
         }
         ThickTrackSlider(
