@@ -65,8 +65,6 @@ internal fun StylePresetCard(
                     preset.presetId != null && preset.presetId == selectedStyle.presetId
                 },
                 showSelectionBorder = true,
-                // 统一卡片盒比 4×2 内容高，浅灰衬底把上下留白变成"卡纸"而不是空白
-                showThumbnailBackground = true,
                 nameColor = { isPro, isSelected ->
                     if (isSelected || !isPro) accentBlue else textGray
                 },
@@ -93,8 +91,6 @@ internal fun StylePresetCard(
                     preset.presetId != null && preset.presetId == selectedStyle.presetId
                 },
                 showSelectionBorder = true,
-                // 统一卡片盒比 4×2 内容高，浅灰衬底把上下留白变成"卡纸"而不是空白
-                showThumbnailBackground = true,
                 nameColor = { isPro, isSelected ->
                     if (isSelected || !isPro) accentBlue else textGray
                 },

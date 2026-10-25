@@ -21,6 +21,8 @@ object AppShape {
     val thumbnail = RoundedCornerShape(10.dp)
     val badge = RoundedCornerShape(6.dp)
     val dialog = RoundedCornerShape(20.dp)
+    /** 长按上下文菜单（iOS 式浮层）：比弹窗紧凑一档，对齐 iOS 菜单的连续小圆角观感 */
+    val menu = RoundedCornerShape(14.dp)
     /** 抽屉顶部圆角半径。背景图要按它多画一段，圆角缺口才能露出图片而不是同色的页面底色 */
     val sheetCornerRadius = 32.dp
     val sheet = RoundedCornerShape(topStart = sheetCornerRadius, topEnd = sheetCornerRadius)

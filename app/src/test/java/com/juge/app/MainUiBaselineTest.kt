@@ -7,12 +7,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import com.juge.app.data.AppPrefs
 import org.junit.Rule
 import org.junit.Test
@@ -87,10 +87,21 @@ class MainUiBaselineTest {
     /**
      * 删除金句必须先弹确认，不能像改版前那样点一下就直接删库。
      * 这里只验证交互分支，不纳入截图基线（确认弹窗会多出一个 Compose 根）。
+     *
+     * 卡面上的编辑/删除按钮已收进长按菜单（iOS 式上下文菜单）：
+     * 长按卡片 → 菜单「删除金句」→ 二次确认弹窗。
      */
     @Test
     fun `删除金句先弹二次确认`() {
-        compose.onAllNodesWithContentDescription("删除金句").onFirst().performClick()
+        // 第三张种子金句的文案全库唯一（第一句与组件预览默认文案相同，选择器会歧义）
+        compose.onAllNodesWithText("life is hard，always", substring = true).onFirst()
+            .performTouchInput {
+                // 手写长按时序（按下→停满长按阈值→抬起），等价于长按手势
+                down(center)
+                advanceEventTime(1_000)
+                up()
+            }
+        compose.onNodeWithText("删除金句").assertIsDisplayed().performClick()
         compose.onNodeWithText("删除这条金句？").assertIsDisplayed()
         compose.onNodeWithText("取消").performClick()
         compose.onAllNodesWithText("删除这条金句？").assertCountEquals(0)

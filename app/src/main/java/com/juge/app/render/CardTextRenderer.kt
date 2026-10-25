@@ -83,16 +83,6 @@ internal object CardTextRenderer {
                 val cardTop = verticalInset // 顶部让出虚线边框
                 TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.12f)
             }
-            WidgetShape.PET_CAT_NAP -> {
-                // 萌宠猫咪趴：橘猫趴在卡片顶部,文字落在卡片渐变中下部(避开猫)
-                val verticalInset = targetHeight * 0.42f // 顶部让出猫
-                val lateral = targetWidth * 0.12f
-                val paddingLeft = lateral
-                val paddingRight = targetWidth - lateral
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                val cardTop = verticalInset
-                TextBox(paddingLeft, textWidth, cardTop, targetHeight - cardTop - targetHeight * 0.08f)
-            }
             WidgetShape.BLUE_NOTE -> {
                 // 蓝色便签：顶部让出 NOTE + 信息钮，底部让出米白签条
                 val footerH = targetHeight * (76f / 363f)
@@ -363,16 +353,6 @@ internal object CardTextRenderer {
             alignKey == "RIGHT" -> Layout.Alignment.ALIGN_OPPOSITE
             isJustify -> Layout.Alignment.ALIGN_NORMAL
             else -> Layout.Alignment.ALIGN_CENTER
-        }
-
-        // 天空之蓝 "NOTE" 标签绘制
-        if (style.presetImageResName == "rectangle_1") {
-            val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                textSize = 14f * densityScale
-                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            }
-            canvas.drawText("NOTE", 20f * densityScale, 28f * densityScale, notePaint)
         }
 
         val box = textBoxFor(scene)

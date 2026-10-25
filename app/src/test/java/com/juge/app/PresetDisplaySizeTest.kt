@@ -32,7 +32,6 @@ class PresetDisplaySizeTest {
             "p_youth_sculpture" to WidgetDisplaySize.SQUARE_4X4,
             // 4×2 原生 / 按 4×2 设计
             "p_texture_landscape" to WidgetDisplaySize.WIDE_4X2,
-            "p_ruled_paper" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：蜡笔彩虹框的最佳显示尺寸是 4:2（4×2 原生，方版素材未交付）
             "p_crayon_frame" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：Keep Smiling 归类为 4:2（素材已按 2048×1024 重排，不出 4×4 版）

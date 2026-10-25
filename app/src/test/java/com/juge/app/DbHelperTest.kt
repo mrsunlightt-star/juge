@@ -2,6 +2,7 @@ package com.juge.app
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import com.juge.app.data.DbHelper
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
@@ -174,6 +175,64 @@ class DbHelperTest {
         db.deleteWidgetConfig(id)
 
         assertFalse(db.getAllWidgetConfigs().any { it.id == id })
+    }
+
+    @Test
+    fun `v7升级后同毫秒金句顺序不变`() {
+        // 复刻升级用户现场：v7 库、三条同毫秒种子（onCreate 就是同一毫秒插入的）。
+        // 旧查询 `ORDER BY created_at DESC` 走索引倒序扫描，并列键按 rowid 降序出
+        // （life → 断章 → 三体）；回填名次必须复刻它，升级后首屏才不会翻转。
+        resetDbSingleton()
+        val dbPath = context.getDatabasePath("reminders.db")
+        dbPath.parentFile?.mkdirs()
+        val now = 1_700_000_000_000L
+        SQLiteDatabase.openOrCreateDatabase(dbPath, null).use { old ->
+            old.version = 7
+            old.execSQL("""
+                CREATE TABLE categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL
+                )
+            """.trimIndent())
+            old.execSQL("""
+                CREATE TABLE reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content TEXT NOT NULL,
+                    category_id INTEGER NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    style_json TEXT,
+                    created_at INTEGER NOT NULL,
+                    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+            old.execSQL("INSERT INTO categories (id, name, sort_order, created_at) VALUES (1, '文学', 1, $now)")
+            old.execSQL("INSERT INTO categories (id, name, sort_order, created_at) VALUES (2, '诗歌', 2, $now)")
+            old.execSQL("INSERT INTO categories (id, name, sort_order, created_at) VALUES (3, '激励', 3, $now)")
+            old.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('三体', 1, 1, $now)")
+            old.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('断章', 2, 0, $now)")
+            old.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('life', 3, 0, $now)")
+        }
+
+        val upgraded = DbHelper.getInstance(context)
+        val order = upgraded.getAllReminders().map { it.content }
+        assertEquals(listOf("life", "断章", "三体"), order)
+        // 序号连续 0..n-1，后续拖拽排序的整表重写可以无缝衔接
+        assertEquals(listOf(0, 1, 2), upgraded.getAllReminders().map { it.sortOrder })
+    }
+
+    @Test
+    fun `拖拽排序落库后按新顺序读出`() {
+        val all = db.getAllReminders().map { it.id }
+        assertTrue(all.size >= 2)
+        val reversed = all.asReversed()
+
+        db.updateReminderSortOrders(reversed)
+
+        assertEquals(reversed, db.getAllReminders().map { it.id })
+        // 序号重排后从 0 连续编号
+        assertEquals(List(reversed.size) { it }, db.getAllReminders().map { it.sortOrder })
     }
 
     /** DbHelper 是静态单例，Robolectric 每个测试方法换一个 Application，必须重置才能拿到干净库 */

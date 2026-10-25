@@ -220,9 +220,9 @@ private fun RenderedPresetItem(
             modifier = Modifier
                 .width(PresetThumbnailBox.width.dp)
                 .height(PresetThumbnailBox.height.dp)
-                // 盒内等比显示后，横卡上下/方卡左右会有留白，用浅灰衬底当卡纸
+                // 盒内等比显示后，横卡上下/方卡左右会有留白：留白保持透明，透出页面近白底色
+                // （2026-10-24 按用户要求去掉浅灰衬底——衬底让缩略图像蒙了一层灰）
                 .clip(AppShape.thumbnail)
-                .background(surfaceSubtle)
                 .clickable {
                     haptics.tap()
                     val newPresetStyle = preset.copy(
@@ -313,7 +313,6 @@ private fun IllustrationPresetItems(
                 .width(PresetThumbnailBox.width.dp)
                 .height(PresetThumbnailBox.height.dp)
                 .clip(AppShape.thumbnail)
-                .background(surfaceSubtle)
                 .border(
                     width = borderWidth,
                     color = borderColor,

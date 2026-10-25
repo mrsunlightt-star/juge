@@ -218,7 +218,6 @@ internal fun WidgetShape.traits(): ShapeTraits = TRAITS.getValue(this)
 internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.RECTANGLE,
     WidgetShape.PIXEL_RETRO,
-    WidgetShape.PET_CAT_NAP,
     WidgetShape.NIUPI_SHOUZHANG,
     WidgetShape.CLASSROOM_BLACKBOARD,
     WidgetShape.GIANT_SWORD,

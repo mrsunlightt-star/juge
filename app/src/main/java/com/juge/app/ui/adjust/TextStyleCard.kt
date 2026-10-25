@@ -112,6 +112,36 @@ internal fun TextStyleCard(
                 .height(24.dp)
         )
 
+        // 行距调节（倍数，1.0 = 字体默认行高；与渲染端 lineSpacingMultiplier 同一口径）
+        AppSectionLabel("行距: ${"%.1f".format(selectedStyle.lineSpacingMultiplier)}x")
+        ThickTrackSlider(
+            value = selectedStyle.lineSpacingMultiplier,
+            onValueChange = {
+                val newStyle = selectedStyle.copy(lineSpacingMultiplier = it)
+                onStyleStateChange(newStyle)
+                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+            },
+            valueRange = 0.5f..3.0f,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+        )
+
+        // 字间距调节（Paint.letterSpacing 的 em 单位，0 = 跟随字体默认）
+        AppSectionLabel("字间距: ${"%.2f".format(selectedStyle.letterSpacing)} em")
+        ThickTrackSlider(
+            value = selectedStyle.letterSpacing,
+            onValueChange = {
+                val newStyle = selectedStyle.copy(letterSpacing = it)
+                onStyleStateChange(newStyle)
+                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+            },
+            valueRange = 0.0f..0.5f,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+        )
+
         // 加粗 / 倾斜 / 文字阴影：带勾选框的胶囊选项
         Row(
             modifier = Modifier.fillMaxWidth(),

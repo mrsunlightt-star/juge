@@ -80,9 +80,18 @@ fun LibraryPane(
                 }
             }
         },
-        onSwapCategoryOrder = { cat1Id, cat1Order, cat2Id, cat2Order ->
+        onReorderReminders = { orderedIds ->
             scope.launch(Dispatchers.IO) {
-                dbHelper.swapCategoryOrder(cat1Id, cat1Order, cat2Id, cat2Order)
+                dbHelper.updateReminderSortOrders(orderedIds)
+                val rems = dbHelper.getAllReminders()
+                withContext(Dispatchers.Main) {
+                    onRemindersChanged(rems)
+                }
+            }
+        },
+        onReorderCategories = { orderedIds ->
+            scope.launch(Dispatchers.IO) {
+                dbHelper.updateCategorySortOrders(orderedIds)
                 val cats = dbHelper.getAllCategories()
                 withContext(Dispatchers.Main) {
                     onCategoriesChanged(cats)

@@ -58,10 +58,13 @@ class WidgetStyleJsonTest {
     }
 
     @Test
-    fun `青年雕塑预设的投影和描边不被纯色圆角的改动带走`() {
+    fun `青年雕塑预设的描边保留、投影跟随预设关闭`() {
+        // 2026-10-24 全量下架卡片投影：预设里已不再声明 showCardShadow，
+        // 存档读档时由 caughtUpWithPreset 以当前预设为准自动跟随
         val sculpture = WidgetStyle.PRESETS.first { it.presetId == "p_youth_sculpture" }
+        assertFalse(sculpture.showCardShadow)
         val restored = WidgetStyle.fromJsonString(sculpture.toJsonString())
-        assertTrue(restored.showCardShadow)
+        assertFalse(restored.showCardShadow)
         assertEquals(1f, restored.cardBorderWidthDp)
     }
 
@@ -95,7 +98,11 @@ class WidgetStyleJsonTest {
             letterSpacing = 2f
         )
         val parsed = WidgetStyle.fromJsonString(style.toJsonString())
-        assertEquals(style, parsed)
+        // 背景渐变 / 模糊 / 压暗已全量停用（2026-10-24）：往返后读档清零，其余字段原样保留
+        assertEquals(
+            style.copy(gradientColors = null, bgBlurRadius = 0f, bgScrimAlpha = 0f),
+            parsed
+        )
     }
 
     @Test

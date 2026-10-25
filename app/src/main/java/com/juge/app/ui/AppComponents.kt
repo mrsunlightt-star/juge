@@ -544,10 +544,16 @@ fun AppFormRow(
     val interaction = remember { MutableInteractionSource() }
     val haptics = rememberAppHaptics()
     val pressed by interaction.collectIsPressedAsState()
+    // 选中 = 浅蓝底（selectBlue 低透明度，与筛选胶囊选中态同色系）+ 右侧勾号；
+    // 按压仍是全 app 统一的浅灰高亮，二者同帧叠加时选中色优先
     val background by animateColorAsState(
-        targetValue = if (pressed) surfaceSubtle else Color.Transparent,
+        targetValue = when {
+            selected -> selectBlue.copy(alpha = 0.12f)
+            pressed -> surfaceSubtle
+            else -> Color.Transparent
+        },
         animationSpec = AppMotion.color,
-        label = "formRowPressed",
+        label = "formRowBackground",
     )
     Column(modifier = modifier.fillMaxWidth()) {
         Row(

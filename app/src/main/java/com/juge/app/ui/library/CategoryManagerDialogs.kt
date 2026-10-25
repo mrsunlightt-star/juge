@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,20 +51,19 @@ import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.dangerRed
-import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textWhite
 
 /**
- * 分类管理中心：排序、重命名、删除、inline 新建。
+ * 分类管理中心：重命名、删除、inline 新建。
+ * 排序已移到文库页长按拖拽（金句卡片、分类 chip 同款手势），这里不再提供箭头排序。
  * 重命名/删除只上报请求，二次确认弹窗由页面持有。
  */
 @Composable
 internal fun CategoryManagerDialog(
     categories: List<Category>,
-    onSwapOrder: (Long, Int, Long, Int) -> Unit,
     onRenameRequest: (Category) -> Unit,
     onDeleteRequest: (Category) -> Unit,
     onAddCategory: (String) -> Unit,
@@ -102,41 +99,6 @@ internal fun CategoryManagerDialog(
                             showDivider = index < categories.lastIndex,
                             trailing = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-
-                        IconButton(
-                            onClick = {
-                                if (index > 0) {
-                                    val prevCat = categories[index - 1]
-                                    onSwapOrder(cat.id, cat.sortOrder, prevCat.id, prevCat.sortOrder)
-                                }
-                            },
-                            enabled = index > 0
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowUp,
-                                contentDescription = "上移分类",
-                                tint = if (index > 0) textPrimary else disabledGray,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        // 排序：下移按钮
-                        IconButton(
-                            onClick = {
-                                if (index < categories.size - 1) {
-                                    val nextCat = categories[index + 1]
-                                    onSwapOrder(cat.id, cat.sortOrder, nextCat.id, nextCat.sortOrder)
-                                }
-                            },
-                            enabled = index < categories.size - 1
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = "下移分类",
-                                tint = if (index < categories.size - 1) textPrimary else disabledGray,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
 
                         // 重命名/删除收进溢出菜单：4 颗 28dp 按钮并排既挤又容易误触
                         Box {

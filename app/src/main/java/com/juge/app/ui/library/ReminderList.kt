@@ -1,18 +1,12 @@
 package com.juge.app.ui.library
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,24 +15,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.juge.app.R
+import androidx.compose.ui.zIndex
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
 import com.juge.app.ui.AppSectionCard
@@ -48,16 +50,19 @@ import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
-import com.juge.app.ui.theme.surfaceSubtle
-import com.juge.app.ui.theme.textPrimary
-import com.juge.app.ui.theme.textSecondary
 import com.juge.app.ui.theme.textTertiary
 
-/** 金句列表：逐条卡片（进场动画、分类角标、编辑/删除）+ 空态 + 页脚。 */
+/**
+ * 金句列表：逐条卡片 + 空态 + 页脚。
+ *
+ * 交互口径（iOS 备忘录同款）：
+ * - 单击 = 应用金句到组件；
+ * - 长按 = 指尖弹出「编辑 / 删除」菜单（浮层由页面持有，[onMenuRequest] 只上报请求与锚点）；
+ * - 长按后继续拖动 = 菜单取消、卡片抬起进入排序，松手弹性归位并把新顺序交给 [onReorder] 落库。
+ * 编辑/删除不再放在卡面上：两个 40dp 图标按钮挤占卡面高度，且 iOS 惯例就是收进长按菜单。
+ */
 @Composable
 internal fun ReminderList(
     reminders: List<Reminder>,
@@ -66,23 +71,42 @@ internal fun ReminderList(
     onReminderClick: (Reminder) -> Unit,
     onEditRequest: (Reminder) -> Unit,
     onDeleteRequest: (Reminder) -> Unit,
+    onMenuRequest: (reminder: Reminder, anchorInRoot: Offset) -> Unit,
+    onReorder: (List<Reminder>) -> Unit,
+    onDragStart: () -> Unit,
     onOpenDoc: (String) -> Unit
 ) {
+    val haptics = rememberAppHaptics()
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val dragState = remember { ReorderDragState<Reminder> { it.id } }
     // 只给初次出现的前几条或后来新增到顶部的条目播放一次进场动画；普通滚动不反复动画。
     val animatedReminderIds = remember { mutableSetOf<Long>() }
-    val haptics = rememberAppHaptics()
+
+    // 提交后的顺序先在本地顶住，等 onReorder 落库回读的新列表（顺序一致）到达后再放行，
+    // 否则松手到状态回传之间列表会按旧顺序闪跳一下
+    var pendingOrder by remember { mutableStateOf<List<Reminder>?>(null) }
+    LaunchedEffect(reminders) {
+        val pending = pendingOrder ?: return@LaunchedEffect
+        if (reminders.map { it.id } == pending.map { it.id }) pendingOrder = null
+    }
+    val displayList = dragState.items ?: pendingOrder ?: reminders
+
+    DragAutoScrollEffect(state = dragState, listState = listState)
+
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = AppSpacing.screen),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)
     ) {
-        if (isLoaded && reminders.isEmpty()) {
+        if (isLoaded && displayList.isEmpty()) {
             item(key = "empty_state") {
                 EmptyReminderState(hasCategories = categories.isNotEmpty())
             }
         } else {
-            itemsIndexed(reminders, key = { _, reminder -> reminder.id }) { index, reminder ->
+            itemsIndexed(displayList, key = { _, reminder -> reminder.id }) { index, reminder ->
                 val catName = categories.find { it.id == reminder.categoryId }?.name ?: "普通"
 
                 val shouldAnimate = index < 4 && reminder.id !in animatedReminderIds
@@ -90,67 +114,103 @@ internal fun ReminderList(
                 val visibleState = remember(reminder.id) {
                     MutableTransitionState(initialState = !shouldAnimate)
                 }.apply { targetState = true }
+                val isDragging = dragState.dragKey == reminder.id
+                // 拖拽项不加 animateItem：它的视觉位置由 translation 手动钉住，
+                // 再叠加让位动画会双重位移；其余卡片靠 animateItem 平滑让位
                 AnimatedVisibility(
                     visibleState = visibleState,
                     enter = slideInVertically(
                         animationSpec = AppMotion.entrance()
                     ) { it / 2 } + fadeIn(
                         animationSpec = AppMotion.entrance()
-                    )
+                    ),
+                    modifier = if (isDragging) Modifier.zIndex(1f) else Modifier.animateItem(
+                        placementSpec = AppMotion.entrance()
+                    ),
                 ) {
-                    // 金句卡片与定制页区块卡片共用同一套卡面法律（AppSectionCard：
-                    // 16dp 圆角 + 1dp 描边 + 弥散软阴影）。差异只有三点：
-                    // 左右 16 / 上下 12 的瘦身内边距、关闭尺寸动画、整卡可点（选中金句）。
-                    // 内层间距由 AppSectionCard 的 spacedBy(12dp) 提供，与旧版 Spacer(itemGap) 等宽。
+                    // 手指位置：长按回调给的是卡片内坐标，加卡片 root 坐标得到菜单锚点
+                    var cardRootPos by remember { mutableStateOf(Offset.Zero) }
+                    var pressOffset by remember { mutableStateOf(Offset.Zero) }
                     AppSectionCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                haptics.tap()
-                                onReminderClick(reminder)
-                            },
+                            .onGloballyPositioned { cardRootPos = it.positionInRoot() }
+                            // mergeDescendants：TalkBack 把整卡当单个元素朗读（旧 .clickable
+                            // 自带合并，换成裸 pointerInput 后要补回来），自定义操作直达编辑/删除
+                            .semantics(mergeDescendants = true) {
+                                customActions = listOf(
+                                    CustomAccessibilityAction("编辑金句") {
+                                        onEditRequest(reminder)
+                                        true
+                                    },
+                                    CustomAccessibilityAction("删除金句") {
+                                        onDeleteRequest(reminder)
+                                        true
+                                    },
+                                )
+                            }
+                            .graphicsLayer {
+                                translationY = if (isDragging) dragState.translationPx else 0f
+                                val lifted = isDragging
+                                scaleX = if (lifted) 1.03f else 1f
+                                scaleY = if (lifted) 1.03f else 1f
+                                // 抬起加一层实影：graphicsLayer 的 shadowElevation 只在
+                                // 有数值时画，落回 0 时与卡片自身的弥散阴影并存无冲突
+                                shadowElevation = if (lifted) 16.dp.toPx() else 0f
+                            }
+                            .longPressMenuDragGestures(
+                                key = reminder.id,
+                                onTap = {
+                                    haptics.tap()
+                                    onReminderClick(reminder)
+                                },
+                                onLongPress = { local ->
+                                    pressOffset = local
+                                    haptics.tap()
+                                    onMenuRequest(reminder, cardRootPos + local)
+                                },
+                                onDragStart = {
+                                    onDragStart()
+                                    haptics.tap()
+                                    dragState.start(
+                                        items = displayList,
+                                        key = reminder.id,
+                                        grabOffsetPx = pressOffset.y,
+                                    )
+                                },
+                                onDrag = { delta ->
+                                    dragState.addTranslation(delta.y)
+                                    // 一次大位移可能跨过多项，反复交换直到不再越界
+                                    while (dragState.swapIfNeeded(listState.layoutInfo)) {
+                                        // 交换在 state 内部完成
+                                    }
+                                },
+                                onDragEnd = {
+                                    dragState.settle(scope) { newOrder ->
+                                        if (newOrder != null) {
+                                            haptics.confirm()
+                                            pendingOrder = newOrder
+                                            onReorder(newOrder)
+                                        }
+                                    }
+                                },
+                                onDragCancel = { dragState.cancel() },
+                            ),
                         contentPadding = PaddingValues(
                             horizontal = AppSpacing.cardPadding,
                             vertical = 12.dp
                         ),
                         animateSize = false,
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            shape = AppShape.badge,
+                            color = selectBlue
                         ) {
-                            Surface(
-                                shape = AppShape.badge,
-                                color = selectBlue
-                            ) {
-                                AppText(
-                                    text = catName,
-                                    role = AppTextRole.badgeOnFill,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 34dp 圆形浅底把图标"托"起来：18dp 裸图标在白卡上又小又薄。
-                                // 热区 40dp（卡片高度收 10% 的一环），略低于 48dp 指南但仍是舒适触点。
-                                CardActionButton(
-                                    iconRes = R.drawable.ic_symbol_edit_square,
-                                    contentDescription = "编辑金句",
-                                    tint = textSecondary,
-                                    background = surfaceSubtle,
-                                    onClick = { onEditRequest(reminder) }
-                                )
-                                CardActionButton(
-                                    iconRes = R.drawable.ic_symbol_delete,
-                                    contentDescription = "删除金句",
-                                    tint = dangerRed,
-                                    background = dangerRed.copy(alpha = 0.08f),
-                                    onClick = { onDeleteRequest(reminder) }
-                                )
-                            }
+                            AppText(
+                                text = catName,
+                                role = AppTextRole.badgeOnFill,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
                         }
                         AppText(
                             text = reminder.content,
@@ -206,52 +266,5 @@ private fun EmptyReminderState(hasCategories: Boolean) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
-    }
-}
-
-/**
- * 金句卡片右上角的操作按钮：34dp 圆形浅底 + 20dp 圆角图标。
- *
- * 直接用 18dp 裸图标时，在白色卡片上又小又薄；加一层同色系浅底后图标有了"实体"，
- * 视觉尺寸和可点按的暗示都够用。外圈 40dp 自绘热区（卡片瘦身的一环）——不用
- * IconButton，是因为 M3 会把热区强制抬回 48dp 最小值，卡片高度就收不下来了；
- * 无波纹的灰底高亮与全 app 的按压反馈口径一致。
- */
-@Composable
-private fun CardActionButton(
-    @DrawableRes iconRes: Int,
-    contentDescription: String,
-    tint: Color,
-    background: Color,
-    onClick: () -> Unit
-) {
-    val haptics = rememberAppHaptics()
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clickable(
-                interactionSource = MutableInteractionSource(),
-                indication = null,
-                role = Role.Button,
-            ) {
-                haptics.click()
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(background),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = contentDescription,
-                tint = tint,
-                modifier = Modifier.size(20.dp)
-            )
-        }
     }
 }

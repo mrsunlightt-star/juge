@@ -23,7 +23,7 @@ import java.io.File
  * 组件下半的文字显示区就变成近黑色，与素材缩略图（按预设原样渲染，白色文字区）完全对不上。
  *
  * 这里锁两件事：文字显示区底色一律取预设自身声明（明信片类都是白色），
- * 以及只有素材本身设计成别的颜色时（天空蓝）才不是白的。
+ * 用户当前的不透明度与圆角照常沿用。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "xxhdpi")
@@ -47,14 +47,6 @@ class IllustrationPresetStyleTest {
             assertEquals(WidgetShape.SPLIT_CARD, style.shape)
             assertEquals(resName, style.presetImageResName)
         }
-    }
-
-    @Test
-    fun `素材本身设计成别的颜色时保留自己的底色`() {
-        // 天空蓝：预设里底色就是蓝色，不该被改成白色
-        val style = applyIllustration("rectangle_1")
-        assertEquals(Color.parseColor("#1E6DD0"), style.backgroundColor)
-        assertEquals(WidgetShape.RECTANGLE, style.shape)
     }
 
     @Test

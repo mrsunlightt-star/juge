@@ -22,7 +22,9 @@ data class Reminder(
     val categoryId: Long,
     val isFavorite: Boolean = false,
     val styleJson: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** 手动排序序号（小者在顶）；v8 引入，此前金句只有 created_at 倒序 */
+    val sortOrder: Int = 0
 )
 
 class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -48,6 +50,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 category_id INTEGER NOT NULL,
                 is_favorite INTEGER NOT NULL DEFAULT 0,
                 style_json TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
@@ -73,10 +76,11 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         db.execSQL("INSERT INTO categories (name, sort_order, created_at) VALUES ('诗歌', 2, $now)")
         db.execSQL("INSERT INTO categories (name, sort_order, created_at) VALUES ('激励', 3, $now)")
 
-        // 插入初始默认提醒
-        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》', 1, 1, $now)")
-        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('\"你站在桥上看风景，看风景人在楼上看你。明月装饰了你的窗子，你装饰了别人的梦。\" —— 卞之琳《断章》', 2, 0, $now)")
-        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, created_at) VALUES ('life is hard，always', 3, 0, $now)")
+        // 插入初始默认提醒。三条种子是同一毫秒插入的：旧查询按 created_at 索引倒序扫描，
+        // 并列时 rowid 降序出（后插入的在顶），sort_order 按这个真实顺序给定
+        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, sort_order, created_at) VALUES ('弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》', 1, 1, 2, $now)")
+        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, sort_order, created_at) VALUES ('\"你站在桥上看风景，看风景人在楼上看你。明月装饰了你的窗子，你装饰了别人的梦。\" —— 卞之琳《断章》', 2, 0, 1, $now)")
+        db.execSQL("INSERT INTO reminders (content, category_id, is_favorite, sort_order, created_at) VALUES ('life is hard，always', 3, 0, 0, $now)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -109,6 +113,14 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
             Timber.i("Migrating to version 7: adding widget_config.auto_created")
             addWidgetConfigAutoCreatedColumn(db)
         }
+
+        // 版本 8：reminders 增加 sort_order 列，支持长按拖拽手动排序。
+        // 存量行按旧的显示顺序（created_at 倒序、同毫秒按插入先后）回填序号，
+        // 升级后看到的顺序与升级前完全一致；新录入的金句取 MIN(sort_order)-1，保持「新句在顶」。
+        if (oldVersion < 8) {
+            Timber.i("Migrating to version 8: adding reminders.sort_order")
+            addReminderSortOrderColumn(db)
+        }
     }
 
     override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -130,6 +142,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 category_id INTEGER NOT NULL,
                 is_favorite INTEGER NOT NULL DEFAULT 0,
                 style_json TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
             )
@@ -166,6 +179,38 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         if (hasColumn) return
         db.execSQL("ALTER TABLE widget_config ADD COLUMN auto_created INTEGER NOT NULL DEFAULT 0")
         db.execSQL("UPDATE widget_config SET auto_created = 1 WHERE name LIKE '微件 %'")
+    }
+
+    /**
+     * 幂等补上 reminders.sort_order 列，并把存量行按旧显示顺序（created_at 倒序、
+     * 同毫秒按插入先后，即旧行为 `ORDER BY created_at DESC` 的稳定次序）回填 0..n-1。
+     * 回填后顺序与升级前逐条一致；已存在的列（onDowngrade 建表路径）不重复回填。
+     */
+    private fun addReminderSortOrderColumn(db: SQLiteDatabase) {
+        val hasColumn = runCatching {
+            db.rawQuery("PRAGMA table_info(reminders)", null).use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                var found = false
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIdx) == "sort_order") found = true
+                }
+                found
+            }
+        }.getOrDefault(false)
+        if (hasColumn) return
+        db.execSQL("ALTER TABLE reminders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        // 并列键按 rowid 降序回填：旧查询 `ORDER BY created_at DESC` 走 created_at 索引
+        // 倒序扫描，同毫秒的行（onCreate 种子数据是同一毫秒插入的）实际按 rowid 降序出。
+        // 名次必须复刻这个真实顺序，升级后首屏才不会翻转。
+        db.execSQL(
+            """
+            UPDATE reminders SET sort_order = (
+                SELECT COUNT(*) FROM reminders r2
+                WHERE r2.created_at > reminders.created_at
+                   OR (r2.created_at = reminders.created_at AND r2.rowid > reminders.rowid)
+            )
+            """.trimIndent()
+        )
     }
 
     private fun createIndexes(db: SQLiteDatabase) {
@@ -220,19 +265,23 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         )
     }
 
-    fun swapCategoryOrder(cat1Id: Long, cat1Order: Int, cat2Id: Long, cat2Order: Int) {
+    /**
+     * 按给定顺序整表重写分类 sort_order（0..n-1）。长按拖拽排序的落库入口：
+     * 事务内逐行更新，中途失败整批回滚，不会留下交错序号。
+     */
+    fun updateCategorySortOrders(orderedIds: List<Long>) {
         val db = writableDatabase
         db.beginTransaction()
         try {
-            val val1 = ContentValues().apply { put("sort_order", cat2Order) }
-            db.update("categories", val1, "id = ?", arrayOf(cat1Id.toString()))
-
-            val val2 = ContentValues().apply { put("sort_order", cat1Order) }
-            db.update("categories", val2, "id = ?", arrayOf(cat2Id.toString()))
-
+            val values = ContentValues()
+            orderedIds.forEachIndexed { index, id ->
+                values.clear()
+                values.put("sort_order", index)
+                db.update("categories", values, "id = ?", arrayOf(id.toString()))
+            }
             db.setTransactionSuccessful()
         } catch (e: Exception) {
-            Timber.e(e, "swapCategoryOrder failed")
+            Timber.e(e, "updateCategorySortOrders failed")
         } finally {
             db.endTransaction()
         }
@@ -261,11 +310,19 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         require(content.length <= 500) { "提醒内容过长，最多500个字符" }
 
         val db = writableDatabase
+        // 新句排在最顶：取当前最小序号再减一。首次插入时 MIN 为空，取 0 即可（空库唯一一行）。
+        var minOrder = 0
+        db.rawQuery("SELECT MIN(sort_order) FROM reminders", null).use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                minOrder = cursor.getInt(0)
+            }
+        }
         val values = ContentValues().apply {
             put("content", content)
             put("category_id", categoryId)
             put("is_favorite", if (isFavorite) 1 else 0)
             put("style_json", styleJson)
+            put("sort_order", minOrder - 1)
             put("created_at", System.currentTimeMillis())
         }
         return db.insert("reminders", null, values)
@@ -274,7 +331,8 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     fun getAllReminders(): List<Reminder> {
         val list = mutableListOf<Reminder>()
         val db = readableDatabase
-        db.rawQuery("SELECT * FROM reminders ORDER BY created_at DESC", null).use { cursor ->
+        // 手动排序优先（小者在顶），未排序的存量行以 created_at 倒序兜底
+        db.rawQuery("SELECT * FROM reminders ORDER BY sort_order ASC, created_at DESC", null).use { cursor ->
             while (cursor.moveToNext()) {
                 list.add(parseReminder(cursor))
             }
@@ -285,7 +343,10 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     fun getRemindersByCategory(categoryId: Long): List<Reminder> {
         val list = mutableListOf<Reminder>()
         val db = readableDatabase
-        db.rawQuery("SELECT * FROM reminders WHERE category_id = ? ORDER BY created_at DESC", arrayOf(categoryId.toString())).use { cursor ->
+        db.rawQuery(
+            "SELECT * FROM reminders WHERE category_id = ? ORDER BY sort_order ASC, created_at DESC",
+            arrayOf(categoryId.toString())
+        ).use { cursor ->
             while (cursor.moveToNext()) {
                 list.add(parseReminder(cursor))
             }
@@ -325,6 +386,28 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         db.update("reminders", values, "id = ?", arrayOf(id.toString()))
     }
 
+    /**
+     * 按给定顺序整表重写金句 sort_order（0..n-1）。长按拖拽排序的落库入口：
+     * 事务内逐行更新，中途失败整批回滚。
+     */
+    fun updateReminderSortOrders(orderedIds: List<Long>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues()
+            orderedIds.forEachIndexed { index, id ->
+                values.clear()
+                values.put("sort_order", index)
+                db.update("reminders", values, "id = ?", arrayOf(id.toString()))
+            }
+            db.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Timber.e(e, "updateReminderSortOrders failed")
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun deleteReminder(id: Long) {
         val db = writableDatabase
         db.delete("reminders", "id = ?", arrayOf(id.toString()))
@@ -337,7 +420,8 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
             categoryId = cursor.getLong(cursor.getColumnIndexOrThrow("category_id")),
             isFavorite = cursor.getInt(cursor.getColumnIndexOrThrow("is_favorite")) == 1,
             styleJson = cursor.getString(cursor.getColumnIndexOrThrow("style_json")),
-            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+            sortOrder = cursor.getInt(cursor.getColumnIndexOrThrow("sort_order"))
         )
     }
 
@@ -501,7 +585,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
 
     companion object {
         private const val DATABASE_NAME = "reminders.db"
-        private const val DATABASE_VERSION = 7
+        private const val DATABASE_VERSION = 8
 
         @Volatile
         private var instance: DbHelper? = null

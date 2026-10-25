@@ -26,16 +26,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 
@@ -53,7 +57,10 @@ fun LibraryTabContent(
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (Long) -> Unit,
     onRenameCategory: (Long, String) -> Unit,
-    onSwapCategoryOrder: (Long, Int, Long, Int) -> Unit,
+    /** 金句拖拽排序落库：参数为全局新顺序的 id 序列 */
+    onReorderReminders: (List<Long>) -> Unit,
+    /** 分类拖拽排序落库：参数为新顺序的 id 序列 */
+    onReorderCategories: (List<Long>) -> Unit,
     onAddReminder: (String, Long) -> Unit,
     onEditReminderSave: (Long, String, Long) -> Unit,
     onDeleteReminder: (Long) -> Unit,
@@ -79,6 +86,15 @@ fun LibraryTabContent(
     var renamingCategory by remember { mutableStateOf<Category?>(null) }
     var renameCategoryNewName by remember { mutableStateOf("") }
 
+    // 长按上下文菜单：金句卡片与分类 chip 共用一个浮层（编辑/删除、重命名/删除）
+    var quoteMenuFor by remember { mutableStateOf<Reminder?>(null) }
+    var categoryMenuFor by remember { mutableStateOf<Category?>(null) }
+    var menuAnchor by remember { mutableStateOf(Offset.Zero) }
+    val closeMenu = {
+        quoteMenuFor = null
+        categoryMenuFor = null
+    }
+
     LaunchedEffect(editingReminder) {
         if (editingReminder != null) {
             editContentField = editingReminder.content
@@ -98,7 +114,17 @@ fun LibraryTabContent(
                 categories = categories,
                 selectedCategory = selectedCategory,
                 onCategorySelect = onCategorySelect,
+                onRenameRequest = { cat ->
+                    renamingCategory = cat
+                    renameCategoryNewName = cat.name
+                },
                 onDeleteRequest = { deletingCategory = it },
+                onMenuRequest = { cat, anchor ->
+                    categoryMenuFor = cat
+                    menuAnchor = anchor
+                },
+                onReorder = { ordered -> onReorderCategories(ordered.map { it.id }) },
+                onDragStart = { closeMenu() },
                 onOpenManager = { showCategoryManagerDialog = true }
             )
 
@@ -111,6 +137,21 @@ fun LibraryTabContent(
                 onReminderClick = onReminderClick,
                 onEditRequest = onEditReminderRequest,
                 onDeleteRequest = { deletingReminder = it },
+                onMenuRequest = { reminder, anchor ->
+                    quoteMenuFor = reminder
+                    menuAnchor = anchor
+                },
+                onReorder = { reordered ->
+                    // 目录内排序只换该目录成员在全局序列里的相对位置，其他分类原位不动
+                    val reorderedIds = reordered.map { it.id }.toSet()
+                    val merged = reminders.toMutableList()
+                    var next = 0
+                    for (i in merged.indices) {
+                        if (merged[i].id in reorderedIds) merged[i] = reordered[next++]
+                    }
+                    onReorderReminders(merged.map { it.id })
+                },
+                onDragStart = { closeMenu() },
                 onOpenDoc = onOpenDoc
             )
         }
@@ -146,6 +187,46 @@ fun LibraryTabContent(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("录入新句", style = AppType.button, color = Color.White)
             }
+        }
+
+        // 长按上下文菜单浮层：盖住整页（含 FAB），指尖弹出。菜单项的跳转全部
+        // 复用既有弹窗链路：编辑走 EditReminderDialog，删除走各自的二次确认弹窗。
+        val contextMenuItems = when {
+            quoteMenuFor != null -> listOf(
+                ContextMenuItem(R.drawable.ic_symbol_edit_square, "编辑金句", accentBlue) {
+                    val target = quoteMenuFor
+                    closeMenu()
+                    if (target != null) onEditReminderRequest(target)
+                },
+                ContextMenuItem(R.drawable.ic_symbol_delete, "删除金句", dangerRed, dangerRed) {
+                    val target = quoteMenuFor
+                    closeMenu()
+                    if (target != null) deletingReminder = target
+                },
+            )
+            categoryMenuFor != null -> listOf(
+                ContextMenuItem(R.drawable.ic_symbol_edit_square, "重命名", accentBlue) {
+                    val target = categoryMenuFor
+                    closeMenu()
+                    if (target != null) {
+                        renamingCategory = target
+                        renameCategoryNewName = target.name
+                    }
+                },
+                ContextMenuItem(R.drawable.ic_symbol_delete, "删除", dangerRed, dangerRed) {
+                    val target = categoryMenuFor
+                    closeMenu()
+                    if (target != null) deletingCategory = target
+                },
+            )
+            else -> null
+        }
+        if (contextMenuItems != null) {
+            ContextMenuOverlay(
+                anchorInRoot = menuAnchor,
+                items = contextMenuItems,
+                onDismiss = { closeMenu() }
+            )
         }
     }
 
@@ -208,11 +289,10 @@ fun LibraryTabContent(
         )
     }
 
-    // 5. 分类管理中心弹窗
+    // 5. 分类管理中心弹窗（排序已移到文库页长按拖拽，这里只管重命名/删除/新建）
     if (showCategoryManagerDialog) {
         CategoryManagerDialog(
             categories = categories,
-            onSwapOrder = onSwapCategoryOrder,
             onRenameRequest = { cat ->
                 renamingCategory = cat
                 renameCategoryNewName = cat.name

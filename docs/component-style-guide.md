@@ -116,8 +116,8 @@
 | 跨栏小子 | `p_hurdle_boy` | `hurdle_boy` 1536×1536 | **4×4** | x 16%~84%　y 49%~86% | 少年抠图 + 白色记分牌 |
 | 可爱Doro | `p_cute_doro` | `cute_doro` 2048×2048 | **4×4** | x 9%~91%　y 50%~90% | 角色 + 奶油留言板 |
 
-> `p_sky_blue`、`p_ruled_paper`、`p_texture_landscape` 也是带素材的矩形卡，
-> 但它们按 `CENTER_CROP`/矢量绘制处理、不涉及横/方两套素材，`bestDisplaySize` 均为 **4×2**（见 §0.1.2）。
+> `p_texture_landscape` 也是带素材的矩形卡，但它按 `CENTER_CROP` 处理、不涉及横/方两套素材，
+> `bestDisplaySize` 为 **4×2**（见 §0.1.2）。
 
 **每款方版各有一张模板图**（带 alpha 的透明 PNG），直接拖进设计平台叠在 2048×2048 的画布上，
 洋红虚线框就是正文安全区，照着画即可——不用自己量、不用算百分比。
@@ -242,7 +242,7 @@ WidgetStyle(
 ```
 
 **明信片类（图文分割）预设**：文字显示区（下半/右半）的底色就是 `backgroundColor`，
-在预设里显式声明（现有明信片预设都是白色，只有素材本身设计成别的颜色时才另给，如天空蓝）。
+在预设里显式声明（现有明信片预设都是白色，只有素材本身设计成别的颜色时才另给）。
 插图素材的预设行由 `WidgetStyle.illustrationStyle()` 换算，**整份样式取自预设**——
 不要写成从当前样式 `copy()`，否则用户在颜色面板选过深色后，文字区会跟着变黑。
 
@@ -284,7 +284,7 @@ WidgetShape.FEATHER_LETTER -> {
 
 ## 4. 四个必避的 bug（都要检查）
 
-1. **黑底**（信纸外一团黑的根因）：渲染器填底色时 `bgPaint.alpha` 被强制成 `backgroundOpacity*255`，
+1. **黑底**（透明形状外一团黑的根因）：渲染器填底色时 `bgPaint.alpha` 被强制成 `backgroundOpacity*255`，
    透明背景也会被画成黑色。
    **落点**：`render/WidgetRenderPipeline.kt` 的 `drawCardBackground()`——只有
    `Color.alpha(style.backgroundColor) > 0` 才画底色。
@@ -316,12 +316,12 @@ python3 tools/process_component_image.py info <裁剪出的APK内图>   # 四角
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- **App 预览**：色块、文字区、无遮挡、无黑框（预览卡背景若非白色，信纸外会透预览背景色，正常）。
+- **App 预览**：色块、文字区、无遮挡、无黑框（预览卡背景若非白色，透明形状外会透预览背景色，正常）。
   预览按**风格自己的最佳显示尺寸**出图（`WidgetStyle.bestDisplaySize`：4×4 款 250×250、
   4×2 款 250×110），与组件从哪个入口添加、桌面上的实时拉伸都无关（见 §0.1.2）；
   4×2 / 4×4 两种规格都要看（不连真机时跑 `WidgetPreviewRenderTest`，两个尺寸各出一份 PNG——
   预览只出最佳尺寸那一张，另一个尺寸看的是它被挂上去时的兜底表现）。
-- **桌面真实验证**：删除旧组件 → 重新添加，看信纸外是否透出壁纸、不规则形状是否呈现。
+- **桌面真实验证**：删除旧组件 → 重新添加，看透明形状外是否透出壁纸、不规则形状是否呈现。
 
 改动**绘制逻辑**后还要跑一次渲染基线，确认既有风格没有被连带改到：
 
