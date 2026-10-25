@@ -126,7 +126,8 @@ fun PresetRow(
     nameFontWeight: FontWeight? = FontWeight.Normal,
     itemSpacing: Dp = AppSpacing.itemGap,
     nameTopPadding: Dp = 4.dp,
-    nameColor: (isPro: Boolean, isSelected: Boolean) -> Color = { isPro, _ ->
+    // @Composable 函数类型：lambda 体里要读主题感知令牌（夜色模式下名称色随调色板切换）
+    nameColor: @Composable (isPro: Boolean, isSelected: Boolean) -> Color = { isPro, _ ->
         if (isPro) textGray else accentBlue
     },
     /** 行已滚到最左端、右滑无内容可再露出时，继续右滑交给外层翻回「跃然纸上」 */

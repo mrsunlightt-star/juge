@@ -82,6 +82,8 @@ import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.TextRole
+import com.juge.app.ui.theme.LocalAppDarkTheme
+import com.juge.app.ui.theme.LocalAppPalette
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.borderBlue
@@ -90,6 +92,7 @@ import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textWhite
 
 /**
@@ -258,7 +261,9 @@ fun AppDangerButton(
         modifier = modifier,
         enabled = enabled,
         containerColor = dangerRed,
-        contentColor = Color.White,
+        // 夜间 dangerRed 提亮为红-400（否则红色文字在深底上不达标），白字只剩 2.8:1，
+        // 换深墨字（与 Material 夜间 onPrimary=darkBg 同一约定，约 6.8:1）
+        contentColor = if (LocalAppDarkTheme.current) LocalAppPalette.current.darkBg else Color.White,
     )
 }
 
@@ -446,7 +451,7 @@ fun appTextFieldColors(container: Color? = null): TextFieldColors =
 fun AppScrollbar(
     state: ScrollState,
     modifier: Modifier = Modifier,
-    color: Color = Color(0x8C0F172A), // 墨色 55%
+    color: Color = textPrimary.copy(alpha = 0.55f), // 墨色 55%（夜色下随主文字转为霜白 55%）
     barWidth: Dp = 6.dp,
     touchWidth: Dp = 24.dp,
 ) {

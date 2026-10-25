@@ -1,5 +1,6 @@
 package com.juge.app.ui.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
@@ -29,42 +30,46 @@ data class TextRole(val style: TextStyle, val color: Color) {
     fun withColor(color: Color) = copy(color = color)
 }
 
+/**
+ * 语义文字角色。带主题色的角色是 `@Composable get()`：组合期从 [LocalAppPalette] 解析，
+ * 日/夜切换即随之变化，调用点写法不变。固定白字角色（OnFill/brand 系）不吃调色板，保留普通 val。
+ */
 object AppTextRole {
 
     // —— 弹窗/卡片标题 ——
-    val dialogTitle = TextRole(AppType.dialogTitle, textPrimary)
-    val title = TextRole(AppType.title, textPrimary)
-    val hero = TextRole(AppType.hero, textPrimary)
+    val dialogTitle: TextRole @Composable get() = TextRole(AppType.dialogTitle, textPrimary)
+    val title: TextRole @Composable get() = TextRole(AppType.title, textPrimary)
+    val hero: TextRole @Composable get() = TextRole(AppType.hero, textPrimary)
 
     // —— 区块/分组标题 ——
-    val sectionTitleAccent = TextRole(AppType.sectionTitle, accentBlue)
-    val sectionTitleInk = TextRole(AppType.sectionTitle, textPrimary)
-    val sectionTitleNeutral = TextRole(AppType.sectionTitle, textSecondary)
+    val sectionTitleAccent: TextRole @Composable get() = TextRole(AppType.sectionTitle, accentBlue)
+    val sectionTitleInk: TextRole @Composable get() = TextRole(AppType.sectionTitle, textPrimary)
+    val sectionTitleNeutral: TextRole @Composable get() = TextRole(AppType.sectionTitle, textSecondary)
 
     // —— 控件标签 ——
     // 14sp：与它们身下的选项文字（chip 14sp）同级——标签比选项还小会显得层级倒挂
     // （用户反馈）。AppType.label(12sp) 保留给徽章类小字（PRO 徽章等直接用 AppType）。
     private val labelStyle = AppType.label.copy(fontSize = 14.sp, lineHeight = 20.sp)
-    val label = TextRole(labelStyle, textSecondary)
-    val labelAccent = TextRole(labelStyle, accentBlue)
+    val label: TextRole @Composable get() = TextRole(labelStyle, textSecondary)
+    val labelAccent: TextRole @Composable get() = TextRole(labelStyle, accentBlue)
 
     // —— 正文 ——
-    val body = TextRole(AppType.body, textPrimary)
-    val bodySecondary = TextRole(AppType.body, textSecondary)
-    val bodyTertiary = TextRole(AppType.body, textTertiary)
-    val bodyStrong = TextRole(AppType.bodyStrong, textPrimary)
-    val bodyStrongSecondary = TextRole(AppType.bodyStrong, textSecondary)
-    val bodyStrongAccent = TextRole(AppType.bodyStrong, accentBlue)
-    val bodyLarge = TextRole(AppType.bodyLarge, textPrimary)
+    val body: TextRole @Composable get() = TextRole(AppType.body, textPrimary)
+    val bodySecondary: TextRole @Composable get() = TextRole(AppType.body, textSecondary)
+    val bodyTertiary: TextRole @Composable get() = TextRole(AppType.body, textTertiary)
+    val bodyStrong: TextRole @Composable get() = TextRole(AppType.bodyStrong, textPrimary)
+    val bodyStrongSecondary: TextRole @Composable get() = TextRole(AppType.bodyStrong, textSecondary)
+    val bodyStrongAccent: TextRole @Composable get() = TextRole(AppType.bodyStrong, accentBlue)
+    val bodyLarge: TextRole @Composable get() = TextRole(AppType.bodyLarge, textPrimary)
 
     // —— 辅助/注释 ——
-    val caption = TextRole(AppType.caption, textTertiary)
-    val captionSecondary = TextRole(AppType.caption, textSecondary)
-    val captionAccent = TextRole(AppType.caption, accentBlue)
-    val micro = TextRole(AppType.micro, textTertiary)
+    val caption: TextRole @Composable get() = TextRole(AppType.caption, textTertiary)
+    val captionSecondary: TextRole @Composable get() = TextRole(AppType.caption, textSecondary)
+    val captionAccent: TextRole @Composable get() = TextRole(AppType.caption, accentBlue)
+    val micro: TextRole @Composable get() = TextRole(AppType.micro, textTertiary)
 
     // —— 链接 ——
-    val link = TextRole(AppType.link, accentBlue)
+    val link: TextRole @Composable get() = TextRole(AppType.link, accentBlue)
 
     // —— 填充色上的白字（角标、按钮、选中胶囊） ——
     val badgeOnFill = TextRole(AppType.badge, Color.White)
@@ -72,7 +77,7 @@ object AppTextRole {
     val chipOnFill = TextRole(AppType.chip, Color.White)
 
     // —— 未选中胶囊 ——
-    val chip = TextRole(AppType.chip, textSecondary)
+    val chip: TextRole @Composable get() = TextRole(AppType.chip, textSecondary)
 
     // —— 品牌标题（英雄图上的白字，阴影由调用方叠加） ——
     val brand = TextRole(AppType.brand, Color.White)

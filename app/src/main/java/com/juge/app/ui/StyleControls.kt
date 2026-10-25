@@ -45,7 +45,7 @@ import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.trackGray
 import com.juge.app.ui.theme.rememberAppHaptics
 
-private val controlBlue = selectBlue // 与主界面 selectBlue 同源
+private val controlBlue: Color @Composable get() = selectBlue // 与主界面 selectBlue 同源
 
 /** 白色圆形滑块：16dp + 柔和阴影，全部滑条共用同一颗 */
 @Composable

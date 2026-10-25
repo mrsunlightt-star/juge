@@ -34,6 +34,7 @@ import com.juge.app.R
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.LocalAppDarkTheme
 import com.juge.app.ui.theme.auroraMint
 import com.juge.app.ui.theme.auroraMist
 import com.juge.app.ui.theme.auroraSky
@@ -73,6 +74,13 @@ fun MainScreenBackground(
         modifier = Modifier.fillMaxSize(),
         color = darkBg
     ) {
+        // 极光/网格/底色令牌在组合期解析成局部量：drawBehind 是绘制期 lambda，
+        // 不能直接调用 @Composable 取色。
+        val auroraStart = auroraMint // 鲜明深薄荷 (Rich Vibrant Mint)
+        val auroraMid = auroraSky // 晴空澄澈天蓝 (Sky Cyan)
+        val auroraFade = auroraMist.copy(alpha = 0.50f) // 晨露浅青
+        val pageBg = darkBg
+        val grid = gridLine
         Box(modifier = Modifier.fillMaxSize()) {
             // 背景层单独作为 hazeSource：它必须是抽屉的兄弟而不是祖先。
             // Haze 只采样「zIndex 低于最近祖先 source」的区域；source 作为祖先时
@@ -86,10 +94,10 @@ fun MainScreenBackground(
                         drawRect(
                             brush = Brush.linearGradient(
                                 colors = listOf(
-                                    auroraMint, // 鲜明深薄荷 (Rich Vibrant Mint)
-                                    auroraSky, // 晴空澄澈天蓝 (Sky Cyan)
-                                    auroraMist.copy(alpha = 0.50f), // 晨露浅青
-                                    darkBg  // 渐入页面底色
+                                    auroraStart,
+                                    auroraMid,
+                                    auroraFade,
+                                    pageBg  // 渐入页面底色
                                 ),
                                 start = Offset(0f, 0f),
                                 end = Offset(size.width, size.height * 0.44f)
@@ -105,12 +113,12 @@ fun MainScreenBackground(
 
                         var x = 0f
                         while (x < size.width) {
-                            drawLine(gridLine, Offset(x, 0f), Offset(x, heroPx), stroke)
+                            drawLine(grid, Offset(x, 0f), Offset(x, heroPx), stroke)
                             x += gridSize
                         }
                         var y = 0f
                         while (y < heroPx) {
-                            drawLine(gridLine, Offset(0f, y), Offset(size.width, y), stroke)
+                            drawLine(grid, Offset(0f, y), Offset(size.width, y), stroke)
                             y += gridSize
                         }
 
@@ -121,7 +129,7 @@ fun MainScreenBackground(
                         //        顶边那截模糊的海滩图（HeroBackdrop 多画的一个圆角带）
                         //    和更低的 tint 提供，不靠背景色洗。
                         drawRect(
-                            color = darkBg,
+                            color = pageBg,
                             topLeft = Offset(0f, heroPx),
                             size = Size(size.width, size.height - heroPx)
                         )
@@ -222,16 +230,31 @@ private fun HeroBackdrop(
                 alignment = alignment,
                 modifier = Modifier.fillMaxSize(),
             )
+            // 夜间模式同一张海滩图整体加深压暗：顶栏白字本就带阴影，压暗后依然可读；
+            // 画面变夜色海滩，同时与深色抽屉玻璃的接缝落差也保持住
+            val heroDimStops = if (LocalAppDarkTheme.current) {
+                listOf(
+                    0.00f to Color.Black.copy(alpha = 0.64f),
+                    0.16f to Color.Black.copy(alpha = 0.52f),
+                    0.32f to Color.Black.copy(alpha = 0.40f),
+                    0.90f to Color.Black.copy(alpha = 0.40f),
+                    1.00f to Color.Black.copy(alpha = 0.48f),
+                )
+            } else {
+                listOf(
+                    0.00f to Color.Black.copy(alpha = 0.38f),
+                    0.16f to Color.Black.copy(alpha = 0.20f),
+                    0.32f to Color.Transparent,
+                    0.90f to Color.Transparent,
+                    1.00f to Color.Black.copy(alpha = 0.20f),
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.38f),
-                            0.16f to Color.Black.copy(alpha = 0.20f),
-                            0.32f to Color.Transparent,
-                            0.90f to Color.Transparent,
-                            1.00f to Color.Black.copy(alpha = 0.20f),
+                            *heroDimStops.toTypedArray(),
                             // 渐变以可见 hero 为终点，下方多画的圆角带继续沿用最深压暗色。
                             // 若按扩展后的总高做渐变，面板上沿只走到约 92%，压暗会被稀释掉。
                             startY = 0f,

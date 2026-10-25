@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
@@ -69,7 +71,7 @@ private val HeroTextShadow = Shadow(
 )
 
 /**
- * 顶部导航栏：品牌标题 + 刷新按钮 + PRO 徽章 + 开发开关。
+ * 顶部导航栏：品牌标题 + 刷新按钮 + 夜色开关 + PRO 徽章 + 开发开关。
  *
  * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity），只把内联闭包改成入参：
  * 刷新结果、激活状态变化、打开支付弹窗三个动作交回调用方。
@@ -82,7 +84,9 @@ fun MainTopBar(
     scope: CoroutineScope,
     onReloaded: (List<Reminder>, List<Category>, List<WidgetConfig>) -> Unit,
     onActivatedChange: (Boolean) -> Unit,
-    onOpenPro: () -> Unit
+    onOpenPro: () -> Unit,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: () -> Unit
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
@@ -171,6 +175,43 @@ fun MainTopBar(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+
+            // 夜色开关：与刷新按钮同款 38dp 白圆 + 48dp 热区；英雄区夜间整体压暗，白圆日夜都成立
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(
+                        onClickLabel = if (isDarkTheme) "切换为日间模式" else "切换为夜间模式",
+                        role = Role.Button,
+                    ) {
+                        haptics.tap()
+                        onToggleDarkTheme()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .shadow(
+                            elevation = AppShadows.control,
+                            shape = CircleShape,
+                            clip = false,
+                            ambientColor = AppShadows.ambientShadow,
+                            spotColor = AppShadows.spotShadow,
+                        )
+                        .background(Color.White, CircleShape)
+                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                        contentDescription = if (isDarkTheme) "切换为日间模式" else "切换为夜间模式",
+                        tint = brandInkSoft,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 

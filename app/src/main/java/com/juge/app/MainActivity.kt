@@ -3,15 +3,19 @@ package com.juge.app
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.juge.app.ui.legal.PrivacyPolicyDialog
 import com.juge.app.ui.main.MainAppScreen
+import com.juge.app.ui.theme.AppPalette
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +51,9 @@ class MainActivity : ComponentActivity() {
         // 清理上次编辑残留的临时背景图（超 24h 未提交的），避免孤儿文件长期堆积
         lifecycleScope.launch(Dispatchers.IO) { CropImageHelper.cleanupTempBackgrounds(this@MainActivity) }
 
+        // 夜色模式冷启动防闪：Compose 接管前先按持久化偏好铺窗口底
+        applyWindowBackground(AppPrefs.isDarkTheme(this))
+
         val goToActivate = intent.getBooleanExtra("go_to_activate", false)
         val editConfigId = intent.getLongExtra("config_id", -1L)
 
@@ -55,7 +62,23 @@ class MainActivity : ComponentActivity() {
         pendingPinWidgetKind = intent?.takeIf { it.action == ACTION_ADD_WIDGET }?.getStringExtra("widget_kind")
 
         setContent {
-            MyApplicationTheme {
+            // 夜色模式：纯手动两态，点顶栏图标切换，偏好落 user_prefs（与 isPrivacyAccepted 同套路：
+            // SharedPreferences 同步读 + 调用方自行 mutableStateOf 包快照）
+            var isDarkTheme by remember { mutableStateOf(AppPrefs.isDarkTheme(this@MainActivity)) }
+            val toggleDarkTheme: () -> Unit = {
+                val next = !isDarkTheme
+                isDarkTheme = next
+                AppPrefs.setDarkTheme(this@MainActivity, next)
+                applyWindowBackground(next)
+            }
+
+            MyApplicationTheme(darkTheme = isDarkTheme) {
+                // 状态栏图标明暗随夜色切换（日间暗图标、夜间亮图标）
+                SideEffect {
+                    WindowCompat.getInsetsController(window, window.decorView)
+                        .isAppearanceLightStatusBars = !isDarkTheme
+                }
+
                 var isPrivacyAccepted by remember {
                     mutableStateOf(AppPrefs.isPrivacyAccepted(this@MainActivity))
                 }
@@ -80,11 +103,20 @@ class MainActivity : ComponentActivity() {
                         startOnActivate = goToActivate,
                         targetEditConfigId = editConfigId,
                         startOnAdjust = startOnAdjustTutorial,
-                        startTutorialExpanded = startOnAdjustTutorial
+                        startTutorialExpanded = startOnAdjustTutorial,
+                        isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = toggleDarkTheme
                     )
                 }
             }
         }
+    }
+
+    /** 窗口底随夜色偏好走：兜住冷启动首帧与过滚露出的背景（themes.xml 的 windowBackground 是日间值） */
+    private fun applyWindowBackground(dark: Boolean) {
+        window.setBackgroundDrawable(
+            ColorDrawable((if (dark) AppPalette.Dark else AppPalette.Light).darkBg.toArgb())
+        )
     }
 
     override fun onResume() {

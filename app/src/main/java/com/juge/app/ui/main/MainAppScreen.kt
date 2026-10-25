@@ -53,6 +53,8 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.hazeEffect
+import com.juge.app.ui.theme.drawerGlassBg
+import com.juge.app.ui.theme.drawerGlassTint
 import com.juge.app.ui.theme.sheetHandle
 import java.io.File
 import kotlin.math.roundToInt
@@ -73,7 +75,9 @@ fun MainAppScreen(
     startOnActivate: Boolean,
     targetEditConfigId: Long,
     startOnAdjust: Boolean = false,
-    startTutorialExpanded: Boolean = false
+    startTutorialExpanded: Boolean = false,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: () -> Unit
 ) {
     val context: Context = activity
     // 「跃然纸上 / 个性定制」翻页状态：页签点击、预览卡片点击与内容区左右滑动共用。
@@ -475,7 +479,9 @@ fun MainAppScreen(
                 widgetConfigs = configs
             },
             onActivatedChange = { isActivatedState = it },
-            onOpenPro = { showProDialog = true }
+            onOpenPro = { showProDialog = true },
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme
         )
         WidgetPreviewPager(
             pagerState = pagerState,
@@ -523,11 +529,11 @@ fun MainAppScreen(
                 .clip(AppShape.sheet)
                 .hazeEffect(
                     state = hazeState,
-                    // 白 45% tint（比 HazeMaterials.thin 的 60% 更透一档，用户确认）：
+                    // 日间白 45% / 夜间深底 55% tint（比 HazeMaterials.thin 的 60% 更透一档，用户确认）：
                     // 面板顶边透出模糊的海滩图带，玻璃质感由它提供；噪点保持 0
                     style = HazeStyle(
-                        backgroundColor = Color.White,
-                        tint = HazeTint(Color.White.copy(alpha = 0.45f)),
+                        backgroundColor = drawerGlassBg,
+                        tint = HazeTint(drawerGlassTint),
                         blurRadius = 24.dp,
                         noiseFactor = 0f,
                     ),

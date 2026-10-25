@@ -26,6 +26,8 @@ object AppPrefs {
     private const val KEY_MIGRATED = "legacy_split_done"
     /** 拆分区时旧 app_settings 是否存在过任何键：区分「升级安装」与「全新安装」 */
     private const val KEY_HAD_LEGACY_DATA = "had_legacy_app_settings"
+    /** 夜色模式开关（false=日间）。用户外观偏好，与颜色预设同类，随备份恢复 */
+    private const val KEY_THEME_DARK = "ui_theme_dark"
 
     // 旧 app_settings 中属于「用户资产」的键，迁移到 user_prefs
     private val USER_KEYS = listOf(
@@ -96,6 +98,14 @@ object AppPrefs {
 
     fun setLegacyMigrationDone(context: Context) {
         consent(context).edit().putBoolean(KEY_LEGACY_MIGRATION_DONE, true).apply()
+    }
+
+    /** 夜色模式是否开启（默认日间）。纯手动两态，不跟随系统。 */
+    fun isDarkTheme(context: Context): Boolean =
+        user(context).getBoolean(KEY_THEME_DARK, false)
+
+    fun setDarkTheme(context: Context, dark: Boolean) {
+        user(context).edit().putBoolean(KEY_THEME_DARK, dark).apply()
     }
 
     /** 旧 app_settings 里有没有任何键（隐私同意/迁移标记/颜色都算） */
