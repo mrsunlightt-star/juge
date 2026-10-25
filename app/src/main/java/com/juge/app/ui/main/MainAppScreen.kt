@@ -638,6 +638,7 @@ fun MainAppScreen(
                             onSwipeBack = {
                                 scope.launch { subTabPagerState.animateScrollToPage(0) }
                             },
+                            pagerState = subTabPagerState,
                             initiallyTutorialExpanded = startTutorialExpanded
                         )
                     }

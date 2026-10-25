@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,6 +75,8 @@ fun AdjustTabContent(
     onOpenDoc: (String) -> Unit,
     /** 风格行内向右滑时翻回「跃然纸上」：横滑行会抢手势，由宿主接回外层 pager */
     onSwipeBack: () -> Unit,
+    /** 外层「跃然纸上 / 个性定制」分段 pager：风格行的边界右滑只在它静止时消费 */
+    pagerState: PagerState,
     initiallyTutorialExpanded: Boolean = false
 ) {
     val context = LocalContext.current
@@ -150,7 +153,8 @@ fun AdjustTabContent(
                 onSelectPreset = onSelectPreset,
                 onStyleStateChange = onStyleStateChange,
                 onStyleChange = onStyleChange,
-                onSwipeBack = onSwipeBack
+                onSwipeBack = onSwipeBack,
+                pagerState = pagerState
             )
         }
 

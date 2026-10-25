@@ -1472,7 +1472,7 @@ data class WidgetStyle(
         )
 
         // 明信片风格行里的代码绘制预设：没有插图素材，由 WidgetCanvasRenderer 直接绘制整幅组件。
-        // 与插图素材项同排展示，排在插图之前。缩略图统一 168×120 外框，
+        // 与插图素材项同排展示，排在插图之前。缩略图统一 180×96 外框，
         // 内容按各自 bestDisplaySize 等比（见 presetThumbnailSize），4×4 款不再被压扁。
         val POSTCARD_CODE_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
             "蓝色画报" to (PRESETS.firstOrNull { it.presetId == "p_postcard_note" } ?: PRESETS[0]),

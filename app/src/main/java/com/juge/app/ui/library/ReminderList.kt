@@ -7,9 +7,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,10 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,20 +33,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
+import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppText
 import com.juge.app.ui.legal.LegalFooter
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
-import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.rememberAppHaptics
@@ -99,70 +98,64 @@ internal fun ReminderList(
                         animationSpec = AppMotion.entrance()
                     )
                 ) {
-                    Card(
+                    // 金句卡片与定制页区块卡片共用同一套卡面法律（AppSectionCard：
+                    // 16dp 圆角 + 1dp 描边 + 弥散软阴影）。差异只有三点：
+                    // 左右 16 / 上下 12 的瘦身内边距、关闭尺寸动画、整卡可点（选中金句）。
+                    // 内层间距由 AppSectionCard 的 spacedBy(12dp) 提供，与旧版 Spacer(itemGap) 等宽。
+                    AppSectionCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(
-                                elevation = AppShadows.card,
-                                shape = AppShape.card,
-                                clip = false,
-                                ambientColor = AppShadows.ambientShadow,
-                                spotColor = AppShadows.spotShadow,
-                            )
                             .clickable {
                                 haptics.tap()
                                 onReminderClick(reminder)
                             },
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        shape = AppShape.card,
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        contentPadding = PaddingValues(
+                            horizontal = AppSpacing.cardPadding,
+                            vertical = 12.dp
+                        ),
+                        animateSize = false,
                     ) {
-                        Column(
-                            modifier = Modifier.padding(AppSpacing.cardPadding)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Surface(
+                                shape = AppShape.badge,
+                                color = selectBlue
+                            ) {
+                                AppText(
+                                    text = catName,
+                                    role = AppTextRole.badgeOnFill,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = AppShape.badge,
-                                    color = selectBlue
-                                ) {
-                                    AppText(
-                                        text = catName,
-                                        role = AppTextRole.badgeOnFill,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // 34dp 圆形浅底把图标"托"起来：18dp 裸图标在白卡上又小又薄。
-                                    // 触控热区仍由外层 IconButton 保证 48dp。
-                                    CardActionButton(
-                                        iconRes = R.drawable.ic_symbol_edit_square,
-                                        contentDescription = "编辑金句",
-                                        tint = textSecondary,
-                                        background = surfaceSubtle,
-                                        onClick = { onEditRequest(reminder) }
-                                    )
-                                    CardActionButton(
-                                        iconRes = R.drawable.ic_symbol_delete,
-                                        contentDescription = "删除金句",
-                                        tint = dangerRed,
-                                        background = dangerRed.copy(alpha = 0.08f),
-                                        onClick = { onDeleteRequest(reminder) }
-                                    )
-                                }
+                                // 34dp 圆形浅底把图标"托"起来：18dp 裸图标在白卡上又小又薄。
+                                // 热区 40dp（卡片高度收 10% 的一环），略低于 48dp 指南但仍是舒适触点。
+                                CardActionButton(
+                                    iconRes = R.drawable.ic_symbol_edit_square,
+                                    contentDescription = "编辑金句",
+                                    tint = textSecondary,
+                                    background = surfaceSubtle,
+                                    onClick = { onEditRequest(reminder) }
+                                )
+                                CardActionButton(
+                                    iconRes = R.drawable.ic_symbol_delete,
+                                    contentDescription = "删除金句",
+                                    tint = dangerRed,
+                                    background = dangerRed.copy(alpha = 0.08f),
+                                    onClick = { onDeleteRequest(reminder) }
+                                )
                             }
-                            Spacer(modifier = Modifier.height(AppSpacing.itemGap))
-                            AppText(
-                                text = reminder.content,
-                                role = AppTextRole.bodyLarge
-                            )
                         }
+                        AppText(
+                            text = reminder.content,
+                            role = AppTextRole.bodyLarge
+                        )
                     }
                 }
             }
@@ -220,7 +213,9 @@ private fun EmptyReminderState(hasCategories: Boolean) {
  * 金句卡片右上角的操作按钮：34dp 圆形浅底 + 20dp 圆角图标。
  *
  * 直接用 18dp 裸图标时，在白色卡片上又小又薄；加一层同色系浅底后图标有了"实体"，
- * 视觉尺寸和可点按的暗示都够用。外圈 [IconButton] 仍提供 48dp 触控热区。
+ * 视觉尺寸和可点按的暗示都够用。外圈 40dp 自绘热区（卡片瘦身的一环）——不用
+ * IconButton，是因为 M3 会把热区强制抬回 48dp 最小值，卡片高度就收不下来了；
+ * 无波纹的灰底高亮与全 app 的按压反馈口径一致。
  */
 @Composable
 private fun CardActionButton(
@@ -231,10 +226,19 @@ private fun CardActionButton(
     onClick: () -> Unit
 ) {
     val haptics = rememberAppHaptics()
-    IconButton(onClick = {
-        haptics.click()
-        onClick()
-    }) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clickable(
+                interactionSource = MutableInteractionSource(),
+                indication = null,
+                role = Role.Button,
+            ) {
+                haptics.click()
+                onClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
         Box(
             modifier = Modifier
                 .size(34.dp)

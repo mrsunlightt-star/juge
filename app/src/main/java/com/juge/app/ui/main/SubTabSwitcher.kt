@@ -1,6 +1,7 @@
 package com.juge.app.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,6 +36,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.cardBg
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
@@ -72,11 +74,14 @@ fun SubTabSwitcher(
         // 两个页签不再各自画胶囊——两颗相邻圆角胶囊在接缝处必然留下楔形缝隙
         // （用户反馈的「上下两个白色三角形」），单轨道从结构上消灭这个问题；
         // 白色轨道本身也提供了「这是一个控件」的实体感。
+        // 1dp 描边必须保留：抽屉面板是近白的毛玻璃，纯白胶囊轨道会融进面板
+        // （与区块卡片同一条规则——面板上的白色控件都要勾出边界）。
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 3.dp)
                 .background(cardBg, AppShape.pill)
+                .border(1.dp, borderBlue, AppShape.pill)
         )
 
         // 背景滑块：36dp 高，落在底板内侧

@@ -88,22 +88,24 @@ import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
-import com.juge.app.ui.theme.surfaceMuted
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textWhite
 
 /**
- * 白色区块卡片：定制页的五个设置区块、教程卡片共用。
+ * 白色区块卡片：定制页的五个设置区块、教程卡片、跃然纸上的金句卡片共用。
  *
- * 统一项：16dp 圆角、低透明度弥散软阴影（不描边——描边是「贴纸」，阴影才是「浮起」）、
- * 16dp 内边距、12dp 行距；高度变化默认走 [AppMotion.resize]；
- * 嵌套展开控件可关闭，避免重复执行高度动画。
+ * 统一项：16dp 圆角、1dp 中性描边 + 低透明度弥散软阴影、16dp 内边距、12dp 行距；
+ * 高度变化默认走 [AppMotion.resize]；嵌套展开控件可关闭，避免重复执行高度动画。
+ * 描边必须保留：抽屉面板是近白的毛玻璃，只靠阴影白卡会融进面板里
+ * （用户反馈「卡片框轮廓要清晰、有层次感」），1dp borderBlue 才勾得出边界。
+ * [contentPadding] 放宽为 [PaddingValues]：金句卡片要「左右 16 / 上下 12」的非对称
+ * 内边距（用户定档的整卡瘦身 ~10%），四边同值的 Dp 表达不了。
  */
 @Composable
 fun AppSectionCard(
     modifier: Modifier = Modifier,
-    contentPadding: Dp = AppSpacing.cardPadding,
+    contentPadding: PaddingValues = PaddingValues(AppSpacing.cardPadding),
     animateSize: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -125,6 +127,7 @@ fun AppSectionCard(
                 }
             ),
         colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, borderBlue),
         shape = AppShape.card,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -404,22 +407,23 @@ fun AppDialogSurface(
 }
 
 /**
- * 输入框配色：iOS 风格的**填充式**输入框——浅灰底、无描边，聚焦时底色加深一档，
- * 不再画 Material 的边框线。所有 OutlinedTextField 共用，避免各写一套。
- * [container] 可覆写填充色（取色弹窗等特殊底色场景）。
+ * 输入框配色：**描边式**输入框——透明底 + 1dp 中性描边，聚焦时描边转强调色。
+ * 抽屉面板是近白的毛玻璃，填充式浅灰底在面板上几乎看不出来，用户反馈要
+ * 「轮廓清晰、像之前一样有层次感」，故恢复描边。所有 OutlinedTextField 共用。
+ * [container] 可覆写底色（取色弹窗等特殊底色场景）。
  */
 @Composable
 fun appTextFieldColors(container: Color? = null): TextFieldColors =
     OutlinedTextFieldDefaults.colors(
         focusedTextColor = textWhite,
         unfocusedTextColor = textWhite,
-        focusedBorderColor = Color.Transparent,
-        unfocusedBorderColor = Color.Transparent,
+        focusedBorderColor = accentBlue,
+        unfocusedBorderColor = borderBlue,
         focusedLabelColor = accentBlue,
         unfocusedLabelColor = textGray,
         cursorColor = accentBlue,
-        focusedContainerColor = container ?: surfaceSubtle,
-        unfocusedContainerColor = container ?: surfaceMuted,
+        focusedContainerColor = container ?: Color.Transparent,
+        unfocusedContainerColor = container ?: Color.Transparent,
     )
 
 /**

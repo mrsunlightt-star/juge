@@ -229,7 +229,7 @@
 
 > 萌宠/角色类素材刻意**不放进 `ILLUSTRATION_PRESETS`**，避免同一批图在明信片行重复出现。
 >
-> `POSTCARD_RENDERED_PRESETS` 里的场景卡（天气盒子 + 画框卡片族）都是「素材只占画面一部分、其余由代码画」的类型。缩略图**必须按组件真实渲染**（`WidgetCanvasRenderer.renderThumbnail`，统一 **168×120dp 外框**，内容按各自 `bestDisplaySize` 等比：4×2 → 168×74、4×4 → 120×120），不能裁原图，否则形状/铺图方式的差异在缩略图上完全看不出来。按 `presetId` 定位，避免 `PRESETS` 新增条目时索引漂移。
+> `POSTCARD_RENDERED_PRESETS` 里的场景卡（天气盒子 + 画框卡片族）都是「素材只占画面一部分、其余由代码画」的类型。缩略图**必须按组件真实渲染**（`WidgetCanvasRenderer.renderThumbnail`，统一 **180×96dp 外框**，内容按各自 `bestDisplaySize` 等比：4×2 → 180×79、4×4 → 96×96），不能裁原图，否则形状/铺图方式的差异在缩略图上完全看不出来。按 `presetId` 定位，避免 `PRESETS` 新增条目时索引漂移。
 > 行首的 `POSTCARD_LEADING_PRESETS` 同理（整幅铺贴 + 正文安全区的观感只有真实渲染才看得见）。
 
 ---

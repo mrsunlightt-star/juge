@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,17 +64,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 缩略图卡片的统一外框：比旧版 150×80 放大一档。
+ * 缩略图卡片的统一外框：旧版 150×80 的 1.2 倍（用户定档：再大就显得整行笨重）。
  *
  * 同一行里混着 4×2 与 4×4 风格（例如经典行的小霸王游戏机、萌宠行的猫趴），
  * 如果让每张图按自身比例决定宽高，行高会被最大的方形卡撑住，前面的横卡被顶出
  * 一大块空白。因此所有条目共用这个盒子，图在盒内等比居中。
  */
-internal val PresetThumbnailBox = IntSize(168, 120)
+internal val PresetThumbnailBox = IntSize(180, 96)
 
 /**
  * 按风格的最佳显示尺寸算出**实际渲染画布**，保证内容比例不变、并尽量填满
- * [PresetThumbnailBox]：4×2（250×110）→ 168×74，4×4（250×250）→ 120×120。
+ * [PresetThumbnailBox]：4×2（250×110）→ 180×79，4×4（250×250）→ 96×96。
  *
  * 旧版所有缩略图都塞进 150×80 的横版画布：4×4 的方形组件被纵向压到 44%，
  * 在行里看起来就是一张扁卡。现在渲染画布与组件真实比例一致，方形不再被压扁。
@@ -132,12 +133,14 @@ fun PresetRow(
         if (isPro) textGray else accentBlue
     },
     /** 行已滚到最左端、右滑无内容可再露出时，继续右滑交给外层翻回「跃然纸上」 */
-    onSwipeBack: () -> Unit = {}
+    onSwipeBack: () -> Unit = {},
+    /** 外层分段 pager：边界右滑的消费前提是它静止停在「个性定制」 */
+    pagerState: PagerState
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
     val scrollState = rememberScrollState()
-    Column(modifier = modifier.pageBackAtRowStart(scrollState, onSwipeBack)) {
+    Column(modifier = modifier.pageBackAtRowStart(scrollState, pagerState, onSwipeBack)) {
         if (title != null) {
             AppText(title, role = AppTextRole.sectionTitleNeutral, color = titleColor)
             if (titleBottomSpacing > 0.dp) {
@@ -265,21 +268,29 @@ fun PresetRow(
 private const val ROW_EDGE_SWIPE_TO_PAGE_DP = 6
 
 /**
- * 只在风格行**已经滚到最左端**（[scrollState] 为 0，右滑没有更多内容可露出）时，
- * 把继续右滑交给外层分段 pager。
+ * 只在风格行**已经滚到最左端**（[scrollState] 为 0，右滑没有更多内容可露出）、
+ * 且外层 pager **静止停在「个性定制」**时，把继续右滑就地消费掉，并累计右滑距离；
+ * 松手时若累计超过阈值，翻回「跃然纸上」。
  *
- * 行本身仍可双向滚动：未到左端时右滑照常回卷；回卷到 0 后同一手势里继续右滑，
- * 剩余位移由这里接管，松手翻回「跃然纸上」。这样保留了“右滑回看更早风格”的能力，
- * 又消除了“整行回卷到尽头后才开始翻页”的长距离阻力。
+ * 行本身仍可双向滚动：未到左端时右滑照常回卷。
+ *
+ * **为什么必须以 pager 静止为消费前提**：无条件消费（早期版本）会让 pager 收不到
+ * 任何拖拽，只能靠 animateScrollToPage 动画移动；动画被下一次触摸打断后 pager 停在
+ * 两页中间，而行上的手势仍被截走，永远无法归位（卡在两页中间）。无条件不消费也不行：
+ * pager 会在手势中途把拖拽接管走，onSwipeBack 在拖动仍活跃时触发，
+ * animateScrollToPage 抢不到滚动锁，翻页丢失。所以只在 pager 静止时消费——
+ * 触发可靠；pager 一旦离开静止位（动画被打断、被拖到半路），消费立即放开，
+ * 手势原生到达 pager，随时可拖动、可回弹，半路状态不可能卡死。
  */
 @Composable
 internal fun Modifier.pageBackAtRowStart(
     scrollState: ScrollState,
+    pagerState: PagerState,
     onSwipeBack: () -> Unit
 ): Modifier {
     val thresholdPx = with(LocalDensity.current) { ROW_EDGE_SWIPE_TO_PAGE_DP.dp.toPx() }
     val latestOnSwipeBack by rememberUpdatedState(onSwipeBack)
-    val connection = remember(scrollState, thresholdPx) {
+    val connection = remember(scrollState, pagerState, thresholdPx) {
         // 手势内的累计量只给回调读，不参与组合
         var accumulated = 0f
         var triggered = false
@@ -288,15 +299,17 @@ internal fun Modifier.pageBackAtRowStart(
                 if (source != NestedScrollSource.UserInput || available.x == 0f) {
                     return Offset.Zero
                 }
-                // 手指向左：行向前浏览，不拦截
+                // 手指向左：行向前浏览，不拦截、清累计
                 if (available.x < 0f) {
                     accumulated = 0f
                     triggered = false
                     return Offset.Zero
                 }
-                // 手指向右：行还没回到最左端时让行自己回卷；回到 0 后，
-                // 同一手势里继续右滑的位移才会走到这里，被交给外层翻页。
-                if (scrollState.value > 0) {
+                // pager 不在「个性定制」静止位：翻页动画进行中、被拖到半路、或已翻过去。
+                // 一律放行，让手势沿链条到达 pager，跟手与 settle 全部原生。
+                val pagerParkedOnAdjust = pagerState.currentPage == 1 &&
+                    pagerState.currentPageOffsetFraction == 0f
+                if (scrollState.value > 0 || !pagerParkedOnAdjust) {
                     accumulated = 0f
                     triggered = false
                     return Offset.Zero
@@ -305,6 +318,7 @@ internal fun Modifier.pageBackAtRowStart(
                     accumulated += available.x
                     if (accumulated >= thresholdPx) triggered = true
                 }
+                // 消费掉：pager 静止时不被这些增量拖走，翻页只由松手后的动画执行
                 return Offset(available.x, 0f)
             }
 
@@ -313,7 +327,8 @@ internal fun Modifier.pageBackAtRowStart(
                 accumulated = 0f
                 triggered = false
                 if (shouldPageBack) {
-                    // 松手后再启动翻页动画，避免被正在进行的拖动取消
+                    // 松手后再启动翻页动画，避免被正在进行的拖动取消；
+                    // 同时截下 fling 速度，pager 不再自行 settle，只走这一段翻页动画
                     latestOnSwipeBack()
                     return available.copy(y = 0f)
                 }

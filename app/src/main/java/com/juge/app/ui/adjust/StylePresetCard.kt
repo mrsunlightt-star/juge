@@ -1,6 +1,7 @@
 package com.juge.app.ui.adjust
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -34,7 +35,8 @@ internal fun StylePresetCard(
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
-    onSwipeBack: () -> Unit
+    onSwipeBack: () -> Unit,
+    pagerState: PagerState
 ) {
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "组件风格")
@@ -70,7 +72,8 @@ internal fun StylePresetCard(
                 },
                 contentScale = ContentScale.Fit,
                 imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
-                onSwipeBack = onSwipeBack
+                onSwipeBack = onSwipeBack,
+                pagerState = pagerState
             )
 
             // 2. 萌宠风格（位于经典与明信片之间）
@@ -97,7 +100,8 @@ internal fun StylePresetCard(
                 },
                 contentScale = ContentScale.Fit,
                 imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
-                onSwipeBack = onSwipeBack
+                onSwipeBack = onSwipeBack,
+                pagerState = pagerState
             )
 
             // 3. 明信片风格（精选卡片插画）
@@ -115,7 +119,8 @@ internal fun StylePresetCard(
                 onSelectPreset = onSelectPreset,
                 onStyleStateChange = onStyleStateChange,
                 onStyleChange = onStyleChange,
-                onSwipeBack = onSwipeBack
+                onSwipeBack = onSwipeBack,
+                pagerState = pagerState
             )
         }
     }
