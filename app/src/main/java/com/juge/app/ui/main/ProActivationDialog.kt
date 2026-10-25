@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDivider
@@ -35,6 +36,7 @@ import com.juge.app.ui.theme.textTertiary
 
 @Composable
 fun ProActivationDialog(
+    show: Boolean,
     isActivated: Boolean,
     isPaying: Boolean,
     accountName: String?,
@@ -42,7 +44,8 @@ fun ProActivationDialog(
     onOpenAccount: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {

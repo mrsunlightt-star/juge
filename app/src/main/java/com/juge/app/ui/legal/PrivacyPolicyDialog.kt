@@ -1,5 +1,7 @@
 package com.juge.app.ui.legal
 
+import com.juge.app.ui.AppDialog
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -76,7 +78,7 @@ private val SUMMARY_ITEMS = listOf(
  * 这里与 [LegalDocs.PRIVACY_POLICY] 必须同步更新。
  */
 @Composable
-fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
+fun PrivacyPolicyDialog(show: Boolean, onAgree: () -> Unit, onReject: () -> Unit) {
     // 当前展开的协议全文：null / "user" / "privacy"
     var openDoc by remember { mutableStateOf<String?>(null) }
     val haptics = rememberAppHaptics()
@@ -88,7 +90,8 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
     val contentMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.45f).dp
     val scrollState = rememberScrollState()
 
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = {},
         properties = DialogProperties(
             dismissOnBackPress = false,
@@ -232,11 +235,11 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
         }
     }
 
-    openDoc?.let { doc ->
-        LegalDocDialog(
-            title = LegalDocs.titleOf(doc),
-            body = LegalDocs.bodyOf(doc),
-            onDismiss = { openDoc = null }
-        )
-    }
+    val doc = openDoc
+    LegalDocDialog(
+        show = doc != null,
+        title = if (doc != null) LegalDocs.titleOf(doc) else "",
+        body = if (doc != null) LegalDocs.bodyOf(doc) else "",
+        onDismiss = { openDoc = null }
+    )
 }

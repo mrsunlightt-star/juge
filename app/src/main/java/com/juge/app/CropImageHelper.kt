@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
@@ -327,21 +328,26 @@ object CropImageHelper {
 
     @Composable
     fun ImageCropDialog(
-        uri: Uri,
+        show: Boolean,
+        uri: Uri?,
         onDismiss: () -> Unit,
         onCropSuccess: (String) -> Unit,
         // 裁剪输出的物理分辨率（像素）。宽高比应等于组件真实宽高比，用 CropImageHelper.cropTargetForWidget 计算
         targetWidth: Int = DEFAULT_CROP_WIDTH,
         targetHeight: Int = DEFAULT_CROP_HEIGHT
     ) {
+        // 调用方 dismiss 即置 null；退出动画还在播，留住最后一次非空的 uri 继续渲染
+        var lastUri by remember { mutableStateOf(uri) }
+        if (uri != null) lastUri = uri
+        val boundUri = lastUri ?: return
         val context = LocalContext.current
-        var bitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
+        var bitmap by remember(boundUri) { mutableStateOf<Bitmap?>(null) }
         var isLoading by remember(uri) { mutableStateOf(true) }
 
-        LaunchedEffect(uri) {
+        LaunchedEffect(boundUri) {
             isLoading = true
             // 大图解码（两次 openInputStream + downsample）放 IO 线程，避免主线程 ANR
-            bitmap = withContext(Dispatchers.IO) { loadBitmapFromUri(context, uri) }
+            bitmap = withContext(Dispatchers.IO) { loadBitmapFromUri(context, boundUri) }
             isLoading = false
             if (bitmap == null) {
                 Toast.makeText(context, "图片加载失败", Toast.LENGTH_SHORT).show()
@@ -368,7 +374,8 @@ object CropImageHelper {
             val viewWidthPx = with(density) { cropWidthDp.toPx() }
             val viewHeightPx = with(density) { cropHeightDp.toPx() }
 
-            Dialog(
+            AppDialog(
+                visible = show,
                 onDismissRequest = onDismiss,
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
@@ -503,7 +510,7 @@ object CropImageHelper {
                 }
             }
         } else if (isLoading) {
-            Dialog(onDismissRequest = onDismiss) {
+            AppDialog(visible = true, onDismissRequest = onDismiss) {
                 Box(
                     modifier = Modifier
                         .size(100.dp)

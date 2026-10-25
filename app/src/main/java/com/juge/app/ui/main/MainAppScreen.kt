@@ -215,8 +215,9 @@ fun MainAppScreen(
         }
         if (index >= 0) {
             selectedWidgetId = appWidgetIds[index]
-            // 翻预览 Pager：currentPage 变化后会触发上面的 LaunchedEffect 同步 selectedWidgetId
-            if (pagerState.currentPage != index) pagerState.scrollToPage(index)
+            // 翻预览 Pager：currentPage 变化后会触发上面的 LaunchedEffect 同步 selectedWidgetId。
+            // 用动画翻页而非瞬跳——从桌面点编辑进来时，预览卡滑动到位比"闪现"更明确
+            if (pagerState.currentPage != index) scope.launch { pagerState.animateScrollToPage(index) }
         }
         scope.launch { subTabPagerState.animateScrollToPage(1) }
     }
@@ -452,9 +453,7 @@ fun MainAppScreen(
         onLegalDismiss = { showLegalDoc = null }
     )
 
-    sizeHint?.let { hint ->
-        WidgetSizeHintDialog(hint) { sizeHint = null }
-    }
+    WidgetSizeHintDialog(show = sizeHint != null, hint = sizeHint) { sizeHint = null }
 
     // 抽屉毛玻璃：背景源在 MainScreenBackground（极光/海滩图），
     // 面板本体在这里做实时模糊采样。

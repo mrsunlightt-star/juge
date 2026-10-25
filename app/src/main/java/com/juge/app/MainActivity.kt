@@ -83,19 +83,19 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(AppPrefs.isPrivacyAccepted(this@MainActivity))
                 }
 
-                if (!isPrivacyAccepted) {
-                    PrivacyPolicyDialog(
-                        onAgree = {
+                PrivacyPolicyDialog(
+                    show = !isPrivacyAccepted,
+                    onAgree = {
                             AppPrefs.setPrivacyAccepted(this@MainActivity)
                             isPrivacyAccepted = true
                             // 刷新桌面小组件以恢复正常内容
                             ReminderWidgetProvider.triggerUpdateAllWidgets(this)
                         },
-                        onReject = {
-                            finish()
-                        }
-                    )
-                } else {
+                    onReject = {
+                        finish()
+                    }
+                )
+                if (isPrivacyAccepted) {
                     MainAppScreen(
                         dbHelper = dbHelper,
                         trialManager = trialManager,

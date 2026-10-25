@@ -15,6 +15,7 @@ import com.juge.app.ui.ColorPickerDialog
  */
 @Composable
 internal fun AddColorPresetDialog(
+    show: Boolean,
     title: String,
     initialColor: Int,
     existingPresets: List<Int>,
@@ -23,6 +24,7 @@ internal fun AddColorPresetDialog(
 ) {
     val context = LocalContext.current
     ColorPickerDialog(
+        show = show,
         title = title,
         initialColor = initialColor,
         onDismiss = onDismiss,
@@ -48,11 +50,12 @@ internal fun BackgroundCropDialog(
     onDismiss: () -> Unit,
     onCropped: (String) -> Unit
 ) {
-    if (cropUri != null) {
+    run {
         val context = LocalContext.current
         val (widgetWidthDp, widgetHeightDp) = ReminderWidgetProvider.getWidgetSizeDp(context, selectedWidgetId)
         val cropTarget = CropImageHelper.cropTargetForWidget(widgetWidthDp, widgetHeightDp)
         CropImageHelper.ImageCropDialog(
+            show = cropUri != null,
             uri = cropUri,
             onDismiss = onDismiss,
             onCropSuccess = onCropped,

@@ -46,12 +46,20 @@ import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.legal.LegalFooter
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.warningBg
 import com.juge.app.ui.theme.warningBorder
 import com.juge.app.ui.theme.warningInk
 import com.juge.app.ui.theme.premiumGoldDeep
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -103,20 +111,27 @@ fun AdjustTabContent(
     var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
     var showBackgroundColorBlockedTip by remember { mutableStateOf(false) }
 
+    // 首屏入场编排：每张分区卡只在前 3 个里各播一次（滚走再滚回不重播）。
+    // 只在首帧触发、滚动进入视口不触发——避免"滚动时条目不断弹入"的噪声。
+    val enteredSections = remember { mutableSetOf<String>() }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = AppSpacing.screen)
             .imePadding(),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.sectionGap)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.sectionGap),
+        flingBehavior = AppMotion.rememberAppFlingBehavior(),
     ) {
         // 1. 国产手机桌面小组件添加指南 (默认折叠)
         item(key = "tutorial_card") {
-            TutorialCard(
-                isExpanded = isTutorialExpanded,
-                fromShortcut = initiallyTutorialExpanded,
-                onToggleExpand = { isTutorialExpanded = !isTutorialExpanded }
-            )
+            SectionEntrance(key = "tutorial_card", index = 0, entered = enteredSections) {
+                TutorialCard(
+                    isExpanded = isTutorialExpanded,
+                    fromShortcut = initiallyTutorialExpanded,
+                    onToggleExpand = { isTutorialExpanded = !isTutorialExpanded }
+                )
+            }
         }
 
         // 仅在桌面未检测到任何组件时展示轻量警告提示
@@ -144,31 +159,35 @@ fun AdjustTabContent(
 
         // 2. 🎨 组件风格（先选风格，再到下方微调文字/字体/颜色等细节）
         item(key = "style_preset_card") {
-            StylePresetCard(
-                selectedStyle = selectedStyle,
-                selectedContent = selectedContent,
-                isActivated = isActivated,
-                selectedWidgetId = selectedWidgetId,
-                selectedReminderId = selectedReminderId,
-                onSelectPreset = onSelectPreset,
-                onStyleStateChange = onStyleStateChange,
-                onStyleChange = onStyleChange,
-                onSwipeBack = onSwipeBack,
-                pagerState = pagerState
-            )
+            SectionEntrance(key = "style_preset_card", index = 1, entered = enteredSections) {
+                StylePresetCard(
+                    selectedStyle = selectedStyle,
+                    selectedContent = selectedContent,
+                    isActivated = isActivated,
+                    selectedWidgetId = selectedWidgetId,
+                    selectedReminderId = selectedReminderId,
+                    onSelectPreset = onSelectPreset,
+                    onStyleStateChange = onStyleStateChange,
+                    onStyleChange = onStyleChange,
+                    onSwipeBack = onSwipeBack,
+                    pagerState = pagerState
+                )
+            }
         }
 
         // 3. ✍️ 文本内容与字形定制
         item(key = "text_style_card") {
-            TextStyleCard(
-                selectedStyle = selectedStyle,
-                selectedContent = selectedContent,
-                selectedWidgetId = selectedWidgetId,
-                selectedReminderId = selectedReminderId,
-                onStyleStateChange = onStyleStateChange,
-                onContentStateChange = onContentStateChange,
-                onStyleChange = onStyleChange
-            )
+            SectionEntrance(key = "text_style_card", index = 2, entered = enteredSections) {
+                TextStyleCard(
+                    selectedStyle = selectedStyle,
+                    selectedContent = selectedContent,
+                    selectedWidgetId = selectedWidgetId,
+                    selectedReminderId = selectedReminderId,
+                    onStyleStateChange = onStyleStateChange,
+                    onContentStateChange = onContentStateChange,
+                    onStyleChange = onStyleChange
+                )
+            }
         }
 
         // 4. 🎨 色彩与质感艺术
@@ -240,49 +259,80 @@ fun AdjustTabContent(
         }
     )
 
-    if (showFontColorPicker) {
-        AddColorPresetDialog(
-            title = "添加字体颜色预设",
+    AddColorPresetDialog(
+        show = showFontColorPicker,
+        title = "添加字体颜色预设",
             initialColor = selectedStyle.fontColor,
             existingPresets = fontColorPresets,
             onDismiss = { showFontColorPicker = false },
-            onNewColor = { fontColorPresets = UserColorPresets.addFontColor(context, it) }
-        )
-    }
+        onNewColor = { fontColorPresets = UserColorPresets.addFontColor(context, it) }
+    )
 
-    if (showBackgroundColorPicker) {
-        AddColorPresetDialog(
-            title = "添加背景颜色预设",
+    AddColorPresetDialog(
+        show = showBackgroundColorPicker,
+        title = "添加背景颜色预设",
             initialColor = selectedStyle.backgroundColor,
             existingPresets = backgroundColorPresets,
             onDismiss = { showBackgroundColorPicker = false },
-            onNewColor = { backgroundColorPresets = UserColorPresets.addBackgroundColor(context, it) }
-        )
-    }
+        onNewColor = { backgroundColorPresets = UserColorPresets.addBackgroundColor(context, it) }
+    )
 
-    if (showBackgroundColorBlockedTip) {
-        BackgroundColorBlockedDialog(onDismiss = { showBackgroundColorBlockedTip = false })
-    }
+    BackgroundColorBlockedDialog(
+        show = showBackgroundColorBlockedTip,
+        onDismiss = { showBackgroundColorBlockedTip = false }
+    )
 
-    pendingDeleteFontColor?.let { color ->
-        DeleteColorPresetDialog(
-            color = color,
-            onDismiss = { pendingDeleteFontColor = null },
-            onConfirm = {
-                fontColorPresets = UserColorPresets.deleteFontColor(context, color)
-                pendingDeleteFontColor = null
-            }
-        )
-    }
+    // 删除确认：dismiss 即把色值置 null，组件内部用末次快照保退出动画
+    val delFontColor = pendingDeleteFontColor
+    DeleteColorPresetDialog(
+        show = delFontColor != null,
+        color = delFontColor,
+        onDismiss = { pendingDeleteFontColor = null },
+        onConfirm = {
+            if (delFontColor != null) fontColorPresets = UserColorPresets.deleteFontColor(context, delFontColor)
+            pendingDeleteFontColor = null
+        }
+    )
 
-    pendingDeleteBackgroundColor?.let { color ->
-        DeleteColorPresetDialog(
-            color = color,
-            onDismiss = { pendingDeleteBackgroundColor = null },
-            onConfirm = {
-                backgroundColorPresets = UserColorPresets.deleteBackgroundColor(context, color)
-                pendingDeleteBackgroundColor = null
-            }
-        )
+    val delBgColor = pendingDeleteBackgroundColor
+    DeleteColorPresetDialog(
+        show = delBgColor != null,
+        color = delBgColor,
+        onDismiss = { pendingDeleteBackgroundColor = null },
+        onConfirm = {
+            if (delBgColor != null) backgroundColorPresets = UserColorPresets.deleteBackgroundColor(context, delBgColor)
+            pendingDeleteBackgroundColor = null
+        }
+    )
+}
+
+/**
+ * 个性定制页首屏分段入场：fade + 轻微上滑，按 [index] 交错 60ms。
+ * [entered] 记录已播过的 key——滚走再滚回不重播；只对前 3 张卡生效。
+ */
+@Composable
+private fun SectionEntrance(
+    key: String,
+    index: Int,
+    entered: MutableSet<String>,
+    content: @Composable () -> Unit,
+) {
+    val shouldAnimate = index < 3 && key !in entered
+    if (shouldAnimate) SideEffect { entered.add(key) }
+    val visibleState = remember(key) {
+        MutableTransitionState(initialState = !shouldAnimate)
+    }.apply { targetState = true }
+    if (shouldAnimate) {
+        LaunchedEffect(key) {
+            delay(index * 60L)
+            visibleState.targetState = true
+        }
+    }
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = slideInVertically(animationSpec = AppMotion.entrance()) { it / 5 } +
+            fadeIn(animationSpec = AppMotion.entrance()),
+    ) {
+        content()
     }
 }

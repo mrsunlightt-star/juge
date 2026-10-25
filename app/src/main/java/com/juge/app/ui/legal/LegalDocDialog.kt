@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppPrimaryButton
@@ -30,8 +31,9 @@ import com.juge.app.ui.theme.textTertiary
  * 合规要求：条款必须能在应用内完整查阅，且可随时关闭返回。
  */
 @Composable
-fun LegalDocDialog(title: String, body: String, onDismiss: () -> Unit) {
-    Dialog(
+fun LegalDocDialog(show: Boolean, title: String, body: String, onDismiss: () -> Unit) {
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         // 与首启弹窗同一套宽度处理：平台默认宽度在手机上只有约 280dp，
         // 「连读几十行」的协议全文挤在这点宽度里每行十几个字，非常难读。

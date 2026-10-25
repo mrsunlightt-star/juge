@@ -1,10 +1,21 @@
 package com.juge.app.ui.main
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.DialogProperties
 import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.AppDialog
+import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppTextButton
@@ -38,21 +49,29 @@ internal fun widgetSizeHintFor(style: WidgetStyle, actualSize: String): WidgetSi
 }
 
 @Composable
-internal fun WidgetSizeHintDialog(hint: WidgetSizeHint, onDismiss: () -> Unit) {
-    AlertDialog(
+internal fun WidgetSizeHintDialog(show: Boolean, hint: WidgetSizeHint?, onDismiss: () -> Unit) {
+    // 调用方 dismiss 即置 null；退出动画还在播，留住最后一次非空的值继续渲染
+    var lastHint by remember { mutableStateOf(hint) }
+    if (hint != null) lastHint = hint
+    val bound = lastHint ?: return
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
-        shape = AppShape.dialog,
-        containerColor = cardBg,
-        title = { AppDialogTitle("建议调整桌面组件尺寸") },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        AppDialogSurface {
+            AppDialogTitle("建议调整桌面组件尺寸")
             AppText(
-                text = "当前桌面组件是 ${hint.current}，「${hint.styleName}」的最佳显示尺寸是 ${hint.target}。\n\n" +
-                    "你可以在桌面长按组件，直接拖动边缘把它拉成 ${hint.target}，不需要删除后重新添加。",
+                text = "当前桌面组件是 ${bound.current}，「${bound.styleName}」的最佳显示尺寸是 ${bound.target}。\n\n" +
+                    "你可以在桌面长按组件，直接拖动边缘把它拉成 ${bound.target}，不需要删除后重新添加。",
                 role = AppTextRole.bodySecondary
             )
-        },
-        confirmButton = {
-            AppTextButton(text = "知道了", onClick = onDismiss, color = accentBlue)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                AppTextButton(text = "知道了", onClick = onDismiss, color = accentBlue)
+            }
         }
-    )
+    }
 }

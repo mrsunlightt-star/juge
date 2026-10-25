@@ -1,6 +1,14 @@
 package com.juge.app.ui.theme
 
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.ScrollScope
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import kotlin.math.abs
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -72,4 +80,33 @@ object AppMotion {
         dampingRatio = Spring.DampingRatioNoBouncy,
         stiffness = Spring.StiffnessMediumLow,
     )
+
+    /**
+     * 滚动惯性摩擦系数。Compose 默认用 splineBasedDecay（原生 feel），
+     * 但 ColorOS 系统应用的滑行更长更缓——手一松还能多滑半屏，参照系差异会读成"不够顺"。
+     * 这里用指数衰减并取更低的摩擦（<1 滑得更远），向系统手感靠拢；数值经真机对比调校。
+     */
+    private const val FlingFrictionMultiplier = 0.75f
+
+    /**
+     * 全 App 列表统一的 fling 行为：指数衰减 + 滚动边界判定。
+     * 用法：LazyColumn(flingBehavior = rememberAppFlingBehavior())
+     */
+    @Composable
+    fun rememberAppFlingBehavior(): FlingBehavior = remember {
+        object : FlingBehavior {
+            override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
+                var lastValue = 0f
+                val state = AnimationState(initialValue = 0f, initialVelocity = initialVelocity)
+                state.animateDecay(exponentialDecay(FlingFrictionMultiplier)) {
+                    val delta = value - lastValue
+                    val consumed = scrollBy(delta)
+                    lastValue = value
+                    // 撞到内容边界：吃掉剩余惯性，不要继续空转
+                    if (abs(delta - consumed) > 0.5f) cancelAnimation()
+                }
+                return state.velocity
+            }
+        }
+    }
 }

@@ -39,6 +39,7 @@ import com.juge.app.ui.AppFormGroup
 import com.juge.app.ui.AppFormRow
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDangerButton
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppDivider
@@ -63,13 +64,15 @@ import com.juge.app.ui.theme.textWhite
  */
 @Composable
 internal fun CategoryManagerDialog(
+    show: Boolean,
     categories: List<Category>,
     onRenameRequest: (Category) -> Unit,
     onDeleteRequest: (Category) -> Unit,
     onAddCategory: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
@@ -198,12 +201,14 @@ internal fun CategoryManagerDialog(
 /** 重命名分类弹窗。 */
 @Composable
 internal fun RenameCategoryDialog(
+    show: Boolean,
     name: String,
     onNameChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
@@ -245,18 +250,25 @@ internal fun RenameCategoryDialog(
 /** 二次确认删除分类目录（会连目录下的金句一起清空，故单独一个弹窗）。 */
 @Composable
 internal fun DeleteCategoryDialog(
-    category: Category,
+    show: Boolean,
+    category: Category?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    // 同 DeleteReminderDialog：留住退出动画期间的最后一次非空值
+    var lastCategory by remember { mutableStateOf(category) }
+    if (category != null) lastCategory = category
+    val bound = lastCategory ?: return
+
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface {
             AppDialogTitle("确定要删除分类目录吗？")
             Text(
-                text = "确定要删除“${category.name}”吗？这将同时清空该目录下的所有诗词金句，此操作不可恢复。",
+                text = "确定要删除“${bound.name}”吗？这将同时清空该目录下的所有诗词金句，此操作不可恢复。",
                 style = AppType.body,
                 color = textGray
             )

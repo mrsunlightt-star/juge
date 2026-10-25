@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
@@ -50,6 +51,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun AccountDialog(
+    show: Boolean,
     onProConfirmed: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -140,7 +142,8 @@ fun AccountDialog(
         }
     }
 
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = { if (!busy) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {

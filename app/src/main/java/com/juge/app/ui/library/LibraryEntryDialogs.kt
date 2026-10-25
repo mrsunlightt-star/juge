@@ -16,6 +16,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +31,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
 import com.juge.app.ui.AppDangerButton
+import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppPrimaryButton
@@ -50,12 +55,14 @@ import com.juge.app.ui.theme.rememberAppHaptics
 /** 新建分类目录弹窗。分类名由调用方持有，避免弹窗自己再持有一份状态。 */
 @Composable
 internal fun AddCategoryDialog(
+    show: Boolean,
     name: String,
     onNameChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
@@ -95,6 +102,7 @@ internal fun AddCategoryDialog(
 /** 新增金句弹窗：输入内容 + 单选归类，「+ 新建目录」把用户引到新建分类弹窗。 */
 @Composable
 internal fun AddReminderDialog(
+    show: Boolean,
     content: String,
     onContentChange: (String) -> Unit,
     categories: List<Category>,
@@ -104,7 +112,8 @@ internal fun AddReminderDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
@@ -189,6 +198,7 @@ internal fun AddReminderDialog(
 /** 编辑金句弹窗：改内容 + 改归类，保存后由页面决定是否关闭。 */
 @Composable
 internal fun EditReminderDialog(
+    show: Boolean,
     content: String,
     onContentChange: (String) -> Unit,
     categories: List<Category>,
@@ -198,7 +208,8 @@ internal fun EditReminderDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
@@ -277,18 +288,25 @@ internal fun EditReminderDialog(
 /** 二次确认删除单条金句：删除不可恢复，且卡片上还有编辑按钮，必须防误触。 */
 @Composable
 internal fun DeleteReminderDialog(
-    reminder: Reminder,
+    show: Boolean,
+    reminder: Reminder?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    // 调用方 dismiss 即置 null；退出动画还在播，留住最后一次非空的值继续渲染
+    var lastReminder by remember { mutableStateOf(reminder) }
+    if (reminder != null) lastReminder = reminder
+    val bound = lastReminder ?: return
+
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface {
             AppDialogTitle("删除这条金句？")
             AppText(
-                text = "「${reminder.content}」删除后无法恢复。",
+                text = "「${bound.content}」删除后无法恢复。",
                 role = AppTextRole.bodySecondary,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis

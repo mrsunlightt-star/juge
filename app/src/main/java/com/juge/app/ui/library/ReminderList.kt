@@ -99,7 +99,8 @@ internal fun ReminderList(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = AppSpacing.screen),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
+        flingBehavior = AppMotion.rememberAppFlingBehavior(),
     ) {
         if (isLoaded && displayList.isEmpty()) {
             item(key = "empty_state") {

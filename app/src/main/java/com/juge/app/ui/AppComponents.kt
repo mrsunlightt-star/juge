@@ -2,9 +2,15 @@ package com.juge.app.ui
 
 import android.os.Build
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -48,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -64,6 +71,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,8 +82,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.juge.app.ui.theme.AppMotion
+import kotlinx.coroutines.delay
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
@@ -445,7 +456,9 @@ fun appTextFieldColors(container: Color? = null): TextFieldColors =
  *   把 drawBehind 挂在 verticalScroll 之后的教训）；
  * - 正文需预留 `end` 内边距，滑块落在留白里，不压文字；
  * - 整条 24dp 触摸带支持按住上下拖动直接滚动内容（拖满一圈 = 滚完全程）；
- * - 内容不溢出（maxValue == 0）时滑块与拖动都不响应。
+ * - 内容不溢出（maxValue == 0）时滑块与拖动都不响应；
+ * - **动效**：滚动/拖动时淡入，松手静止 [SCROLLBAR_FADE_DELAY_MS] 后淡出（iOS 同款行为），
+ *   初始不显示——滚动条只在用户正在动的时候存在，不再常驻占视觉。
  */
 @Composable
 fun AppScrollbar(
@@ -456,11 +469,32 @@ fun AppScrollbar(
     touchWidth: Dp = 24.dp,
 ) {
     var viewportHeight by remember { mutableFloatStateOf(0f) }
+    // 滚动条自身的「活动」判定：内容在滚（手势/惯性/程序滚动）或用户正按住滑块
+    var dragging by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
+    val active = state.isScrollInProgress || dragging
+    LaunchedEffect(active) {
+        if (active) {
+            visible = true
+        } else {
+            delay(SCROLLBAR_FADE_DELAY_MS)
+            visible = false
+        }
+    }
+    val thumbAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(200, easing = AppMotion.easing),
+        label = "scrollbarAlpha",
+    )
     Box(
         modifier = modifier
             .onSizeChanged { viewportHeight = it.height.toFloat() }
             .pointerInput(state) {
-                detectVerticalDragGestures { change, dragAmount ->
+                detectVerticalDragGestures(
+                    onDragStart = { dragging = true },
+                    onDragEnd = { dragging = false },
+                    onDragCancel = { dragging = false },
+                ) { change, dragAmount ->
                     change.consume()
                     if (state.maxValue > 0 && viewportHeight > 0f) {
                         // 拖动条带全程 = 滚完全部内容
@@ -469,7 +503,7 @@ fun AppScrollbar(
                 }
             }
             .drawBehind {
-                if (state.maxValue <= 0) return@drawBehind
+                if (state.maxValue <= 0 || thumbAlpha <= 0.01f) return@drawBehind
                 val trackHeight = size.height
                 val thumbHeight = (trackHeight * trackHeight / (trackHeight + state.maxValue))
                     .coerceIn(56.dp.toPx(), trackHeight)
@@ -477,7 +511,7 @@ fun AppScrollbar(
                 val bar = barWidth.toPx()
                 val touch = touchWidth.toPx()
                 drawRoundRect(
-                    color = color,
+                    color = color.copy(alpha = color.alpha * thumbAlpha),
                     topLeft = Offset(touch - bar - 3.dp.toPx(), (trackHeight - thumbHeight) * progress),
                     size = Size(bar, thumbHeight),
                     cornerRadius = CornerRadius(bar / 2f, bar / 2f),
@@ -486,7 +520,66 @@ fun AppScrollbar(
     )
 }
 
-/** 轻量按压反馈：非 Material Button 的自绘控件（色块、卡片）套这一层 */@Composable
+/**
+ * 全 App 弹窗统一挂载器：iOS 式缩放淡入（92% → 原尺寸，弹簧）、快速缩小淡出。
+ *
+ * 裸 `Dialog` 没有任何窗口动画，内容瞬间出现/消失；调用方 `showX = false` 时
+ * Dialog 立即摘除，退出动画根本没机会播。这里把「逻辑可见」与「窗口存活」拆开：
+ * 退出时窗口多活 [EXIT_MS]，动画播完才真正摘除。
+ *
+ * 与 [AppDialogSurface] 配对使用：`AppDialog(visible = showX, onDismissRequest = { showX = false })`
+ */
+@Composable
+fun AppDialog(
+    visible: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    properties: DialogProperties = DialogProperties(),
+    content: @Composable () -> Unit,
+) {
+    // 窗口实际存活 = 正在显示 或 退出动画未播完
+    var windowAlive by remember { mutableStateOf(visible) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            windowAlive = true
+        } else {
+            // 等 exit 动画（fast 档 140ms）播完再摘窗口；多留 40ms 余量防丢帧截尾
+            delay((EXIT_MS + 40).toLong())
+            windowAlive = false
+        }
+    }
+    if (windowAlive) {
+        Dialog(onDismissRequest = onDismissRequest, properties = properties) {
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(AppMotion.StandardMs)) +
+                    scaleIn(
+                        animationSpec = AppMotion.entrance(),
+                        initialScale = 0.92f,
+                        transformOrigin = TransformOrigin.Center,
+                    ),
+                exit = fadeOut(tween(AppMotion.FastMs)) +
+                    scaleOut(
+                        animationSpec = tween(AppMotion.FastMs, easing = AppMotion.easing),
+                        targetScale = 0.96f,
+                        transformOrigin = TransformOrigin.Center,
+                    ),
+                modifier = modifier,
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** 退出动画时长：与 AppMotion.fast() 一致 */
+private val EXIT_MS = AppMotion.FastMs
+
+/** 滚动静止后滚动条保持可见的时长，超过后淡出 */
+private const val SCROLLBAR_FADE_DELAY_MS = 800L
+
+/** 轻量按压反馈：非 Material Button 的自绘控件（色块、卡片）套这一层 */
+@Composable
 fun Modifier.pressScale(
     interactionSource: MutableInteractionSource,
     enabled: Boolean = true,

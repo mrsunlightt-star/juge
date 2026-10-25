@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +40,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.juge.app.ui.AppDialog
+import com.juge.app.ui.AppDialogSurface
+import com.juge.app.ui.AppDialogTitle
 import com.juge.app.ui.AppText
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
@@ -99,22 +102,28 @@ fun AddColorPresetButton(
 /** 长按自定义色板后的删除确认弹窗 */
 @Composable
 fun DeleteColorPresetDialog(
-    color: Int,
+    show: Boolean,
+    color: Int?,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    AlertDialog(
+    // 调用方 dismiss 即置 null；退出动画还在播，留住最后一次非空的色值继续渲染
+    var lastColor by remember { mutableStateOf(color) }
+    if (color != null) lastColor = color
+    val bound = lastColor ?: return
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
-        shape = AppShape.dialog,
-        containerColor = cardBg,
-        title = { AppDialogTitle("删除这个预设颜色？") },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        AppDialogSurface {
+            AppDialogTitle("删除这个预设颜色？")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(AppShape.badge)
-                        .background(Color(color))
+                        .background(Color(bound))
                         .border(1.dp, borderBlue, AppShape.badge)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -123,36 +132,42 @@ fun DeleteColorPresetDialog(
                     role = AppTextRole.bodySecondary
                 )
             }
-        },
-        confirmButton = {
-            AppTextButton(text = "删除", onClick = onConfirm, color = dangerRed)
-        },
-        dismissButton = {
-            AppTextButton(text = "取消", onClick = onDismiss)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppTextButton(text = "取消", onClick = onDismiss)
+                AppTextButton(text = "删除", onClick = onConfirm, color = dangerRed)
+            }
         }
-    )
+    }
 }
 
 /** 主体四周透明的形状（信纸/撕纸/牛皮/猫咪趴/书架）无法设置背景色时的说明弹窗 */
 @Composable
-fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
-    AlertDialog(
+fun BackgroundColorBlockedDialog(show: Boolean, onDismiss: () -> Unit) {
+    AppDialog(
+        visible = show,
         onDismissRequest = onDismiss,
-        shape = AppShape.dialog,
-        containerColor = cardBg,
-        title = { AppDialogTitle("此组件无法设置背景颜色") },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+            AppDialogSurface {
+            AppDialogTitle("此组件无法设置背景颜色")
             AppText(
                 text = "当前风格的主体四周是透明的（如信纸、撕纸、牛皮手账、猫咪趴、书架），" +
                     "设置背景色会在主体外围露出一圈卡片背景，因此该风格不提供背景色调整。\n" +
                     "如需更换底色，可切换到其他组件风格。",
                 role = AppTextRole.bodySecondary
             )
-        },
-        confirmButton = {
-            AppTextButton(text = "我知道了", onClick = onDismiss, color = accentBlue)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                AppTextButton(text = "我知道了", onClick = onDismiss, color = accentBlue)
+            }
         }
-    )
+    }
 }
 
 /**
@@ -161,6 +176,7 @@ fun BackgroundColorBlockedDialog(onDismiss: () -> Unit) {
  */
 @Composable
 fun ColorPickerDialog(
+    show: Boolean,
     title: String,
     initialColor: Int,
     onDismiss: () -> Unit,
@@ -175,7 +191,7 @@ fun ColorPickerDialog(
     var hexInput by remember { mutableStateOf(toHexColor(initialColor)) }
     val picked = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
 
-    Dialog(onDismissRequest = onDismiss) {
+    AppDialog(visible = show, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -233,23 +233,22 @@ fun LibraryTabContent(
     // --- 全部弹窗：状态留在这里，弹窗实现见 LibraryEntryDialogs / CategoryManagerDialogs ---
 
     // 1. 新建分类弹窗
-    if (showAddCategoryDialog) {
-        AddCategoryDialog(
-            name = newCategoryName,
+    AddCategoryDialog(
+        show = showAddCategoryDialog,
+        name = newCategoryName,
             onNameChange = { newCategoryName = it },
             onConfirm = {
                 onAddCategory(newCategoryName)
                 newCategoryName = ""
                 showAddCategoryDialog = false
             },
-            onDismiss = { showAddCategoryDialog = false }
-        )
-    }
+        onDismiss = { showAddCategoryDialog = false }
+    )
 
     // 2. 新增句阁记录弹窗
-    if (showAddReminderDialog) {
-        AddReminderDialog(
-            content = newReminderContent,
+    AddReminderDialog(
+        show = showAddReminderDialog,
+        content = newReminderContent,
             onContentChange = { newReminderContent = it },
             categories = categories,
             selectedCategory = selectedCatForReminder,
@@ -263,14 +262,13 @@ fun LibraryTabContent(
                 newReminderContent = ""
                 showAddReminderDialog = false
             },
-            onDismiss = { showAddReminderDialog = false }
-        )
-    }
+        onDismiss = { showAddReminderDialog = false }
+    )
 
     // 3. 点击金句卡片后：弹出的纯粹文字与分类编辑弹窗
-    if (editingReminder != null) {
-        EditReminderDialog(
-            content = editContentField,
+    EditReminderDialog(
+        show = editingReminder != null,
+        content = editContentField,
             onContentChange = { editContentField = it },
             categories = categories,
             selectedCategory = editCategorySelection,
@@ -280,63 +278,61 @@ fun LibraryTabContent(
                 showAddCategoryDialog = true // 开启新建分类
             },
             onSave = {
-                onEditReminderSave(editingReminder.id, editContentField, editCategorySelection!!.id)
+                onEditReminderSave(editingReminder!!.id, editContentField, editCategorySelection!!.id)
                 // 保存后立即关闭：此前只写库不关闭，弹窗停在原位、没有任何完成反馈，
                 // 用户会再点一次或误以为失败（其余弹窗都有各自的关闭路径）
                 onEditReminderRequest(null)
             },
-            onDismiss = { onEditReminderRequest(null) }
-        )
-    }
+        onDismiss = { onEditReminderRequest(null) }
+    )
 
     // 5. 分类管理中心弹窗（排序已移到文库页长按拖拽，这里只管重命名/删除/新建）
-    if (showCategoryManagerDialog) {
-        CategoryManagerDialog(
-            categories = categories,
+    CategoryManagerDialog(
+        show = showCategoryManagerDialog,
+        categories = categories,
             onRenameRequest = { cat ->
                 renamingCategory = cat
                 renameCategoryNewName = cat.name
             },
             onDeleteRequest = { deletingCategory = it },
             onAddCategory = onAddCategory,
-            onDismiss = { showCategoryManagerDialog = false }
-        )
-    }
+        onDismiss = { showCategoryManagerDialog = false }
+    )
 
     // 6. 重命名分类子 Dialog
-    if (renamingCategory != null) {
-        RenameCategoryDialog(
-            name = renameCategoryNewName,
+    RenameCategoryDialog(
+        show = renamingCategory != null,
+        name = renameCategoryNewName,
             onNameChange = { renameCategoryNewName = it },
             onConfirm = {
                 onRenameCategory(renamingCategory!!.id, renameCategoryNewName)
                 renamingCategory = null
             },
-            onDismiss = { renamingCategory = null }
-        )
-    }
+        onDismiss = { renamingCategory = null }
+    )
 
-    // 4. 二次确认删除分类目录弹窗 (防误触高级 Dialog)
-    if (deletingCategory != null) {
-        DeleteCategoryDialog(
-            category = deletingCategory!!,
-            onConfirm = {
-                onDeleteCategory(deletingCategory!!.id)
-                deletingCategory = null
-            },
-            onDismiss = { deletingCategory = null }
-        )
-    }
+    // 4. 二次确认删除分类目录弹窗 (防误触高级 Dialog)；退出动画期间对象已被置
+    // null，组件内部用末次快照继续渲染（见 DeleteCategoryDialog）
+    val delCat = deletingCategory
+    DeleteCategoryDialog(
+        show = delCat != null,
+        category = delCat,
+        onConfirm = {
+            if (delCat != null) onDeleteCategory(delCat.id)
+            deletingCategory = null
+        },
+        onDismiss = { deletingCategory = null }
+    )
 
     // 7. 二次确认删除金句：与分类删除保持一致，避免小热区误触直接删库
-    if (deletingReminder != null) {
-        DeleteReminderDialog(
-            reminder = deletingReminder!!,
-            onConfirm = {
-                onDeleteReminder(deletingReminder!!.id)
-                deletingReminder = null
-            },
-            onDismiss = { deletingReminder = null }
-        )
-    }
+    val delReminder = deletingReminder
+    DeleteReminderDialog(
+        show = delReminder != null,
+        reminder = delReminder,
+        onConfirm = {
+            if (delReminder != null) onDeleteReminder(delReminder.id)
+            deletingReminder = null
+        },
+        onDismiss = { deletingReminder = null }
+    )
 }

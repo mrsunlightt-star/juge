@@ -38,9 +38,9 @@ fun MainOverlays(
 ) {
     val context = LocalContext.current
 
-    if (showProDialog) {
-        ProActivationDialog(
-            isActivated = isActivated,
+    ProActivationDialog(
+        show = showProDialog,
+        isActivated = isActivated,
             isPaying = isPaying,
             accountName = accountName,
             onActivate = {
@@ -70,13 +70,12 @@ fun MainOverlays(
                 }
             },
             onOpenAccount = onOpenAccount,
-            onDismiss = { if (!isPaying) onProDialogDismiss() }
-        )
-    }
+        onDismiss = { if (!isPaying) onProDialogDismiss() }
+    )
 
-    if (showAccountDialog) {
-        AccountDialog(
-            onProConfirmed = {
+    AccountDialog(
+        show = showAccountDialog,
+        onProConfirmed = {
                 // 只在本机未激活时才写入「账号找回」记录。登录成功不代表本机没有 PRO：
                 // 已用支付宝在这台机器买过的用户，激活记录里留着真实付费时间/方式，
                 // 无条件覆盖会让「我的」页的数据失真；更糟的是日后该账号服务端失去 PRO
@@ -90,17 +89,16 @@ fun MainOverlays(
                 ReminderWidgetProvider.triggerUpdateAllWidgets(context)
                 Toast.makeText(context, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
             },
-            onDismiss = {
-                onAccountDismiss()
-            },
-        )
-    }
+        onDismiss = {
+            onAccountDismiss()
+        },
+    )
 
-    legalDoc?.let { doc ->
-        LegalDocDialog(
-            title = LegalDocs.titleOf(doc),
-            body = LegalDocs.bodyOf(doc),
-            onDismiss = onLegalDismiss
-        )
-    }
+    val doc = legalDoc
+    LegalDocDialog(
+        show = doc != null,
+        title = if (doc != null) LegalDocs.titleOf(doc) else "",
+        body = if (doc != null) LegalDocs.bodyOf(doc) else "",
+        onDismiss = onLegalDismiss
+    )
 }
