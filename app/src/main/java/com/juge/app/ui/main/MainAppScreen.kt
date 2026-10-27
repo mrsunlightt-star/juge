@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -41,7 +43,10 @@ import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AppText
 import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.animateToPageOnUserInput
 import com.juge.app.ui.requiresProForDesktop
+import com.juge.app.ui.swipeBackChrome
+import com.juge.app.ui.swipeBackToPage
 import com.juge.app.ui.adjust.AdjustTabContent
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
@@ -59,9 +64,14 @@ import com.juge.app.ui.theme.sheetHandle
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+
+/** 半页兜底吸附的静默判定：位移停止这么久、且没有手指/动画，才认为真的停在了半页 */
+private const val PAGE_SETTLE_DEBOUNCE_MS = 120L
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -83,6 +93,37 @@ fun MainAppScreen(
     // 「跃然纸上 / 个性定制」翻页状态：页签点击、预览卡片点击与内容区左右滑动共用。
     // 指示器与文字颜色都直接读 pager（currentPage 越过一半即切换），避免等落定才变色
     val subTabPagerState = rememberPagerState(initialPage = if (startOnAdjust) 1 else 0, pageCount = { 2 })
+    // 半页兜底吸附：pager 不允许静止在非整页位置。
+    // 风格行的手势被横向 scrollable 截住，pager 只能被嵌套滚动 dispatchRawDelta 推着走，
+    // 松手时没有 fling 帮它 settle；和页签翻页动画叠在一起时就会停在两页正中间（实测卡死）。
+    // 只要「位移停止一段时间、没有程序化滚动、手指也已离开 pager」，就吸到最近页。
+    var pagerTouchDown by remember { mutableStateOf(false) }
+    // 吸附动画不能跑在 collectLatest 回调里：动画自己会把 isScrollInProgress 置真，
+    // 新 emission 会把“旧回调”连同动画一起取消（实测每 120ms 自杀一次）。放到独立
+    // scope 执行，collectLatest 只负责防抖。
+    val settleScope = rememberCoroutineScope()
+    var settleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    LaunchedEffect(subTabPagerState) {
+        snapshotFlow {
+            Triple(
+                subTabPagerState.currentPageOffsetFraction,
+                subTabPagerState.isScrollInProgress,
+                pagerTouchDown
+            )
+        }.collectLatest { (fraction, scrolling, touching) ->
+            if (fraction == 0f || scrolling || touching) return@collectLatest
+            delay(PAGE_SETTLE_DEBOUNCE_MS)
+            if (!pagerTouchDown &&
+                !subTabPagerState.isScrollInProgress &&
+                subTabPagerState.currentPageOffsetFraction != 0f &&
+                settleJob?.isActive != true
+            ) {
+                settleJob = settleScope.launch {
+                    subTabPagerState.animateToPageOnUserInput(subTabPagerState.currentPage)
+                }
+            }
+        }
+    }
     var isActivatedState by remember { mutableStateOf(trialManager.isActivated()) }
     // 支付进行中：用于按钮置忙，避免重复拉起收银台
     var isPaying by remember { mutableStateOf(false) }
@@ -467,51 +508,65 @@ fun MainAppScreen(
     }
 
     MainScreenBackground(heroHeight = heroHeight, hazeState = hazeState) {
-        MainTopBar(
-            isActivated = isActivatedState,
-            dbHelper = dbHelper,
-            trialManager = trialManager,
-            scope = scope,
-            onReloaded = { rems, cats, configs ->
-                reminders = rems
-                categories = cats
-                widgetConfigs = configs
-            },
-            onActivatedChange = { isActivatedState = it },
-            onOpenPro = { showProDialog = true },
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
-        )
-        WidgetPreviewPager(
-            pagerState = pagerState,
-            appWidgetIds = appWidgetIds,
-            widgetConfigs = widgetConfigs,
-            selectedWidgetId = selectedWidgetId,
-            currentStyle = currentStyle,
-            textContentState = textContentState,
-            previewBoxHeightDp = previewBoxHeightDp,
-            previewHeightForPage = ::previewHeightForPage,
-            onEditClick = { scope.launch { subTabPagerState.animateScrollToPage(1) } }
-        )
-        // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
-        Box(
+        // 顶部区域（顶栏 + 预览轮播 + 组件标签）不在抽屉里，也纳入右滑返回：
+        // 预览轮播还能往右翻时让轮播自己翻；单个组件/已在第一个预览时右滑返回。
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            contentAlignment = Alignment.Center
+                .swipeBackToPage(
+                    pagerState = pagerState,
+                    onSwipeBack = {
+                        scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
+                    },
+                    requirePagerMovement = false
+                )
         ) {
-            AppText(
-                text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
-                role = AppTextRole.label,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.30f), AppShape.pill)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            MainTopBar(
+                isActivated = isActivatedState,
+                dbHelper = dbHelper,
+                trialManager = trialManager,
+                scope = scope,
+                onReloaded = { rems, cats, configs ->
+                    reminders = rems
+                    categories = cats
+                    widgetConfigs = configs
+                },
+                onActivatedChange = { isActivatedState = it },
+                onOpenPro = { showProDialog = true },
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme
             )
-        }
+            WidgetPreviewPager(
+                pagerState = pagerState,
+                appWidgetIds = appWidgetIds,
+                widgetConfigs = widgetConfigs,
+                selectedWidgetId = selectedWidgetId,
+                currentStyle = currentStyle,
+                textContentState = textContentState,
+                previewBoxHeightDp = previewBoxHeightDp,
+                previewHeightForPage = ::previewHeightForPage,
+                onEditClick = { scope.launch { subTabPagerState.animateToPageOnUserInput(1) } }
+            )
+            // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AppText(
+                    text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
+                    role = AppTextRole.label,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.30f), AppShape.pill)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+        }
 
         // 下 2/3 面板容器 (苹果风格大抽屉)
         Card(
@@ -560,24 +615,34 @@ fun MainAppScreen(
                     .fillMaxSize()
                     .padding(top = 7.dp)
             ) {
-                Box(
+                // 抽屉顶栏（把手 + 分段页签）不在 pager 内：右滑返回单独接一层观察者。
+                // 只包住顶栏，不包 pager，避免和内容层的观察者重复触发。
+                Column(
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(AppShape.handle)
-                        .background(sheetHandle)
-                )
+                        .fillMaxWidth()
+                        .swipeBackChrome {
+                            scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
+                        }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(AppShape.handle)
+                            .background(sheetHandle)
+                    )
 
-                Spacer(modifier = Modifier.height(AppSpacing.controlGap))
+                    Spacer(modifier = Modifier.height(AppSpacing.controlGap))
 
-                // 苹果风分段控制器 Segmented Control (全动态测量)
-                SubTabSwitcher(
-                    pagerState = subTabPagerState,
-                    onSelectTab = { scope.launch { subTabPagerState.animateScrollToPage(it) } }
-                )
+                    // 苹果风分段控制器 Segmented Control (全动态测量)
+                    SubTabSwitcher(
+                        pagerState = subTabPagerState,
+                        onSelectTab = { scope.launch { subTabPagerState.animateToPageOnUserInput(it) } }
+                    )
 
-                Spacer(modifier = Modifier.height(AppSpacing.sectionGap))
+                    Spacer(modifier = Modifier.height(AppSpacing.sectionGap))
+                }
 
                 // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
                 // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
@@ -585,7 +650,17 @@ fun MainAppScreen(
                     state = subTabPagerState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        // 只观察、不消费：给半页兜底吸附提供“手指是否还在 pager 上”
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val pressed = awaitPointerEvent(PointerEventPass.Initial)
+                                        .changes.any { it.pressed }
+                                    if (pressed != pagerTouchDown) pagerTouchDown = pressed
+                                }
+                            }
+                        },
                     beyondViewportPageCount = 1
                 ) { page ->
                     if (page == 0) {
@@ -639,9 +714,9 @@ fun MainAppScreen(
                                 onApplyToDesktop(wId, rId, text, newStyle)
                             },
                             onOpenDoc = { showLegalDoc = it },
-                            // 风格行内右滑直接翻回「跃然纸上」，不再等横滑行回卷到头
+                            // 页面级右滑返回：内容区与抽屉顶栏共用同一入口
                             onSwipeBack = {
-                                scope.launch { subTabPagerState.animateScrollToPage(0) }
+                                scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
                             },
                             pagerState = subTabPagerState,
                             initiallyTutorialExpanded = startTutorialExpanded

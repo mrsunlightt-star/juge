@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -39,7 +38,7 @@ import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppText
 import com.juge.app.ui.PresetThumbnailBox
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.pageBackAtRowStart
+import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.presetThumbnailSize
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
@@ -71,16 +70,12 @@ internal fun PostcardPresetsRow(
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
-    /** 行已到最左端、右滑无内容可再露出时，继续右滑交给外层翻回「跃然纸上」 */
-    onSwipeBack: () -> Unit = {},
-    /** 外层分段 pager：边界右滑的消费前提是它静止停在「个性定制」 */
-    pagerState: PagerState,
     title: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    Column(modifier = modifier.pageBackAtRowStart(scrollState, pagerState, onSwipeBack)) {
+    Column(modifier = modifier) {
         // 行标题与经典/萌宠行同款（13sp / Bold / #64748B，见 PresetRow 的 title 分支）。
         //
         // ⚠️ 行标题**不带**「· 4×4」那类尺寸后缀：每款风格的最佳显示尺寸本就各不相同
@@ -95,6 +90,8 @@ internal fun PostcardPresetsRow(
         Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 行滚动了就上报“用掉了这次横向位移”，页面手势层据此让位
+                    .horizontalControlUsage(scrollState)
                     .horizontalScroll(scrollState),
                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
                 // 所有条目共用同一外框，名称自然落在同一条基线上

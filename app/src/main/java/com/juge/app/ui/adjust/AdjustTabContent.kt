@@ -43,6 +43,7 @@ import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.swipeBackToPage
 import com.juge.app.ui.legal.LegalFooter
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
@@ -81,9 +82,9 @@ fun AdjustTabContent(
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onApplyToDesktop: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onOpenDoc: (String) -> Unit,
-    /** 风格行内向右滑时翻回「跃然纸上」：横滑行会抢手势，由宿主接回外层 pager */
+    /** 页面级右滑返回「跃然纸上」：普通区域与所有横向行统一由手势层接管 */
     onSwipeBack: () -> Unit,
-    /** 外层「跃然纸上 / 个性定制」分段 pager：风格行的边界右滑只在它静止时消费 */
+    /** 外层分段 pager：手势层用它的实时位移判断“这次拖动是否真的把页面推走了” */
     pagerState: PagerState,
     initiallyTutorialExpanded: Boolean = false
 ) {
@@ -118,6 +119,9 @@ fun AdjustTabContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            // 页面级右滑返回：只观察、不消费；普通区域与横向行（含行到边界后的
+            // 继续右滑）统一判定。放在 padding 之前，左右留白里的右滑也能响应。
+            .swipeBackToPage(pagerState, onSwipeBack)
             .padding(horizontal = AppSpacing.screen)
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.sectionGap),
@@ -168,9 +172,7 @@ fun AdjustTabContent(
                     selectedReminderId = selectedReminderId,
                     onSelectPreset = onSelectPreset,
                     onStyleStateChange = onStyleStateChange,
-                    onStyleChange = onStyleChange,
-                    onSwipeBack = onSwipeBack,
-                    pagerState = pagerState
+                    onStyleChange = onStyleChange
                 )
             }
         }

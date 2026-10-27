@@ -31,6 +31,7 @@ import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.SaveOutcome
+import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
@@ -65,6 +66,7 @@ internal fun ColorTextureCard(
 
         // 4.1. 字体颜色设置
         AppSectionLabel("字体颜色")
+        val fontColorRowScroll = rememberScrollState()
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
@@ -73,7 +75,9 @@ internal fun ColorTextureCard(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
+                    // 行滚动了就上报“用掉了这次横向位移”，页面手势层据此让位
+                    .horizontalControlUsage(fontColorRowScroll)
+                    .horizontalScroll(fontColorRowScroll),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -112,6 +116,7 @@ internal fun ColorTextureCard(
                 )
 
                 // 预设背景色彩
+                val backgroundColorRowScroll = rememberScrollState()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
@@ -120,7 +125,8 @@ internal fun ColorTextureCard(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
+                            .horizontalControlUsage(backgroundColorRowScroll)
+                            .horizontalScroll(backgroundColorRowScroll),
                         horizontalArrangement = Arrangement.spacedBy(0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

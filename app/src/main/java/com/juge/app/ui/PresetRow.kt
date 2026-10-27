@@ -4,12 +4,10 @@ import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,24 +24,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetStyle
@@ -109,7 +100,6 @@ internal fun presetThumbnailSize(style: WidgetStyle): IntSize {
  * @param showSelectionBorder 是否画选中描边（个性定制页三行统一开启：选中项 3dp 蓝色描边）
  * @param imageContentDescription 缩略图的无障碍描述；两处文案不同，故由调用方给定
  * @param nameColor 名称配色规则（两处的"是否高亮"判据不同）
- * @param onSwipeBack 行已滚到最左端、右滑无更多风格可露出时，继续右滑交给外层翻页
  */
 @Composable
 fun PresetRow(
@@ -129,16 +119,12 @@ fun PresetRow(
     // @Composable 函数类型：lambda 体里要读主题感知令牌（夜色模式下名称色随调色板切换）
     nameColor: @Composable (isPro: Boolean, isSelected: Boolean) -> Color = { isPro, _ ->
         if (isPro) textGray else accentBlue
-    },
-    /** 行已滚到最左端、右滑无内容可再露出时，继续右滑交给外层翻回「跃然纸上」 */
-    onSwipeBack: () -> Unit = {},
-    /** 外层分段 pager：边界右滑的消费前提是它静止停在「个性定制」 */
-    pagerState: PagerState
+    }
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
     val scrollState = rememberScrollState()
-    Column(modifier = modifier.pageBackAtRowStart(scrollState, pagerState, onSwipeBack)) {
+    Column(modifier = modifier) {
         if (title != null) {
             AppText(title, role = AppTextRole.sectionTitleNeutral, color = titleColor)
             if (titleBottomSpacing > 0.dp) {
@@ -148,6 +134,8 @@ fun PresetRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // 行滚动了就上报“用掉了这次横向位移”，页面手势层据此让位
+                .horizontalControlUsage(scrollState)
                 .horizontalScroll(scrollState),
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             // 统一盒子后各条目同高，名称自然对齐；居中与底部对齐等价，保留居中
@@ -247,85 +235,4 @@ fun PresetRow(
             }
         }
     }
-}
-
-/**
- * 行已到最左端后，继续右滑多少（dp）就交给外层翻页。
- *
- * 从**触摸滑动被识别之后**开始累计（系统 touch slop 约 8dp 不经过这里），
- * 取 6dp：整段手势约 14dp 就能翻页，比 pager 默认的半屏距离轻得多，
- * 同时仍要求一个明确的横向拖动。
- */
-private const val ROW_EDGE_SWIPE_TO_PAGE_DP = 6
-
-/**
- * 只在风格行**已经滚到最左端**（[scrollState] 为 0，右滑没有更多内容可露出）、
- * 且外层 pager **静止停在「个性定制」**时，把继续右滑就地消费掉，并累计右滑距离；
- * 松手时若累计超过阈值，翻回「跃然纸上」。
- *
- * 行本身仍可双向滚动：未到左端时右滑照常回卷。
- *
- * **为什么必须以 pager 静止为消费前提**：无条件消费（早期版本）会让 pager 收不到
- * 任何拖拽，只能靠 animateScrollToPage 动画移动；动画被下一次触摸打断后 pager 停在
- * 两页中间，而行上的手势仍被截走，永远无法归位（卡在两页中间）。无条件不消费也不行：
- * pager 会在手势中途把拖拽接管走，onSwipeBack 在拖动仍活跃时触发，
- * animateScrollToPage 抢不到滚动锁，翻页丢失。所以只在 pager 静止时消费——
- * 触发可靠；pager 一旦离开静止位（动画被打断、被拖到半路），消费立即放开，
- * 手势原生到达 pager，随时可拖动、可回弹，半路状态不可能卡死。
- */
-@Composable
-internal fun Modifier.pageBackAtRowStart(
-    scrollState: ScrollState,
-    pagerState: PagerState,
-    onSwipeBack: () -> Unit
-): Modifier {
-    val thresholdPx = with(LocalDensity.current) { ROW_EDGE_SWIPE_TO_PAGE_DP.dp.toPx() }
-    val latestOnSwipeBack by rememberUpdatedState(onSwipeBack)
-    val connection = remember(scrollState, pagerState, thresholdPx) {
-        // 手势内的累计量只给回调读，不参与组合
-        var accumulated = 0f
-        var triggered = false
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput || available.x == 0f) {
-                    return Offset.Zero
-                }
-                // 手指向左：行向前浏览，不拦截、清累计
-                if (available.x < 0f) {
-                    accumulated = 0f
-                    triggered = false
-                    return Offset.Zero
-                }
-                // pager 不在「个性定制」静止位：翻页动画进行中、被拖到半路、或已翻过去。
-                // 一律放行，让手势沿链条到达 pager，跟手与 settle 全部原生。
-                val pagerParkedOnAdjust = pagerState.currentPage == 1 &&
-                    pagerState.currentPageOffsetFraction == 0f
-                if (scrollState.value > 0 || !pagerParkedOnAdjust) {
-                    accumulated = 0f
-                    triggered = false
-                    return Offset.Zero
-                }
-                if (!triggered) {
-                    accumulated += available.x
-                    if (accumulated >= thresholdPx) triggered = true
-                }
-                // 消费掉：pager 静止时不被这些增量拖走，翻页只由松手后的动画执行
-                return Offset(available.x, 0f)
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                val shouldPageBack = triggered
-                accumulated = 0f
-                triggered = false
-                if (shouldPageBack) {
-                    // 松手后再启动翻页动画，避免被正在进行的拖动取消；
-                    // 同时截下 fling 速度，pager 不再自行 settle，只走这一段翻页动画
-                    latestOnSwipeBack()
-                    return available.copy(y = 0f)
-                }
-                return Velocity.Zero
-            }
-        }
-    }
-    return nestedScroll(connection)
 }

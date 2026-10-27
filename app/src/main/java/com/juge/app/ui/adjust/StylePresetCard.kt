@@ -1,7 +1,6 @@
 package com.juge.app.ui.adjust
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -21,9 +20,8 @@ import com.juge.app.ui.theme.textGray
 /**
  * 组件风格卡片：经典/萌宠横滑预设 + 明信片（含插画）行。
  *
- * [onSwipeBack] 由宿主接到「跃然纸上 / 个性定制」的 pager：每个风格行各自判断边界
- * （见 [com.juge.app.ui.pageBackAtRowStart]）。行内仍可双向滚动；只有一行已经滚到
- * 最左端、右滑没有更多风格可露出时，继续右滑才交给外层翻回「跃然纸上」。
+ * 行内双向滚动；右滑返回「跃然纸上」由页面级手势层统一处理（见
+ * [com.juge.app.ui.swipeBackToPage]），行本身不再各自挂手势。
  */
 @Composable
 internal fun StylePresetCard(
@@ -34,9 +32,7 @@ internal fun StylePresetCard(
     selectedReminderId: Long,
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
-    onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
-    onSwipeBack: () -> Unit,
-    pagerState: PagerState
+    onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
 ) {
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "组件风格")
@@ -69,9 +65,7 @@ internal fun StylePresetCard(
                     if (isSelected || !isPro) accentBlue else textGray
                 },
                 contentScale = ContentScale.Fit,
-                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
-                onSwipeBack = onSwipeBack,
-                pagerState = pagerState
+                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
             )
 
             // 2. 萌宠风格（位于经典与明信片之间）
@@ -95,9 +89,7 @@ internal fun StylePresetCard(
                     if (isSelected || !isPro) accentBlue else textGray
                 },
                 contentScale = ContentScale.Fit,
-                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" },
-                onSwipeBack = onSwipeBack,
-                pagerState = pagerState
+                imageContentDescription = { index, _ -> "Preset Style ${index + 1}" }
             )
 
             // 3. 明信片风格（精选卡片插画）
@@ -114,9 +106,7 @@ internal fun StylePresetCard(
                 selectedReminderId = selectedReminderId,
                 onSelectPreset = onSelectPreset,
                 onStyleStateChange = onStyleStateChange,
-                onStyleChange = onStyleChange,
-                onSwipeBack = onSwipeBack,
-                pagerState = pagerState
+                onStyleChange = onStyleChange
             )
         }
     }
