@@ -128,7 +128,7 @@ private val INSET_CAPABLE_SHAPES = setOf(
  *
  * **① 为什么必须由渲染层决定**：靠"预设自己把圆角写成 0"兜不住——套用预设时圆角是**继承**来的
  * （`ui/adjust/StylePresetCard.kt` 里 `preset.copy(cornerRadiusDp = selectedStyle.cornerRadiusDp)`），
- * 用户还能把滑条拖到 30dp。整幅贴图类的角上往往就是素材画的东西，裁一刀就是"作品缺了个角"。
+ * 用户还能把圆角调到 30dp。整幅贴图类的角上往往就是素材画的东西，裁一刀就是"作品缺了个角"。
  *
  * **② 圆角会切掉什么**（口径：预览位图 1125px 宽 = 4.5px/dp，数"画面上已有的不透明像素"落在圆角
  * 遮罩外的部分；斜杠后只数非卡面白的图案/笔画像素。4×4 只有 SPRING_DOG 另算——见它那一行，
@@ -146,8 +146,8 @@ private val INSET_CAPABLE_SHAPES = setOf(
  * **③ 别照 ② 的数字删条目**：上表是标准 4×2 / 4×4 预览下测的。用户在桌面上把组件**拖小**（占的格数
  * 变少）时，同一个圆角在卡片上占的比例更大、切得更多；`SUBOR_CONSOLE` 还多一层——它的素材是
  * 1.604:1，组件长宽比一接近它，`CENTER_FIT` 就把机身撑满四角；再加上"从上一个风格继承来一个大
- * 圆角"这条路径，切到的东西都跟着变。删一条**不会让任何测试变红**（`ShapeCornerSliderTest`
- * 只核对"强制直角 ⇒ 圆角滑条置灰"），而桌面上的老组件会当场多一刀。
+ * 圆角"这条路径，切到的东西都跟着变。删一条**不会让任何测试变红**（`ShapeCornerAdjustTest`
+ * 只核对"强制直角 ⇒ 圆角步进器禁用"），而桌面上的老组件会当场多一刀。
  */
 private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.GIANT_SWORD,

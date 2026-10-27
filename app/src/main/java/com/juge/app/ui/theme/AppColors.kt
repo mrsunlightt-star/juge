@@ -24,7 +24,7 @@ internal data class AppPalette(
     val cardBg: Color,
     /** 强调色（全局唯一 accent）的文字/描边档：用于区块标题/链接/图标/选中描边；填充角色用 selectBlue / accentFillStrong */
     val accentBlue: Color,
-    /** 强调色填充档（滑条轨道等需要 3:1 对比的非文字填充） */
+    /** 强调色填充档（Material secondary 等需要 3:1 对比的非文字填充） */
     val accentFillStrong: Color,
     /** 网站同款精细边框与网格线 */
     val borderBlue: Color,
@@ -62,7 +62,7 @@ internal data class AppPalette(
     /** 品牌墨（固定浅底如顶栏白圆上使用，日夜同值） */
     val brandInk: Color,
     val brandInkSoft: Color,
-    /** 滑条未激活轨道：中性灰，不带蓝调 */
+    /** 中性轨道灰：保留给需要轨道底色的控件，不带蓝调 */
     val trackGray: Color,
     /** 未选中胶囊文字 */
     val chipTextInk: Color,

@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,22 +36,29 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.accentFillStrong
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
-import com.juge.app.ui.theme.trackGray
 import com.juge.app.ui.theme.rememberAppHaptics
 
 private val controlBlue: Color @Composable get() = selectBlue // 与主界面 selectBlue 同源
 
-/** 白色圆形滑块：16dp + 柔和阴影，全部滑条共用同一颗 */
+private val SliderThumbSize = 18.dp
+
+/**
+ * 白色圆形滑块：18dp 视觉 + 2dp 强调色描边 + 柔和阴影，供取色滑条使用。
+ *
+ * 白芯必须配描边：卡片底本身就是白色，只靠白底 + 阴影时滑块会整个融进面板
+ * （用户反馈「看不到按钮在哪」）。描边用 accentBlue 而非轨道色——落在蓝色已填充段上时，
+ * 轨道色会和滑块外沿同色，白芯才是唯一能读出轮廓的部分。
+ */
 @Composable
 private fun SliderThumb(enabled: Boolean) {
+    val fill = if (enabled) Color.White else disabledGray
     Box(
         modifier = Modifier
-            .size(16.dp)
+            .size(SliderThumbSize)
             .shadow(
                 elevation = AppShadows.control,
                 shape = CircleShape,
@@ -60,51 +66,8 @@ private fun SliderThumb(enabled: Boolean) {
                 ambientColor = AppShadows.ambientShadow,
                 spotColor = AppShadows.spotShadow,
             )
-            .background(if (enabled) Color.White else disabledGray, CircleShape)
-    )
-}
-
-/**
- * 统一样式滑条：5dp 厚胶囊轨道 + 白色圆形滑块（带柔和阴影）。
- * 主编辑面板全部走这一个实现；自定义轨道后 steps 的刻度点不再绘制。
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ThickTrackSlider(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    valueRange: ClosedFloatingPointRange<Float>,
-    modifier: Modifier = Modifier,
-    steps: Int = 0,
-    enabled: Boolean = true
-) {
-    val span = valueRange.endInclusive - valueRange.start
-    val fraction = if (span > 0f) ((value - valueRange.start) / span).coerceIn(0f, 1f) else 0f
-    Slider(
-        value = value,
-        onValueChange = onValueChange,
-        valueRange = valueRange,
-        steps = steps,
-        enabled = enabled,
-        modifier = modifier,
-        thumb = { SliderThumb(enabled) },
-        track = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(AppShape.pill)
-                    .background(trackGray)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(if (enabled) fraction else 0f)
-                        .fillMaxHeight()
-                        .clip(AppShape.pill)
-                        .background(accentFillStrong)
-                )
-            }
-        }
+            .background(fill, CircleShape)
+            .border(2.dp, if (enabled) accentBlue else disabledGray, CircleShape)
     )
 }
 

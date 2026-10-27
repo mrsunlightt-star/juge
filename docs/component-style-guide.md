@@ -237,7 +237,7 @@ WidgetStyle(
 
 // ④ 若主体四周透明 / 素材自带卡面 → 加进 SHAPES_WITHOUT_BACKGROUND_COLOR
 // ⑤ 若渲染层要强制直角 → 加进 ShapeTraits.SQUARE_CORNER_SHAPES，
-//    并在 ui/adjust/ShapeBackgroundCard.kt 的 canAdjustCardCorner 里同步禁用滑条
+//    并在 ui/adjust/ShapeBackgroundCard.kt 的 canAdjustCardCorner 里同步禁用圆角步进器
 // ⑥ 有外部依据的 bestDisplaySize → 补进 PresetDisplaySizeTest
 ```
 

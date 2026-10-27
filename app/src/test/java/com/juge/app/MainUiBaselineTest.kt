@@ -75,6 +75,13 @@ class MainUiBaselineTest {
             .performScrollToNode(hasText("文本内容与字形定制"))
         scenes["main-adjust-postcard"] = snapshot("main-adjust-postcard")
 
+        // 数值步进器必须单独入基线：上面几个场景都停在字号/行距/字间距三行上方。
+        // 滚到字间距这一行，让「标签 …… − 当前值 +」整行进画面，防止步进器
+        // 被样式改动挤掉、端点禁用态画错或单位文案丢失。
+        compose.onNode(verticalScrollable and hasAnyDescendant(hasText("组件风格")))
+            .performScrollToNode(hasText("字间距", substring = true))
+        scenes["main-adjust-stepper"] = snapshot("main-adjust-stepper")
+
         // 滚回顶部再展开教程：上一步把列表滚下去了，「桌面组件添加教程」在视口之外点不到
         compose.onNode(verticalScrollable and hasAnyDescendant(hasText("组件风格")))
             .performScrollToNode(hasText("桌面组件添加教程", substring = true))

@@ -155,7 +155,7 @@ fun WidgetPreviewPager(
                 }
             }
 
-            // 只在「离散的样式身份」变化时做渐隐过渡；正文、颜色和滑条连续调整直接更新，
+            // 只在「离散的样式身份」变化时做渐隐过渡；正文、颜色和数值调整直接更新，
             // 避免拖动时每一帧都 Crossfade，导致预览看起来跟手性差或残影。
             // 过渡目标（キー）只含离散身份，不包含 pageBitmap 本身。
             val previewTransitionKey = listOf(

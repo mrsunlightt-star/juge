@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Text
@@ -20,21 +19,19 @@ import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppDangerButton
 import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppFilterChip
+import com.juge.app.ui.AppNumberStepperRow
 import com.juge.app.ui.AppSecondaryButton
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.AppText
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.theme.AppTextRole
-import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.surfaceSubtle
-import com.juge.app.ui.theme.textTertiary
+import kotlin.math.roundToInt
 
 /** 物理形状与背景材质卡片：圆角、不透明度、自定义背景图与填充模式。 */
 @Composable
@@ -50,60 +47,39 @@ internal fun ShapeBackgroundCard(
 ) {
     val context = LocalContext.current
     val hasImage = !selectedStyle.backgroundImagePath.isNullOrEmpty()
+    // 两个步进器共用：先更新内存态（预览立即跟手），再按原有防抖链路落库
+    fun applyStyle(newStyle: WidgetStyle) {
+        onStyleStateChange(newStyle)
+        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+    }
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "物理形状与背景材质")
 
-        // 背景圆角尺寸 Slider (适用于卡片类形状)
-        // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）
+        // 外框圆角（适用于卡片类形状）。
+        // 无论形状是否可调圆角都常驻渲染，避免切换形状时控件移除导致列表高度突变跳动（“页面自动上滑”）：
+        // 不可调时右侧显示说明，行高与可调时一致。
         val canAdjustCorner = canAdjustCardCorner(selectedStyle.shape)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 与其他控件标签（背景不透明度/自定义背景图等）同一角色：label = 12sp/半粗/次级灰
-            AppSectionLabel(
-                if (canAdjustCorner) {
-                    "外框圆角大小: ${selectedStyle.cornerRadiusDp.toInt()} dp"
-                } else {
-                    "外框圆角（此形状无需调整）"
-                }
-            )
-        }
-        ThickTrackSlider(
+        AppNumberStepperRow(
+            label = "外框圆角大小",
             value = selectedStyle.cornerRadiusDp,
-            onValueChange = {
-                val newStyle = selectedStyle.copy(cornerRadiusDp = it)
-                onStyleStateChange(newStyle)
-                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-            },
-            valueRange = 0.0f..30.0f,
-            steps = 29,
+            valueRange = 0f..30f,
+            step = 1f,
+            format = { "${it.roundToInt()} dp" },
+            snap = { it.roundToInt().toFloat() },
             enabled = canAdjustCorner,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
+            disabledHint = "此形状无需调整",
+            onValueChange = { applyStyle(selectedStyle.copy(cornerRadiusDp = it)) },
         )
 
-        // 背景不透明度 Slider
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppSectionLabel("背景不透明度: ${(selectedStyle.backgroundOpacity * 100).toInt()}%")
-        }
-        ThickTrackSlider(
+        // 背景不透明度：按 5% 一档，既够细也不会从 0 点到 100 点上百次
+        AppNumberStepperRow(
+            label = "背景不透明度",
             value = selectedStyle.backgroundOpacity,
-            onValueChange = {
-                val newStyle = selectedStyle.copy(backgroundOpacity = it)
-                onStyleStateChange(newStyle)
-                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-            },
-            valueRange = 0.0f..1.0f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
+            valueRange = 0f..1f,
+            step = 0.05f,
+            format = { "${(it * 100f).roundToInt()}%" },
+            snap = { (it * 100f).roundToInt() / 100f },
+            onValueChange = { applyStyle(selectedStyle.copy(backgroundOpacity = it)) },
         )
 
         AppDivider()
@@ -185,16 +161,16 @@ internal fun ShapeBackgroundCard(
 }
 
 /**
- * 「外框圆角大小」滑条是否可用。
+ * 「外框圆角大小」步进器是否可用。
  *
- * 两个理由会让滑条失去落点：
+ * 两个理由会让步进器失去意义：
  * 1. **渲染层强制直角**（`ShapeTraits.SQUARE_CORNER_SHAPES`）：整幅插画或素材自带的框角
- *    被圆角裁切会切掉主体，渲染时不读用户的圆角值——滑条能动但画面上没有任何变化；
+ *    被圆角裁切会切掉主体，渲染时不读用户的圆角值——按钮能点但画面上没有任何变化；
  * 2. 形状本身没有可调的外框（椭圆/撕纸/书架各自的外轮廓另有来源）。
  *
- * 名单**必须覆盖第 1 类**，`ShapeCornerSliderTest` 会逐形状核对这一点：
+ * 名单**必须覆盖第 1 类**，`ShapeCornerAdjustTest` 会逐形状核对这一点：
  * 这份名单历史上漏登记过三次（竹林熊猫、萌宠乐园、可爱四小只），
- * 表现都是「滑条能动、拖动无反应」。
+ * 表现都是「按钮能点、画面无反应」。
  */
 internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
     shape != WidgetShape.ELLIPSE &&

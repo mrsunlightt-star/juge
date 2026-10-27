@@ -4,34 +4,30 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppFilterChip
+import com.juge.app.ui.AppNumberStepperRow
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.AppText
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.ThickTrackSlider
 import com.juge.app.ui.appTextFieldColors
-import com.juge.app.ui.theme.AppTextRole
+import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textTertiary
+import kotlin.math.roundToInt
 
 /** 文本内容与字形定制卡片：金句输入、字体、字号、加粗/倾斜/阴影、对齐方式。 */
 @Composable
@@ -44,6 +40,11 @@ internal fun TextStyleCard(
     onContentStateChange: (String) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome
 ) {
+    // 所有步进器共用：先更新内存态（预览立即跟手），再按原有防抖链路落库
+    fun applyStyle(newStyle: WidgetStyle) {
+        onStyleStateChange(newStyle)
+        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+    }
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "文本内容与字形定制")
 
@@ -71,10 +72,13 @@ internal fun TextStyleCard(
 
         // 字体选择（横滚动）
         AppSectionLabel("选择金句字体")
+        val fontRowScroll = rememberScrollState()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                // 行滚动了就上报“用掉了这次横向位移”，页面手势层据此让位
+                .horizontalControlUsage(fontRowScroll)
+                .horizontalScroll(fontRowScroll),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)
         ) {
             WidgetFont.values().forEach { fnt ->
@@ -91,55 +95,40 @@ internal fun TextStyleCard(
             }
         }
 
-        // 字体大小调节
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppSectionLabel("字体大小: ${selectedStyle.fontSizeSp.toInt()} sp")
-        }
-        ThickTrackSlider(
+        // 字号 / 行距 / 字间距：数值行 + 步进器（长按连发）。
+        // 不再用横向滑条——滑条会和页面级右滑返回抢手势（见 AppNumberStepperRow 注释）。
+        AppNumberStepperRow(
+            label = "字体大小",
             value = selectedStyle.fontSizeSp,
-            onValueChange = {
-                val newStyle = selectedStyle.copy(fontSizeSp = it)
-                onStyleStateChange(newStyle)
-                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-            },
-            valueRange = 12.0f..48.0f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
+            valueRange = 12f..48f,
+            step = 1f,
+            format = { "${it.roundToInt()} sp" },
+            snap = { it.roundToInt().toFloat() },
+            onValueChange = { applyStyle(selectedStyle.copy(fontSizeSp = it)) },
         )
-
-        // 行距调节（倍数，1.0 = 字体默认行高；与渲染端 lineSpacingMultiplier 同一口径）
-        AppSectionLabel("行距: ${"%.1f".format(selectedStyle.lineSpacingMultiplier)}x")
-        ThickTrackSlider(
+        AppNumberStepperRow(
+            label = "行距",
+            // 倍数，1.0 = 字体默认行高；与渲染端 lineSpacingMultiplier 同一口径
             value = selectedStyle.lineSpacingMultiplier,
-            onValueChange = {
-                val newStyle = selectedStyle.copy(lineSpacingMultiplier = it)
-                onStyleStateChange(newStyle)
-                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-            },
-            valueRange = 0.5f..3.0f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
+            valueRange = 0.5f..3f,
+            step = 0.1f,
+            format = { "%.1fx".format(it) },
+            snap = { (it * 10f).roundToInt() / 10f },
+            onValueChange = { applyStyle(selectedStyle.copy(lineSpacingMultiplier = it)) },
         )
-
-        // 字间距调节（Paint.letterSpacing 的 em 单位，0 = 跟随字体默认）
-        AppSectionLabel("字间距: ${"%.2f".format(selectedStyle.letterSpacing)} em")
-        ThickTrackSlider(
+        AppNumberStepperRow(
+            label = "字间距",
+            // Paint.letterSpacing 的 em 单位，0 = 跟随字体默认
             value = selectedStyle.letterSpacing,
-            onValueChange = {
-                val newStyle = selectedStyle.copy(letterSpacing = it)
-                onStyleStateChange(newStyle)
-                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-            },
-            valueRange = 0.0f..0.5f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
+            valueRange = 0f..0.5f,
+            step = 0.05f,
+            format = { "%.2f em".format(it) },
+            snap = { (it * 100f).roundToInt() / 100f },
+            onValueChange = { applyStyle(selectedStyle.copy(letterSpacing = it)) },
+        )
+        AppText(
+            text = "长按 − / + 可连续调整",
+            role = AppTextRole.caption,
         )
 
         // 加粗 / 倾斜 / 文字阴影：带勾选框的胶囊选项
@@ -185,7 +174,7 @@ internal fun TextStyleCard(
             )
         }
 
-        // 文字对齐方式：3+1 双排——两端对齐单独一行，避免整行横向滚动与页签左右滑动手势冲突
+        // 文字对齐方式：3+1 双排——四个胶囊在窄屏上比单行更易点，两端对齐单独成行
         AppSectionLabel("对齐方式")
         val alignments = listOf(
             "LEFT" to "左对齐",
