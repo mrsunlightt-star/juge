@@ -697,7 +697,6 @@ fun MainAppScreen(
                         )
                     } else {
                         AdjustTabContent(
-                            widgetConfigs = widgetConfigs,
                             isActivated = isActivatedState,
                             appWidgetIds = appWidgetIds,
                             selectedWidgetId = selectedWidgetId,

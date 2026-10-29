@@ -5,10 +5,12 @@
     <!-- 备份用户自定义背景图，避免恢复后样式引用失效（编辑期临时图在 bg_tmp，不在备份范围） -->
     <include domain="file" path="bg_images/"/>
 
-    <!-- 备份 SharedPreferences，但排除凭证/同意状态/设备绑定数据 -->
+    <!-- 备份 SharedPreferences，但排除凭证/同意状态/激活状态/未结算订单；
+         组件绑定（widget_bindings_prefs）刻意保留：换机恢复后由
+         ReminderWidgetProvider.onRestored 把旧 widgetId 映射到新 widgetId，不要加回 exclude -->
     <include domain="sharedpref" path="."/>
 
-    <!-- 付费激活状态与设备绑定数据：恢复后无意义，且属于敏感状态 -->
+    <!-- 付费激活状态：恢复后无意义，且属于敏感状态 -->
     <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
 
     <!-- 登录凭证（Bearer Token）：不随普通 App 数据备份，新设备重新登录即可 -->

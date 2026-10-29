@@ -14,7 +14,6 @@ import kotlin.test.assertNull
  * 这两条是资金安全的关键：异步通知会重投多次，金额则决定「1 分钱能否买到 PRO」。
  */
 @SpringBootTest(properties = [
-    "spring.config.location=optional:classpath:/local-payment-test.properties",
     "spring.datasource.url=jdbc:h2:mem:payorder-test;DB_CLOSE_DELAY=-1",
     "spring.jpa.hibernate.ddl-auto=create-drop",
 ])

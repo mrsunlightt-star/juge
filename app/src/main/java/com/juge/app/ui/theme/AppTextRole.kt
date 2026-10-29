@@ -25,10 +25,7 @@ import androidx.compose.ui.unit.sp
  * 上下文色（Material 按钮内的 `contentColor`、输入框 label 等）继续用
  * `AppType` 字级 + 组件给的动态色，不经过角色。
  */
-data class TextRole(val style: TextStyle, val color: Color) {
-    /** 仅取字级与字重、颜色由调用方动态决定的场景使用（罕见） */
-    fun withColor(color: Color) = copy(color = color)
-}
+data class TextRole(val style: TextStyle, val color: Color)
 
 /**
  * 语义文字角色。带主题色的角色是 `@Composable get()`：组合期从 [LocalAppPalette] 解析，

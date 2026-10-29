@@ -7,11 +7,19 @@
         <!-- 备份用户自定义背景图（编辑期临时图在 bg_tmp，不在备份范围） -->
         <include domain="file" path="bg_images/"/>
 
-        <!-- 备份 SharedPreferences，但排除凭证/同意状态/设备绑定数据 -->
+        <!-- 备份 SharedPreferences，但排除凭证/同意状态/激活状态/未结算订单；
+             组件绑定（widget_bindings_prefs）刻意保留：换机恢复后由
+             ReminderWidgetProvider.onRestored 把旧 widgetId 映射到新 widgetId，不要加回 exclude -->
         <include domain="sharedpref" path="."/>
+        <!-- 付费激活状态：恢复后无意义，且属于敏感状态 -->
         <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
+        <!-- 登录凭证（Bearer Token）：新设备重新登录即可 -->
         <exclude domain="sharedpref" path="account_prefs.xml"/>
+        <!-- 未结算购买订单号：游客订单随备份漂到新设备会与「权益只绑定设备」的承诺冲突 -->
+        <exclude domain="sharedpref" path="pro_purchase_prefs.xml"/>
+        <!-- 隐私同意状态：新设备应重新征求同意，不静默继承 -->
         <exclude domain="sharedpref" path="consent_prefs.xml"/>
+        <!-- 旧版合并文件：可能残留 privacy_accepted，一并排除 -->
         <exclude domain="sharedpref" path="app_settings.xml"/>
     </cloud-backup>
     <device-transfer>
@@ -20,6 +28,7 @@
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
         <exclude domain="sharedpref" path="account_prefs.xml"/>
+        <exclude domain="sharedpref" path="pro_purchase_prefs.xml"/>
         <exclude domain="sharedpref" path="consent_prefs.xml"/>
         <exclude domain="sharedpref" path="app_settings.xml"/>
     </device-transfer>

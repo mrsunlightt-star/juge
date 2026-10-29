@@ -340,20 +340,6 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         return list
     }
 
-    fun getRemindersByCategory(categoryId: Long): List<Reminder> {
-        val list = mutableListOf<Reminder>()
-        val db = readableDatabase
-        db.rawQuery(
-            "SELECT * FROM reminders WHERE category_id = ? ORDER BY sort_order ASC, created_at DESC",
-            arrayOf(categoryId.toString())
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                list.add(parseReminder(cursor))
-            }
-        }
-        return list
-    }
-
     fun getReminderById(id: Long): Reminder? {
         val db = readableDatabase
         db.rawQuery("SELECT * FROM reminders WHERE id = ?", arrayOf(id.toString())).use { cursor ->
@@ -373,14 +359,6 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
             put("content", content)
             put("category_id", categoryId)
             put("is_favorite", if (isFavorite) 1 else 0)
-            put("style_json", styleJson)
-        }
-        db.update("reminders", values, "id = ?", arrayOf(id.toString()))
-    }
-
-    fun updateReminderStyle(id: Long, styleJson: String?) {
-        val db = writableDatabase
-        val values = ContentValues().apply {
             put("style_json", styleJson)
         }
         db.update("reminders", values, "id = ?", arrayOf(id.toString()))

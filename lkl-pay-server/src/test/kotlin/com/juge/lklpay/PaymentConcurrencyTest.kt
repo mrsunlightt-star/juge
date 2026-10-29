@@ -29,7 +29,6 @@ import kotlin.test.assertTrue
 
 /** 独立线程、真实事务和 H2；Spy 只控制时序，所有读取、CAS、flush、提交都走真实数据库。 */
 @SpringBootTest(properties = [
-    "spring.config.location=optional:classpath:/local-payment-test.properties",
     "spring.datasource.url=jdbc:h2:mem:payment-concurrency;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
     "spring.jpa.hibernate.ddl-auto=create-drop",
 ])

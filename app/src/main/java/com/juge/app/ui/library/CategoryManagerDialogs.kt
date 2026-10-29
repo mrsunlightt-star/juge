@@ -198,55 +198,6 @@ internal fun CategoryManagerDialog(
     }
 }
 
-/** 重命名分类弹窗。 */
-@Composable
-internal fun RenameCategoryDialog(
-    show: Boolean,
-    name: String,
-    onNameChange: (String) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AppDialog(
-        visible = show,
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        AppDialogSurface {
-            AppDialogTitle("修改分类目录名称")
-            OutlinedTextField(
-                value = name,
-                onValueChange = onNameChange,
-                placeholder = {
-                    Text(
-                        text = "输入新分类名称",
-                        style = AppType.body,
-                        color = textGray
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 1,
-                shape = AppShape.button,
-                textStyle = AppType.body,
-                colors = appTextFieldColors()
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppTextButton(text = "取消", onClick = onDismiss)
-                Spacer(modifier = Modifier.width(8.dp))
-                AppPrimaryButton(
-                    text = "保存",
-                    onClick = { if (name.isNotBlank()) onConfirm() },
-                    enabled = name.isNotBlank()
-                )
-            }
-        }
-    }
-}
-
 /** 二次确认删除分类目录（会连目录下的金句一起清空，故单独一个弹窗）。 */
 @Composable
 internal fun DeleteCategoryDialog(

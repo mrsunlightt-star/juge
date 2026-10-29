@@ -22,7 +22,6 @@ import kotlin.test.assertTrue
  * 付过款的账号必须能拿回 PRO（这正是引入账号的唯一理由）。
  */
 @SpringBootTest(properties = [
-    "spring.config.location=optional:classpath:/local-payment-test.properties",
     "spring.datasource.url=jdbc:h2:mem:auth-test;DB_CLOSE_DELAY=-1",
     "spring.jpa.hibernate.ddl-auto=create-drop",
 ])

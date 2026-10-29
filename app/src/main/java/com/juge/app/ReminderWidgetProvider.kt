@@ -318,15 +318,6 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             return config
         }
 
-        fun bindConfigToWidget(context: Context, appWidgetId: Int, configId: Long) {
-            synchronized(bindingLock) {
-                if (appWidgetId <= 0 || hasPendingRestore(context)) return
-                val source = DbHelper.getInstance(context).getWidgetConfigById(configId) ?: return
-                val bindings = readBindings(context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE).all)
-                bindIndependentConfig(context, appWidgetId, source, bindings, bindings[appWidgetId]?.configId == configId)
-            }
-        }
-
         fun bindReminderToWidget(context: Context, appWidgetId: Int, reminderId: Long) {
             synchronized(bindingLock) {
                 if (appWidgetId <= 0 || hasPendingRestore(context)) return

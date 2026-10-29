@@ -35,7 +35,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.juge.app.CropImageHelper
 import com.juge.app.data.UserColorPresets
-import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppPrimaryButton
@@ -65,7 +64,6 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AdjustTabContent(
-    widgetConfigs: List<WidgetConfig>,
     isActivated: Boolean,
     /**
      * 桌面组件 id 列表：由 MainAppScreen 持有并在 ON_RESUME 刷新。

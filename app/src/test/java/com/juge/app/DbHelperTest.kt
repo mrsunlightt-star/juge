@@ -64,7 +64,7 @@ class DbHelperTest {
 
         db.deleteCategory(catId)
 
-        assertTrue(db.getRemindersByCategory(catId).isEmpty())
+        assertTrue(db.getAllReminders().none { it.categoryId == catId })
         // 关键断言：走「全部」列表也不能再看到它们，否则会变成 UI 上的幽灵金句
         val all = db.getAllReminders().map { it.id }
         assertFalse(all.contains(victim1))
