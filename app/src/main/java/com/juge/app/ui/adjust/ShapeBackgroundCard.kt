@@ -17,7 +17,6 @@ import com.juge.app.data.ImageScaleMode
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppDangerButton
-import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppFilterChip
 import com.juge.app.ui.AppNumberStepperRow
 import com.juge.app.ui.AppSecondaryButton
@@ -82,7 +81,8 @@ internal fun ShapeBackgroundCard(
             onValueChange = { applyStyle(selectedStyle.copy(backgroundOpacity = it)) },
         )
 
-        AppDivider()
+        // 2026-10 改版：此处不再画 1dp 分隔线，分组感由 AppSectionCard 内层 Column 的
+        // spacedBy(controlGap) 间距承担（明度层次取代线条）。
 
         // 上传本地背景图
         AppSectionLabel("自定义背景图")

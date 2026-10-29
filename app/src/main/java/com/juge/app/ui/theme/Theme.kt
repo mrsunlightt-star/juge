@@ -70,6 +70,8 @@ fun MyApplicationTheme(
     CompositionLocalProvider(
         LocalAppPalette provides palette,
         LocalAppDarkTheme provides darkTheme,
+        // 夜色字重：整体 -40%（FontWeight × 0.6）。日间为 1f，等价于不缩放。
+        LocalAppFontWeightScale provides if (darkTheme) AppType.DarkWeightScale else 1f,
     ) {
         val colorScheme = when {
             dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -83,7 +85,7 @@ fun MyApplicationTheme(
 
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = AppTypography,
+            typography = appTypography(),
             content = content
         )
     }
@@ -104,6 +106,7 @@ private fun animatedPalette(target: AppPalette): AppPalette {
         darkBg = anim(target.darkBg, "darkBg"),
         panelTrack = anim(target.panelTrack, "panelTrack"),
         cardBg = anim(target.cardBg, "cardBg"),
+        surfaceRaised = anim(target.surfaceRaised, "surfaceRaised"),
         accentBlue = anim(target.accentBlue, "accentBlue"),
         accentFillStrong = anim(target.accentFillStrong, "accentFillStrong"),
         borderBlue = anim(target.borderBlue, "borderBlue"),
@@ -115,6 +118,8 @@ private fun animatedPalette(target: AppPalette): AppPalette {
         textTertiary = anim(target.textTertiary, "textTertiary"),
         surfaceSubtle = anim(target.surfaceSubtle, "surfaceSubtle"),
         surfaceMuted = anim(target.surfaceMuted, "surfaceMuted"),
+        fieldBg = anim(target.fieldBg, "fieldBg"),
+        fieldBgFocused = anim(target.fieldBgFocused, "fieldBgFocused"),
         dangerRed = anim(target.dangerRed, "dangerRed"),
         disabledGray = anim(target.disabledGray, "disabledGray"),
         warningInk = anim(target.warningInk, "warningInk"),

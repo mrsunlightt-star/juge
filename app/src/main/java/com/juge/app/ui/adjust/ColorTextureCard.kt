@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
@@ -26,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AddColorPresetButton
-import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
@@ -35,10 +35,10 @@ import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceSubtle
 
 /**
  * 色彩与质感艺术卡片：字体颜色 / 背景颜色预设。
@@ -94,9 +94,8 @@ internal fun ColorTextureCard(
                     )
                 }
             }
-            AddColorPresetButton(onClick = { onRequestAddFontColor() })
+            AddColorPresetButtonFlushEnd(onClick = { onRequestAddFontColor() })
         }
-        AppDivider()
 
         // 4.2. 卡片背景颜色设置
         // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
@@ -143,7 +142,7 @@ internal fun ColorTextureCard(
                             )
                         }
                     }
-                    AddColorPresetButton(onClick = { onRequestAddBackgroundColor() })
+                    AddColorPresetButtonFlushEnd(onClick = { onRequestAddBackgroundColor() })
                 }
             }
             if (!canSetBackgroundColor) {
@@ -157,7 +156,29 @@ internal fun ColorTextureCard(
     }
 }
 
-/** 色板方块：选中态用蓝色描边，宽度与颜色都平滑过渡 */
+/**
+ * 行尾「+」添加按钮：固定在最右侧，与页面其它添加入口同一视觉列（两行 x 严格一致）。
+ *
+ * 可视 34dp 方块要贴齐卡片内容区右缘，但 [AddColorPresetButton] 的 48dp 热区里方块居中，
+ * 方块右缘天然比热区内缩 (48 - 34) / 2 = 7dp；这里在右对齐 Box 里把按钮整体右移 7dp，
+ * 方块右缘正好压在卡片内容右缘上。多出的 7dp 落在卡片 16dp 内边距内：不裁切、不越界，
+ * 48×48dp 触控热区保持原样。
+ */
+@Composable
+private fun AddColorPresetButtonFlushEnd(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.offset(x = 7.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        AddColorPresetButton(onClick = onClick)
+    }
+}
+
+/**
+ * 色板方块：未选中态不再画 1dp 边线，改用 2dp [surfaceSubtle] 衬底圈出边界——
+ * 这是明度台阶而不是分割线，白色 / 浅色色块才不会在白卡上「消失」。
+ * 选中态 3dp accentBlue 是状态环（表达选中），不属于分层描边，保留。
+ */
 @Composable
 private fun ColorSwatch(
     color: Int,
@@ -166,12 +187,12 @@ private fun ColorSwatch(
     onLongClick: () -> Unit
 ) {
     val borderWidth by animateDpAsState(
-        targetValue = if (selected) 3.dp else 1.dp,
+        targetValue = if (selected) 3.dp else 2.dp,
         animationSpec = AppMotion.standard(),
         label = "swatchBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) accentBlue else borderBlue,
+        targetValue = if (selected) accentBlue else surfaceSubtle,
         animationSpec = AppMotion.color,
         label = "swatchBorderColor"
     )

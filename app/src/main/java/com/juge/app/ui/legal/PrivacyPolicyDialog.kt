@@ -2,7 +2,6 @@ package com.juge.app.ui.legal
 
 import com.juge.app.ui.AppDialog
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -37,7 +36,6 @@ import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textPrimary
@@ -174,7 +172,6 @@ fun PrivacyPolicyDialog(show: Boolean, onAgree: () -> Unit, onReject: () -> Unit
                     LEGAL_ENTRIES.forEachIndexed { index, entry ->
                         AppFormRow(
                             label = entry.label,
-                            showDivider = index < LEGAL_ENTRIES.lastIndex,
                             onClick = { openDoc = entry.key },
                         ) {
                             Icon(

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.R
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
+import com.juge.app.ui.AppMenuItem
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
@@ -242,19 +243,19 @@ fun LibraryTabContent(
         // 复用既有弹窗链路：编辑走 EditReminderDialog，删除走各自的二次确认弹窗。
         val contextMenuItems = when {
             quoteMenuFor != null -> listOf(
-                ContextMenuItem(R.drawable.ic_symbol_edit_square, "编辑金句", accentBlue) {
+                AppMenuItem(R.drawable.ic_symbol_edit_square, "编辑金句", accentBlue) {
                     val target = quoteMenuFor
                     closeMenu()
                     if (target != null) onEditReminderRequest(target)
                 },
-                ContextMenuItem(R.drawable.ic_symbol_delete, "删除金句", dangerRed, dangerRed) {
+                AppMenuItem(R.drawable.ic_symbol_delete, "删除金句", dangerRed, dangerRed) {
                     val target = quoteMenuFor
                     closeMenu()
                     if (target != null) deletingReminder = target
                 },
             )
             categoryMenuFor != null -> listOf(
-                ContextMenuItem(R.drawable.ic_symbol_edit_square, "重命名", accentBlue) {
+                AppMenuItem(R.drawable.ic_symbol_edit_square, "重命名", accentBlue) {
                     val target = categoryMenuFor
                     closeMenu()
                     if (target != null) {
@@ -262,7 +263,7 @@ fun LibraryTabContent(
                         renameCategoryNewName = target.name
                     }
                 },
-                ContextMenuItem(R.drawable.ic_symbol_delete, "删除", dangerRed, dangerRed) {
+                AppMenuItem(R.drawable.ic_symbol_delete, "删除", dangerRed, dangerRed) {
                     val target = categoryMenuFor
                     closeMenu()
                     if (target != null) deletingCategory = target
@@ -373,7 +374,7 @@ fun LibraryTabContent(
         errorMessage = editSaveError
     )
 
-    // 5. 分类管理中心弹窗（排序已移到文库页长按拖拽，这里只管重命名/删除/新建）
+    // 5. 金句分类管理中心弹窗（重命名/删除/新建 + 长按拖拽排序）
     CategoryManagerDialog(
         show = showCategoryManagerDialog && !showAddCategoryDialog && renamingCategory == null,
         categories = categories,
@@ -390,6 +391,8 @@ fun LibraryTabContent(
             showAddCategoryDialog = true
             saveCategory()
         },
+        // 管理弹窗内也支持长按拖拽排序：直接复用页面持有的事务化重排序链路
+        onReorderCategories = onReorderCategories,
         onDismiss = { showCategoryManagerDialog = false }
     )
 

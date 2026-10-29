@@ -35,7 +35,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.juge.app.ui.AppText
-import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.findHostActivity
@@ -140,9 +139,8 @@ internal fun TutorialCard(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(AppSpacing.tight))
-                    AppDivider()
-                    Spacer(modifier = Modifier.height(AppSpacing.tight))
+                    // 2026-10 改版：删掉这里的分隔线（连同上下两个 tight Spacer），
+                    // 两个内容组之间只留 Column 的 spacedBy 间距，不再画 1dp 线。
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(

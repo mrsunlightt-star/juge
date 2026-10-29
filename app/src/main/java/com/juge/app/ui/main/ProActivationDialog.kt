@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,17 +20,12 @@ import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppDialogSurface
-import com.juge.app.ui.AppDivider
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.premiumGoldDeep
-import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textTertiary
 
 @Composable
@@ -115,8 +109,9 @@ fun ProActivationDialog(
                 )
             }
 
-            // 账号入口常驻两种状态：不登录是常态，所以只做引导，不做拦截
-            AppDivider()
+            // 账号入口常驻两种状态：不登录是常态，所以只做引导，不做拦截。
+            // 2026-10 改版去掉这里的分割线：分组感由 AppDialogSurface 的 spacedBy 间距承担，
+            // 不再画线（`showDivider` 式的 AppDivider 属于结构性分割线，一律去掉）。
             AppTextButton(
                 text = if (accountName.isNullOrBlank()) {
                     "账号登录 · 换手机也能找回 PRO"

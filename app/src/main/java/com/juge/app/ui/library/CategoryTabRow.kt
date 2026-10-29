@@ -40,7 +40,7 @@ import com.juge.app.ui.theme.textGray
  * 分类 chip 与金句卡片同一套手势（见 [longPressMenuDragGestures]）：
  * 长按弹「重命名 / 删除」菜单（请求上报给页面浮层，二次确认弹窗由页面持有），
  * 长按后拖动 = 排序（[onReorder] 提交新顺序）；单击仍是选中筛选。
- * 排序不再进分类管理中心按上下箭头——与 iOS 一致，就地长按拖拽。
+ * 分类页与管理弹窗都支持长按拖拽排序（同一个 ReorderDragState 状态机）。
  */
 @Composable
 internal fun CategoryTabRow(

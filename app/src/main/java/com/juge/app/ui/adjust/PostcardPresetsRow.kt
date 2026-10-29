@@ -44,8 +44,8 @@ import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
@@ -199,8 +199,12 @@ private fun RenderedPresetItem(
         }
     }
 
+    // 未选中态不再画 1dp 边框：缩略图边界由圆角裁切与页面近白底色自然表达；
+    // 选中态 3dp accentBlue 是状态环，保留。未选中时宽度收到 0、颜色透明，
+    // 2dp 及以上的选中环与状态表达不受影响。
+    // 未选中 0.5dp 发丝描边（用户要求），选中 3dp accentBlue 状态环
     val borderWidth by animateDpAsState(
-        targetValue = if (isSelected) 3.dp else 1.dp,
+        targetValue = if (isSelected) 3.dp else 0.5.dp,
         animationSpec = AppMotion.standard(),
         label = "postcardBorderWidth"
     )
@@ -290,8 +294,9 @@ private fun IllustrationPresetItems(
          val targetShape = matchingPreset?.shape ?: WidgetShape.SPLIT_CARD
          val isSelected = selectedStyle.presetImageResName == resName && selectedStyle.shape == targetShape && selectedStyle.backgroundImagePath.isNullOrEmpty()
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
+        // 与上面两处一致：未选中 0.5dp 发丝描边勾出素材边界，选中态 3dp accentBlue 状态环
         val borderWidth by animateDpAsState(
-            targetValue = if (isSelected) 3.dp else 1.dp,
+            targetValue = if (isSelected) 3.dp else 0.5.dp,
             animationSpec = AppMotion.standard(),
             label = "illustrationBorderWidth"
         )

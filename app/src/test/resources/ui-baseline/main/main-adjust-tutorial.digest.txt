@@ -5,7 +5,7 @@
 1103,69,1169,118 | Text='[开发]'
 1169,59,1173,155 | Role='Switch' | ToggleableState='Off'
 150,947,1083,1009 | Text='[小组件#1 实时设计·仅为预览·以桌面组件显示为准]'
-180,2173,768,2235 | Text='[常见国产手机添加与权限教程：]'
+180,2038,768,2100 | Text='[常见国产手机添加与权限教程：]'
 280,21,424,165 | ContentDescription='[刷新数据]' | Role='Button'
 460,21,604,165 | ContentDescription='[切换为夜间模式]' | Role='Button'
 60,125,280,167 | Text='[DeskQuotes]'

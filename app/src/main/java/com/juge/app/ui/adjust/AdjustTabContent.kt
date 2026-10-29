@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -50,7 +49,6 @@ import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.warningBg
-import com.juge.app.ui.theme.warningBorder
 import com.juge.app.ui.theme.warningInk
 import com.juge.app.ui.theme.premiumGoldDeep
 import androidx.compose.animation.AnimatedVisibility
@@ -137,13 +135,14 @@ fun AdjustTabContent(
         }
 
         // 仅在桌面未检测到任何组件时展示轻量警告提示
+        // 2026-10 改版：去掉 1dp warningBorder，警示感由 warningBg 填充 + 琥珀字色表达，
+        // 卡片内不再出现任何 1dp 描边。
         if (widgetCount == 0) {
             item(key = "no_widget_warning") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(warningBg, AppShape.button)
-                        .border(1.dp, warningBorder, AppShape.button)
                         .padding(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

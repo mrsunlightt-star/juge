@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -24,12 +25,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.ui.AppDialog
+import com.juge.app.ui.AppDialogHeader
+import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.AppText
+import com.juge.app.ui.AppTextButton
+import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
-import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.overlayCard
 import com.juge.app.ui.theme.selectBlue
 import kotlinx.coroutines.Dispatchers
@@ -379,30 +383,24 @@ object CropImageHelper {
                 onDismissRequest = onDismiss,
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.85f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
+                AppDialogSurface {
+                    // 与取色 / 分类管理等高内容子页面同一颗头部（标题 + 右侧 X）
+                    AppDialogHeader(title = "选择图片背景区域", onClose = onDismiss)
+                    AppText(
+                        text = "单指拖动图片平移，双指捏合进行缩放",
+                        role = AppTextRole.caption,
+                    )
+
+                    // 裁剪取景区：只有画面本身是深色（图片编辑惯例），
+                    // 弹窗底板 / 圆角 / 阴影与其它子页面完全一致，不再整屏铺黑
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                            .clip(AppShape.button)
+                            .background(overlayCard)
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "选择图片背景区域",
-                            style = AppType.dialogTitle,
-                            color = Color.White
-                        )
-
-                        Text(
-                            text = "单指拖动图片平移，双指捏合进行缩放",
-                            style = AppType.caption,
-                            color = Color.Gray
-                        )
 
                         // 裁剪视窗框
                         Box(
@@ -456,22 +454,13 @@ object CropImageHelper {
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedButton(
-                                onClick = onDismiss,
-                                enabled = !isSaving,
-                                modifier = Modifier.weight(1f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                            ) {
-                                Text("取消", style = AppType.button, color = Color.White)
-                            }
-
+                            AppTextButton(text = "取消", onClick = onDismiss, enabled = !isSaving)
+                            Spacer(modifier = Modifier.width(8.dp))
                             AppPrimaryButton(
                                 text = "保存并使用",
                                 onClick = {
@@ -502,22 +491,26 @@ object CropImageHelper {
                                 },
                                 enabled = !isSaving,
                                 loading = isSaving,
-                                modifier = Modifier.weight(1f),
-                                containerColor = selectBlue
                             )
                         }
                     }
                 }
             }
         } else if (isLoading) {
-            AppDialog(visible = true, onDismissRequest = onDismiss) {
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .background(overlayCard, AppShape.button),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = selectBlue)
+            AppDialog(
+                visible = true,
+                onDismissRequest = onDismiss,
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                AppDialogSurface {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = selectBlue)
+                    }
                 }
             }
         }

@@ -44,8 +44,9 @@ import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.rememberAppHaptics
+import com.juge.app.ui.theme.appFontWeight
 import com.juge.app.ui.theme.borderBlue
+import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
@@ -97,7 +98,9 @@ internal fun presetThumbnailSize(style: WidgetStyle): IntSize {
  *
  * @param onPresetClick 点击回调，只拿到原始 preset；是「仅预览」还是「套用并落库」
  *   （含会员拦截）由调用方决定，统一走 `previewOrApplyPreset`
- * @param showSelectionBorder 是否画选中描边（个性定制页三行统一开启：选中项 3dp 蓝色描边）
+ * @param showSelectionBorder 是否画选中描边（个性定制页三行统一开启：选中项 3dp 蓝色描边）。
+ *   这里只画**状态环**：未选中不勾边，缩略图靠自身画面与圆角裁切立住
+ *   （2026-10 改版：App 内部页面不再画 1dp 结构性描边）
  * @param imageContentDescription 缩略图的无障碍描述；两处文案不同，故由调用方给定
  * @param nameColor 名称配色规则（两处的"是否高亮"判据不同）
  */
@@ -176,8 +179,11 @@ fun PresetRow(
                     modifier = Modifier.width(PresetThumbnailBox.width.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 未选中画 0.5dp 发丝描边（用户要求：分类风格缩略图需要一圈细边框），
+                    // 选中态仍是 3dp accentBlue 状态环；0.5dp 属于「勾出素材边界」的发丝级
+                    // 辅助线，不是改版里去掉的 1dp 结构性分层描边。
                     val borderWidth by animateDpAsState(
-                        targetValue = if (showSelectionBorder && selected) 3.dp else 1.dp,
+                        targetValue = if (showSelectionBorder && selected) 3.dp else 0.5.dp,
                         animationSpec = AppMotion.standard(),
                         label = "presetBorderWidth"
                     )
@@ -225,7 +231,12 @@ fun PresetRow(
                     }
                     Text(
                         text = presetName,
-                        style = AppType.body.copy(fontWeight = nameFontWeight ?: FontWeight.Normal),
+                        // AppType.body 自带的字重是 theme 算好的；这里覆写 nameFontWeight 后必须再过
+                        // appFontWeight：它是 @Composable 的按模式缩放函数（暗色 -40%），
+                        // 直接 copy(fontWeight = 原始值) 会在暗色里把这条规则漏掉。
+                        style = AppType.body.copy(
+                            fontWeight = appFontWeight(nameFontWeight ?: FontWeight.Normal)
+                        ),
                         color = nameColor(isProPreset, selected),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

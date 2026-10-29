@@ -38,12 +38,21 @@ App 界面统一使用**系统中文无衬线字体**。`assets/fonts/` 下的 7
 | `AppType.bodyLarge` | 15 / 23 | Regular | 金句内容 |
 | `AppType.caption` | 12 / 16 | Regular | 次要说明、空态、页脚 |
 | `AppType.micro` | 11 / 16 | Regular | 备案号、支付说明等最小可读文字 |
-| `AppType.badge` | 10 / 12 | Bold | 免费 / PRO / 分类角标 |
-| `AppType.button` | 14 / 18 | Bold | 主/次按钮 |
-| `AppType.chip` | 13 / 18 | Medium | 筛选胶囊、分段页签 |
-| `AppType.link` | 13 / 18 | Medium | 文字按钮、协议链接 |
+| `AppType.badge` | 11 / 14 | SemiBold | 免费 / PRO / 分类角标 |
+| `AppType.button` | 14 / 18 | SemiBold | 主/次按钮 |
+| `AppType.chip` | 14 / 20 | Medium | 筛选胶囊、分段页签 |
+| `AppType.link` | 14 / 20 | Medium | 文字按钮、协议链接 |
 
-`AppTypography` 已把这些字号映射进 `MaterialTheme.typography`，未显式写 `style` 的
+逐行操作弹窗的正文用 `AppTextRole.dialogBody`（16/24、Medium，比 `AppType.body` 大一档），
+它不是独立字级，而是 `AppType.body` 的「设置页放大版」，只在 §6.1.4 允许的场景使用。
+
+**暗色模式字重整体 -40%**：`AppType` 的所有字级都是 `@Composable get()`，字重经
+`LocalAppFontWeightScale`（日间 1f、暗色 0.6f）缩放后吸附到最近的 100 档——
+Black 900→500、Bold/SemiBold→400、Medium→300、Normal→200。深色底上高字重会「发胀」，
+压一档既回正观感，也让暗色层次更安静。**手写字重的地方必须套 `appFontWeight(...)`**，
+否则会漏掉这条规则（见 `AppTypographyWeightTest`）。
+
+`appTypography()` 把这些字号映射进 `MaterialTheme.typography`，未显式写 `style` 的
 Material 组件也会落在同一套阶梯上。
 
 ## 3. 颜色
@@ -60,10 +69,21 @@ Material 组件也会落在同一套阶梯上。
 
 1. 文字只用 `textPrimary` / `textSecondary` / `textTertiary` 三档，不再出现 #1F2937、#6B7280、
    #9CA3AF 等近似灰；
-2. 默认卡片描边统一 `borderBlue`；选中预设和控件的状态描边使用对比度更高的 `accentBlue`；
-3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标按用户偏好使用白色，状态描边使用 `accentBlue`；危险操作统一 `dangerRed`；
-4. 新增颜色先加进 `AppColors.kt` 并写清语义，不在界面里直接 `Color(0x…)`；
-5. **对比度是硬门槛**：正文/标题/链接在其背景上 ≥ 4.5:1，图标、状态描边、开关等非文字元素 ≥ 3:1。
+2. **App 内部页面不再画 1dp 边框/分割线**（2026-10 改版，用户明确要求）：页面、卡片、控件之间的
+   层次全部由微明度色阶表达，配合软阴影与留白。日间台阶是 页面 `darkBg`(#F2F5F9) → 卡片 `cardBg`(#FFF)
+   → 控件面 `surfaceSubtle`(#EDF1F7)；夜间是 页面 `darkBg`(#0A0A0A) → 卡片 `cardBg`(#191919)
+   → 控件面 `surfaceSubtle`(#242424)。输入框用 `fieldBg` / `fieldBgFocused` 表达静息与聚焦，
+   不再用聚焦描边。`borderBlue` 只留给「必须勾边才成立」的功能性场景（如图片上的白色控件、
+   裁剪框），不作为默认分层手段；**例外**：组件风格缩略图未选中态保留 0.5dp 发丝描边
+   `borderBlue`（用户要求：分类缩略图需要一圈细边框勾出素材边界），选中态仍是 3dp 状态环；
+3. 选中态与主按钮使用明亮浅蓝填充 `selectBlue`，其上的文字/图标按用户偏好使用白色；
+   **状态环**（选中预设/色板的 3dp `accentBlue`、勾选框的 2dp）保留——这是状态而不是分层描边；
+   危险操作统一 `dangerRed`；
+4. **暗色模式是中性纯黑，不再使用蓝紫夜空**：`AppPalette.Dark` 的所有底色/极光/抽屉玻璃令牌
+   三通道近似相等，页面底接近纯黑（用户要求「真正的暗黑背景」）；不要往暗色调色板里加带蓝/紫
+   偏色的底。`AppColorContrastTest` 锁定中性色与明度台阶；
+5. 新增颜色先加进 `AppColors.kt` 并写清语义，不在界面里直接 `Color(0x…)`；
+6. **对比度是硬门槛**：正文/标题/链接在其背景上 ≥ 4.5:1，图标、状态描边、开关等非文字元素 ≥ 3:1。
    常规文字/背景组合必须满足 AA 对比度要求。但用户明确偏好 `selectBlue`（`#42B8EC`）配白字，
    该组合约为 2.26:1，低于 4.5:1，是有意保留的产品例外；`AppColorContrastTest` 锁定色值和例外说明。
    请勿将此例外扩展到长正文或大段说明文字。
@@ -93,6 +113,8 @@ Material 组件也会落在同一套阶梯上。
   `IconButton` / `RadioButton` / `Slider`；**不要**用 `Modifier.size(28.dp)` 直接压小 `IconButton`。
 - 相邻热区之间至少留 8dp；空间不够时收进溢出菜单（参考分类管理里的「更多」），不要并排塞四颗小图标。
 - 纯文字链接（协议、备案号）用 `padding(vertical = 15.dp)` 把 18sp 行高撑到 48dp。
+- **唯一例外：浮动菜单行 44dp**（`AppMenuItemRow`，见 §6）。iOS 菜单的行高惯例是 44dp，
+  菜单又是居中的浮层、不贴边、不易误触，这里按 44dp 收；行内边距 16dp 仍是标准值。
 
 ## 4.1 顶部主视觉
 
@@ -108,7 +130,8 @@ Material 组件也会落在同一套阶梯上。
 - 可读性：图片顶部是亮蓝天空，顶栏品牌字使用白色 + 文字阴影，图片顶部再加
   38%→20%→透明 的黑色渐变暗压；预览提示使用白色文字 + 30% 黑色胶囊；
 - 页面其余部分保留薄荷极光渐变，抽屉照旧压在最上层。方格网只画在抽屉上沿以上
-  24dp / 12%（`gridLine`，基本被顶图盖住，仅首帧兜底）；**上沿以下不再画网格**——
+  24dp / 12%（`gridLine`，基本被顶图盖住，仅首帧兜底），**暗色模式不画网格**（`gridLine` 带蓝调，
+  会破坏中性纯黑底）；**上沿以下不再画网格**——
   面板是毛玻璃，网格会从卡片缝隙里透成方格纹理。抽屉背后垫**平坦的页面底色**：
   斜向渐变在面板后残留的浅尾巴会被 8-bit 抖动成一层细颗粒（透过毛玻璃显脏），
   平坦底色没有渐变可抖；面板的「透」由顶边模糊的海滩图带提供。
@@ -139,8 +162,9 @@ Material 组件也会落在同一套阶梯上。
 已统一的交互：
 
 - **分段页签**：指示器跟手位移；文字/图标颜色按 pager 实时位移在灰与白之间插值，
-  不再“块滑到一半、字还是全灰”；白色胶囊轨道带 1dp `borderBlue` 描边——面板是
-  近白毛玻璃，描边缺失时轨道会融进面板（与区块卡片同一条规则）；
+  不再“块滑到一半、字还是全灰”；胶囊轨道改用 `panelTrack` 凹槽明度 + `cardBg` 滑块分层，
+  不画 1dp 描边，滑块上的文字/图标在 `textGray`→`textWhite`（日间即墨色、暗色即霜白）间随
+  位移插值，日夜都保持可读；
 - **筛选胶囊 / 勾选胶囊**：底色、文字色、描边色平滑过渡；
 - **预设缩略图 / 色板**：选中描边宽度与颜色平滑过渡；
 - **风格预设行**：缩略图统一 180×96dp 卡片盒（`PresetThumbnailBox`，旧版 150×80 的 1.2 倍），内容按
@@ -175,35 +199,58 @@ Material 组件也会落在同一套阶梯上。
 - **教程卡片**：箭头旋转 180°，内容展开/收起带高度与淡入淡出；
 - **预览区**：仅预设/形状/背景素材身份切换时 Crossfade 220ms；正文、颜色和数值调整直接更新；
 - **列表**：仅前四条首次出现或新增到前四条的金句卡片进场 360ms（滑入 + 淡入）；普通滚动不重复播放。
-  金句卡片带 1dp `borderBlue` 描边（与区块卡片同规则），内边距上下 12dp——整卡高度比旧版收约 10%（用户定档）；
+  金句卡片与区块卡片一样不画描边（层次靠页面/卡片明度台阶 + 软阴影），
+  内边距上下 12dp——整卡高度比旧版收约 10%（用户定档）；
 - **长按上下文菜单（iOS 式）**：金句卡片长按弹「编辑金句 / 删除金句」，分类 chip 长按弹「重命名 / 删除」
   （`ContextMenuOverlay`）。菜单是**同窗口非模态浮层**（不用 Dialog：弹出后那根手指继续拖动要能立刻
-  取消菜单进入排序），整页压暗 16% + 白卡菜单（`AppShape.menu` 14dp 圆角 + 1dp 描边 + `AppShadows.dialog`
-  弥散阴影），从指尖方向 scale 0.9→1 弹出；原地松手菜单保持打开，点空白处关闭。菜单项 44dp 行高、
-  20dp 图标、破坏性项红色，按压高亮走 surfaceSubtle 无波纹方案。检测器是
+  取消菜单进入排序），整页压暗 16% + 菜单卡（`AppShape.menu` 14dp 圆角 + `surfaceRaised` 明度分层 +
+  `AppShadows.dialog` 弥散阴影，不画 1dp 描边），从指尖方向 scale 0.9→1 弹出；原地松手菜单保持打开，点空白处关闭。菜单项 44dp 行高、
+  20dp 图标、破坏性项红色，无波纹按压高亮。检测器是
   `longPressMenuDragGestures` 单一状态机——**不能**用 detectTapGestures + detectDragGesturesAfterLongPress
   并行拼装：后者的 onDragStart 在长按超时那一刻就触发（不等移动），会把同时弹出的菜单瞬间关掉（踩过的坑）；
+- **⋮ 溢出菜单**：分类管理弹窗每行右侧的「更多」按钮弹「重命名 / 删除」（`AppDropdownMenu`）。
+  卡片与行与长按菜单**同一个出处**（`ui/AppMenu.kt`：`AppMenuCard` + `AppMenuItemRow`），
+  区别只在浮出方式：它贴在按钮下方（`Popup`，右边缘对齐、下方放不下翻到上方、四周 8dp 钳制），
+  **不再压暗背景**——它本来就弹在已经压暗的弹窗之上，再压一层会把弹窗压灰，反而和别的页面对不上。
+  与长按菜单同宽的 176dp 卡片；弹出时 0.9→1 缩放、从靠近按钮的那一角长出来（关闭即时，
+  与长按菜单一致，不做退出动画）。
+  **不要再用 Material3 `DropdownMenu`**：容器色取 `MenuDefaults.containerColor`（`surfaceContainer`），
+  而本项目 `colorScheme` 没接这个槽位，会落回 M3 基线淡紫 #F3EDF7（夜间是另一个灰紫），
+  再加 4dp 圆角、无 App 弥散阴影——在白色/深色弹窗上都是一块外来贴纸（2026-10 修复）；
 - **长按拖拽排序**：菜单弹出后继续拖动越过 touch slop = 菜单取消、卡片「抬起」（scale 1.03 + 实影）进入排序。
   金句竖列与分类横排共用 `ReorderDragState`：拖拽项用 graphicsLayer 钉在指尖（不参与 `animateItem`，
   否则双重位移），相邻项靠 `animateItem` 让位；每交换一次按两槽实测尺寸差校正位移。拖拽期间只改本地
   顺序，松手先弹性归位再整表重写 sort_order 落库（金句 v8 起有 sort_order 列，升级时按旧显示顺序回填）；
-  贴近列表边缘自动滚动。排序不再进分类管理中心按箭头（那里只留重命名/删除/新建）。
+  贴近列表边缘自动滚动。分类 chip 与「金句分类管理中心」弹窗内的分类行都支持长按拖拽排序，
+  两处共用同一个状态机，弹窗里松手同样走事务化重排序落库。
+
+- **文本输入（流式输出）**：所有文本框在键入时逐字「blur 晕开」——新字符先以约 8dp 高斯模糊 +
+  35% 透明度出现，在约 320ms 内收拢为清晰墨色并落位，形成流式吐字的观感；静止文本不参与动画。
+  实现在 `ui/AppTextField.kt`（BasicTextField 负责光标/选区/IME，文字由 Canvas 逐字绘制）。
 
 不要新增超过 400ms 的动画，也不要给同一次交互叠加两套不同时长的动画。
 需要新动效时，先在 `AppMotion.kt` 里加令牌，再在界面引用。
 
 ## 6. 共用组件
 
-- `AppSectionCard`：白色圆角卡片 + 1dp 描边 + 16dp 内边距 + 12dp 行距，默认高度变化自动动画；嵌套展开控件可关闭尺寸动画以避免叠加。跃然纸上的金句卡片同样走它
-  （左右 16 / 上下 12 的瘦身内边距 + 整卡可点，卡面法律只有这一个出处）。面板是近白毛玻璃，
-  **描边不能省**——只靠阴影白卡会融进面板（用户反馈「轮廓要清晰、有层次感」）；
+- `AppSectionCard`：白色圆角卡片 + 16dp 内边距 + 12dp 行距，默认高度变化自动动画；嵌套展开控件可关闭尺寸动画以避免叠加。跃然纸上的金句卡片同样走它
+  （左右 16 / 上下 12 的瘦身内边距 + 整卡可点，卡面法律只有这一个出处）。**不画 1dp 描边**：
+  卡片与页面的层次靠页面/卡片明度台阶 + 软阴影；
 - `AppSectionHeader`：强调色区块标题（图标已按产品要求去掉）；
 - `AppSectionLabel`：`label` 色 `textSecondary`；
 - `AppPrimaryButton` / `AppSecondaryButton` / `AppDangerButton` / `AppTextButton`：
   统一 48dp 最小高度、12dp 圆角、14sp 按钮字、按压反馈；
 - `AppFilterChip`：统一筛选胶囊；
+- `CheckChip`：带勾选框的胶囊选项（加粗/倾斜/文字阴影/对齐方式）。金句字体选择复用
+  `showCheckBox = false` 的单选变体——同尺寸、同配色，只去掉勾选框，保证「字体选项」与
+  「加粗/对齐」两排选项视觉一致（用户反馈字体选项小一档）；
+- 「文本内容与字形定制」的对齐控制分两组：**水平对齐**（左/中/右/两端）与**垂直位置**
+  （垂直居中 / 顶部对齐），都复用 `CheckChip`；垂直位置对应 `WidgetStyle.verticalAlign`；
 - `AppDialogSurface` / `AppDialogTitle`：统一弹窗底板与标题；
-- `appTextFieldColors()`：统一输入框配色——描边式（透明底 + 未聚焦 `borderBlue` / 聚焦 `accentBlue` 描边）；
+- `AppTextField`：全 App 唯一的输入框（原 `appTextFieldColors()` 已下线）。容器不画描边，
+  用 `fieldBg`→`fieldBgFocused` 明度台阶表达静息/聚焦；输入时新键入字符**逐字 blur 晕开**
+  （约 320ms 内从模糊 + 低透明度收拢清晰）。`minLines`/`maxLines` 由调用方决定，多行框可随
+  内容长高、不在框内滚动藏文本（个性定制的金句框就是这种用法）；
 - `AppNumberStepperRow`：数值行 + `−/+` 步进器（48dp 触控热区、长按连发、端点禁用、
   不可调整时用 `disabledHint` 替代按钮）。字号 1sp、行距 0.1x、字间距 0.05em、
   圆角 1dp、不透明度 5% 一档；
@@ -211,7 +258,38 @@ Material 组件也会落在同一套阶梯上。
   **圆钮必须带 2dp `accentBlue` 描边**——卡片底本身就是白色，只靠白底 + 阴影时圆钮会整个融进面板
   （用户反馈「拖动按钮和背景色融为一体，看不到按钮在哪」）。圆钮落在蓝色已填充段上时靠白芯区分，
   落在灰色未填充段上时靠描边勾出轮廓，两种位置都成立；
-- `AppDivider`：统一 1dp 浅色分隔线。
+- `AppMenuCard` / `AppMenuItemRow` / `AppDropdownMenu`（`ui/AppMenu.kt`）：浮动菜单的唯一出处。
+  卡片 = `surfaceRaised`（日间即 `cardBg` 纯白，夜间比 `cardBg` 亮一档，浮在弹窗上才看得出是另一层）
+  + `AppShape.menu` 14dp + `AppShadows.dialog` 弥散阴影 + 上下 4dp 内边距，不画描边；
+  行 = 44dp 高、20dp 图标、16dp 行内边距、无波纹按压高亮（日间 `surfaceSubtle`，夜间压到 `cardBg`）、
+  点击带触感。长按菜单用它做同窗口浮层（`ContextMenuOverlay`），⋮ 菜单用它做贴按钮的 `Popup`
+  （`AppDropdownMenu`，卡片四周留 20dp 阴影空间，否则 Popup 窗口会裁掉弥散阴影）。
+  菜单项字号可由调用方给 `labelRole`：普通页 `AppTextRole.body`，16sp 弹窗传 `AppTextRole.dialogBody`；
+- ~~`AppDivider`~~：已随「不画 1dp 分割线」改版下线，区块内分组改用 `Arrangement.spacedBy`
+  留白与明度台阶表达。
+
+### 6.1 子页面（弹窗）统一规范
+
+二级 / 三级 / 四级页面（从页面逐层打开的弹窗）必须长得像「同一套系统的下一页」，
+不能每一层各写一套壳子。规则：
+
+1. **底板统一用 `AppDialogSurface`**：20dp 圆角、`cardBg` 明度底、`AppShadows.dialog`
+   弥散阴影、宽度上限 420dp、`usePlatformDefaultWidth = false`、API 31+ 毛玻璃背景。
+   不要在弹窗里自己 `clip + background(cardBg)` 拼一个无阴影、窄窗口的壳子
+   （取色弹窗曾经这么写，已统一）。
+2. **有自己内容的子页面用 `AppDialogHeader(title, onClose)`**：标题 + 右侧 X。
+   取色、分类管理、协议全文、背景图裁剪都用它；不要再出现「< 关闭」文字按钮或
+   各写一个 `IconButton(Close)`。简单确认框没有自己的内容，不需要 X，用底部取消。
+3. **动作收口统一在右下角**：`AppTextButton("取消")` + `AppPrimaryButton(主操作)`；
+   危险操作用 `AppDangerButton`。不再使用左右等分的两颗实心按钮。
+4. **字号随层级一致**：标题一律 `AppDialogTitle`（18/24），正文 `AppType.body`；
+   逐行操作的设置页（如金句分类管理中心）用 `AppTextRole.dialogBody`（16sp/Medium），
+   但同一弹窗内的菜单、输入、按钮要一起放大（同一个 `style` 传下去），不能只放大某一行。
+5. **特殊页面的例外要收窄到内容区**：首启隐私弹窗是合规专用的居中版式；
+   图片裁剪只有「取景画面」是深色（图片编辑惯例），弹窗底板仍跟随主题，
+   不允许整屏铺黑、白字标题、自带一套按钮。
+6. 新增弹窗前先对照这一页：如果它不能直接复用 `AppDialogSurface` + `AppDialogHeader`
+   + 右下角动作，先说明为什么，不要静默另起炉灶。
 
 新增界面时优先复用这些组件；确实需要自绘时，颜色、字号、圆角、时长仍从令牌取。
 

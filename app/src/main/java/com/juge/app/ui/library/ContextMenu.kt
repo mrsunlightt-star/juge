@@ -1,27 +1,14 @@
 package com.juge.app.ui.library
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,47 +16,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.juge.app.ui.AppDivider
-import com.juge.app.ui.AppText
+import com.juge.app.ui.AppMenuCard
+import com.juge.app.ui.AppMenuItem
+import com.juge.app.ui.AppMenuItemRow
+import com.juge.app.ui.AppMenuWidth
 import com.juge.app.ui.theme.AppMotion
-import com.juge.app.ui.theme.AppShape
-import com.juge.app.ui.theme.AppShadows
-import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppTextRole
-import com.juge.app.ui.theme.borderBlue
-import com.juge.app.ui.theme.cardBg
-import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.surfaceSubtle
 import kotlin.math.roundToInt
-
-/** 上下文菜单的一项：图标 + 文字；破坏性操作（删除）图标与文字都用 [com.juge.app.ui.theme.dangerRed]。 */
-internal data class ContextMenuItem(
-    @DrawableRes val iconRes: Int,
-    val label: String,
-    val iconTint: Color,
-    /** null = 用文字角色的默认墨色（如「编辑」）；删除等破坏性项传 dangerRed */
-    val labelColor: Color? = null,
-    val onClick: () -> Unit
-)
 
 /**
  * iOS 式长按上下文菜单浮层：全页压暗 + 指尖处弹出的白卡菜单。
@@ -85,7 +53,7 @@ internal data class ContextMenuItem(
 internal fun ContextMenuOverlay(
     /** 菜单锚点（触发长按的手指位置），root 坐标 */
     anchorInRoot: Offset,
-    items: List<ContextMenuItem>,
+    items: List<AppMenuItem>,
     onDismiss: () -> Unit
 ) {
     // 浮层自身在 root 中的边界：把 root 坐标的锚点换算成浮层内坐标并钳制菜单落点
@@ -116,8 +84,7 @@ internal fun ContextMenuOverlay(
                 .background(Color.Black)
         )
         if (overlayBounds != Rect.Zero && items.isNotEmpty()) {
-            val haptics = rememberAppHaptics()
-            val menuWidth = 176.dp
+            val menuWidth = AppMenuWidth
             // 菜单落点与缩放原点都在 Density 域内一次算清（浮层内 px 坐标）
             val placement = with(LocalDensity.current) {
                 val anchorLocal = anchorInRoot - overlayBounds.topLeft
@@ -141,7 +108,9 @@ internal fun ContextMenuOverlay(
                 )
                 Triple(x, y, origin)
             }
-            Column(
+            // 卡片与行都来自 AppMenu.kt：长按菜单与 ⋮ 溢出菜单共用同一套白卡/44dp 行，
+            // 不再各画一套（此前 ⋮ 菜单用 Material3 DropdownMenu，是淡紫色的另一套皮）。
+            AppMenuCard(
                 modifier = Modifier
                     .offset {
                         IntOffset(placement.first.roundToInt(), placement.second.roundToInt())
@@ -153,53 +122,10 @@ internal fun ContextMenuOverlay(
                         scaleY = 0.9f + 0.1f * progress
                         transformOrigin = placement.third
                     }
-                    .shadow(
-                        elevation = AppShadows.dialog,
-                        shape = AppShape.menu,
-                        clip = false,
-                        ambientColor = AppShadows.ambientShadow,
-                        spotColor = AppShadows.spotShadow,
-                    )
-                    .border(1.dp, borderBlue, AppShape.menu)
-                    .background(cardBg, AppShape.menu)
                     .onGloballyPositioned { menuSize = it.size },
             ) {
-                items.forEachIndexed { index, item ->
-                    val interaction = remember { MutableInteractionSource() }
-                    val pressed by interaction.collectIsPressedAsState()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .background(if (pressed) surfaceSubtle else Color.Transparent)
-                            .clickable(
-                                interactionSource = interaction,
-                                indication = null,
-                            ) {
-                                haptics.click()
-                                item.onClick()
-                            }
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(item.iconRes),
-                            contentDescription = null,
-                            tint = item.iconTint,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(AppSpacing.iconGap))
-                        AppText(
-                            text = item.label,
-                            role = AppTextRole.body,
-                            color = item.labelColor,
-                        )
-                    }
-                    if (index < items.lastIndex) {
-                        // iOS 菜单分隔线：与文字对齐的内缩细线
-                        AppDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    }
-                }
+                // 点任一菜单项后由卡片统一收起浮层：各调用点的 onClick 不必再自己 closeMenu()
+                items.forEach { AppMenuItemRow(it, onSelected = onDismiss) }
             }
         }
     }

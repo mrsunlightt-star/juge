@@ -1,8 +1,6 @@
 package com.juge.app.ui.main
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +18,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.premiumGoldDeep
+import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.successGreen
 
 /**
@@ -28,14 +27,16 @@ import com.juge.app.ui.theme.successGreen
  * 直接读写 TrialManager 的真实存储，所以切到 PRO 后付费墙、预设锁定态、
  * 桌面组件徽章的表现与真实购买完全一致，便于逐项验证。
  * 发布前删除本函数及顶部栏中的调用点。
+ *
+ * 胶囊不画描边（2026-10 改版：结构性描边一律去掉）：底色用 surfaceSubtle
+ * 从英雄区上「浮」起一档，金色只留在文字与开关状态上表达。
  */
 @Composable
 fun DevProToggle(activated: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .clip(AppShape.pill)
-            .background(Color.White.copy(alpha = 0.92f))
-            .border(BorderStroke(1.dp, premiumGoldDeep), AppShape.pill)
+            .background(surfaceSubtle)
             .padding(start = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

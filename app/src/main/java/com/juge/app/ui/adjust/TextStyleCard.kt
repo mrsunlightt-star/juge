@@ -6,38 +6,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetStyle
-import com.juge.app.ui.AppFilterChip
 import com.juge.app.ui.AppNumberStepperRow
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.AppText
+import com.juge.app.ui.AppTextField
 import com.juge.app.ui.CheckChip
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.appTextFieldColors
 import com.juge.app.ui.horizontalControlUsage
-import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.surfaceSubtle
-import com.juge.app.ui.theme.textTertiary
 import kotlin.math.roundToInt
 
 /** 文本内容与字形定制卡片：金句输入、字体、字号、加粗/倾斜/阴影、对齐方式。 */
@@ -59,10 +44,11 @@ internal fun TextStyleCard(
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "文本内容与字形定制")
 
-        // 金句输入（最多 500 字）。默认 3 行，点右侧箭头可展开成 12 行大输入框，
-        // 长文本在框内可滚动，不再被窗口「吞」掉；框下右下角实时显示字数。
-        var textExpanded by remember { mutableStateOf(false) }
-        OutlinedTextField(
+        // 金句输入（最多 500 字）。
+        // minLines = 3、maxLines 不设上限：框高随文本自然增长，长文本在框内既不滚动也不截断
+        // （外层 LazyColumn 负责整页滚动，卡片自身的 animateContentSize 让长高过程平滑）。
+        // 原来的「展开 / 收起 12 行」箭头与 textExpanded 状态已删掉——高度自适应后不再需要折叠。
+        AppTextField(
             value = selectedContent,
             onValueChange = {
                 if (it.length <= 500) {
@@ -70,34 +56,16 @@ internal fun TextStyleCard(
                     onStyleChange(selectedWidgetId, selectedReminderId, it, selectedStyle)
                 }
             },
-            placeholder = {
-                AppText(
-                    text = "输入桌面小组件上显示的金句",
-                    role = AppTextRole.bodyTertiary
-                )
-            },
+            placeholder = "输入桌面小组件上显示的金句",
             modifier = Modifier.fillMaxWidth(),
-            minLines = if (textExpanded) 12 else 1,
-            maxLines = if (textExpanded) 12 else 3,
-            shape = AppShape.button,
             textStyle = AppType.body,
-            colors = appTextFieldColors(),
-            trailingIcon = {
-                IconButton(onClick = { textExpanded = !textExpanded }) {
-                    Icon(
-                        imageVector = if (textExpanded) {
-                            Icons.Filled.KeyboardArrowUp
-                        } else {
-                            Icons.Filled.KeyboardArrowDown
-                        },
-                        contentDescription = if (textExpanded) "收起输入框" else "展开输入框",
-                        tint = accentBlue,
-                    )
-                }
-            },
+            singleLine = false,
+            minLines = 3,
+            maxLines = Int.MAX_VALUE,
             supportingText = {
+                // 只显示「已输入多少字」，不再露出 500 字上限（上限仍由 onValueChange 硬截断）
                 AppText(
-                    text = "${selectedContent.length} / 500",
+                    text = "已输入 ${selectedContent.length} 字",
                     role = AppTextRole.caption,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.End,
@@ -105,7 +73,9 @@ internal fun TextStyleCard(
             },
         )
 
-        // 字体选择（横滚动）
+        // 字体选择：单选胶囊。与下方「加粗 / 倾斜 / 文字阴影 / 对齐方式」共用 CheckChip 的
+        // 尺寸与配色（showCheckBox=false 的单选变体），不再用更小一档的 Material FilterChip
+        // ——用户反馈字体选项比对选项小一号。仍然保留横向滚动，系统放大字号时不会挤爆。
         AppSectionLabel("选择金句字体")
         val fontRowScroll = rememberScrollState()
         Row(
@@ -117,15 +87,15 @@ internal fun TextStyleCard(
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)
         ) {
             WidgetFont.values().forEach { fnt ->
-                AppFilterChip(
-                    selected = selectedStyle.font == fnt,
+                CheckChip(
+                    checked = selectedStyle.font == fnt,
+                    label = fnt.displayName,
+                    showCheckBox = false,
                     onClick = {
                         val newStyle = selectedStyle.copy(font = fnt)
                         onStyleStateChange(newStyle)
                         onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
                     },
-                    label = fnt.displayName,
-                    containerColor = surfaceSubtle
                 )
             }
         }

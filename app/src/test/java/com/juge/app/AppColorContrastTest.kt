@@ -98,4 +98,47 @@ class AppColorContrastTest {
             luminance(AppPalette.Dark.darkBg) < luminance(AppPalette.Dark.cardBg)
         )
     }
+
+    /**
+     * 暗色模式改版（2026-10）：用户明确要求「不再使用紫色背景，而是真的暗黑背景」。
+     * 底色/卡片/极光全部锁成中性黑：三通道近似相等（通道差 ≤ 4%），页面底接近纯黑。
+     * 一旦有人把蓝紫夜空色改回来，这里会先失败。
+     */
+    @Test
+    fun `夜间底色为中性黑且无蓝紫偏色`() {
+        val dark = AppPalette.Dark
+        listOf(
+            "darkBg" to dark.darkBg,
+            "cardBg" to dark.cardBg,
+            "panelTrack" to dark.panelTrack,
+            "surfaceSubtle" to dark.surfaceSubtle,
+            "surfaceMuted" to dark.surfaceMuted,
+            "surfaceRaised" to dark.surfaceRaised,
+            "auroraMint" to dark.auroraMint,
+            "auroraSky" to dark.auroraSky,
+            "auroraMist" to dark.auroraMist,
+            "drawerGlassBg" to dark.drawerGlassBg,
+        ).forEach { (name, c) ->
+            val max = maxOf(c.red, c.green, c.blue)
+            val min = minOf(c.red, c.green, c.blue)
+            assertTrue(
+                "$name 应为中性色：当前通道差 ${max - min}（>0.04 会显蓝/紫）",
+                max - min <= 0.04f
+            )
+        }
+        assertTrue(
+            "夜间页面底应接近纯黑（当前亮度 ${luminance(dark.darkBg)}）",
+            luminance(dark.darkBg) < 0.02
+        )
+    }
+
+    /** 夜间分层靠明度台阶：页面 < 卡片 < 控件面；输入框聚焦比未聚焦亮一档 */
+    @Test
+    fun `夜间明度台阶单调递增`() {
+        val d = AppPalette.Dark
+        assertTrue("页面底应低于卡片底", luminance(d.darkBg) < luminance(d.cardBg))
+        assertTrue("卡片底应低于控件面", luminance(d.cardBg) < luminance(d.surfaceSubtle))
+        assertTrue("浮起控件面应高于卡片底", luminance(d.cardBg) < luminance(d.surfaceRaised))
+        assertTrue("输入框聚焦态应比未聚焦亮一档", luminance(d.fieldBg) < luminance(d.fieldBgFocused))
+    }
 }

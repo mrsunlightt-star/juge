@@ -14,6 +14,11 @@ import androidx.compose.ui.graphics.Color
  * 运行期经 [LocalAppPalette] 下发。文件底部的同名顶层 getter 是**唯一的取色入口**：
  * 令牌名字与迁移前完全一致，消费端 import 与调用点无感知；派生令牌
  * （textPrimary/textSecondary/dividerColor/gridLine）在 AppPalette 内按基础令牌计算。
+ *
+ * 分层约定（2026-10 改版）：**App 内部页面不再画 1dp 边框**，页面/卡片/控件的层次全部由
+ * 明度台阶表达——日间：页面 [Light.darkBg] → 卡片 [Light.cardBg] → 控件 [Light.surfaceSubtle]；
+ * 夜间：页面 [Dark.darkBg] → 卡片 [Dark.cardBg] → 控件 [Dark.surfaceSubtle]。
+ * [borderBlue] 只留给「必须勾边才成立」的功能性场景（选中态、图片上的白色控件等）。
  */
 internal data class AppPalette(
     /** 页面/抽屉面板底色 */
@@ -22,6 +27,8 @@ internal data class AppPalette(
     val panelTrack: Color,
     /** 卡片底 */
     val cardBg: Color,
+    /** 浮起控件面（分段滑块、悬浮小控件）：比卡片再亮一档；日间白、夜间 #262626 */
+    val surfaceRaised: Color,
     /** 强调色（全局唯一 accent）的文字/描边档：用于区块标题/链接/图标/选中描边；填充角色用 selectBlue / accentFillStrong */
     val accentBlue: Color,
     /** 强调色填充档（Material secondary 等需要 3:1 对比的非文字填充） */
@@ -44,6 +51,10 @@ internal data class AppPalette(
     val surfaceSubtle: Color,
     /** 更浅的页面底 */
     val surfaceMuted: Color,
+    /** 输入框底色（未聚焦）：靠明度台阶从卡片上分出来，不画 1dp 描边 */
+    val fieldBg: Color,
+    /** 输入框底色（聚焦）：比未聚焦再提一档明度，替代聚焦描边表达焦点 */
+    val fieldBgFocused: Color,
     val dangerRed: Color,
     val disabledGray: Color,
     /** 警示横幅三件套（底/字/描边） */
@@ -86,11 +97,13 @@ internal data class AppPalette(
     val gridLine: Color get() = accentBlue.copy(alpha = 0.12f)
 
     companion object {
-        /** 日间调色板：迁移前的全部原值 */
+        /** 日间调色板：无描边分层——页面比卡片深一档，控件靠明度台阶下沉 */
         val Light = AppPalette(
-            darkBg = Color(0xFFFAFBFD), // 几乎全白、只留一丝冷调，靠卡片软阴影分层（用户确认的明度）
-            panelTrack = Color(0xFFEEF2F7),
+            // 页面底比卡片深一档：去掉卡片 1dp 描边后，白卡靠「比页面亮 + 软阴影」立起来
+            darkBg = Color(0xFFF2F5F9),
+            panelTrack = Color(0xFFE8EDF4),
             cardBg = Color(0xFFFFFFFF), // 纯净白卡片
+            surfaceRaised = Color(0xFFFFFFFF), // 白卡片上的浮起滑块仍是纯白，靠阴影立起来
             // 晴空蓝 deep 档，白底 5.9:1、面板底约 5.4:1。
             // 历史上这里是青绿 #0F766E，与 selectBlue、accentLightBlue 三套蓝并存——已统一到 selectBlue 同一色相
             accentBlue = Color(0xFF0369A1),
@@ -102,8 +115,11 @@ internal data class AppPalette(
             mintInk = Color(0xFF134E4A),
             selectBlue = Color(0xFF42B8EC),
             textTertiary = Color(0xFF64748B), // 白底 4.8:1
-            surfaceSubtle = Color(0xFFF1F5F9),
-            surfaceMuted = Color(0xFFF8FAFC),
+            surfaceSubtle = Color(0xFFEDF1F7),
+            surfaceMuted = Color(0xFFF6F8FB),
+            // 输入框：白卡上的「微下沉」一档；聚焦再深一档（替代原来的 1dp 聚焦描边）
+            fieldBg = Color(0xFFF1F4F9),
+            fieldBgFocused = Color(0xFFE5ECF5),
             dangerRed = Color(0xFFDC2626),
             disabledGray = Color(0xFFCBD5E1),
             warningInk = Color(0xFF78350F),
@@ -127,27 +143,34 @@ internal data class AppPalette(
             drawerGlassTint = Color(0x73FFFFFF),
         )
 
-        /** 夜间调色板：深蓝夜空系，与浅色 slate 墨族同源；品牌填充（selectBlue/金/薄荷）保持不变 */
+        /**
+         * 夜间调色板：**中性纯黑**阶梯（用户明确要求「真正的暗黑背景」，不再用蓝紫夜空）。
+         * 页面 → 卡片 → 控件逐级提亮，层次只靠明度差表达；任何令牌都不带蓝/紫偏色。
+         * 品牌填充（selectBlue / 金 / 薄荷）保持不变。
+         */
         val Dark = AppPalette(
-            darkBg = Color(0xFF0B1220), // 深海蓝黑页面底
-            panelTrack = Color(0xFF101A2E), // 比卡片深一档的凹槽
-            cardBg = Color(0xFF1B2540), // 夜空板岩卡片
-            accentBlue = Color(0xFF7DD3FC), // 月光天蓝：夜底约 11:1
+            darkBg = Color(0xFF0A0A0A), // 页面底：接近纯黑的中性黑
+            panelTrack = Color(0xFF141414), // 凹槽轨道：比页面提一档
+            cardBg = Color(0xFF191919), // 卡片：比页面亮一档
+            surfaceRaised = Color(0xFF262626), // 卡片上的浮起控件（夜间要比卡片再亮一档才看得见）
+            accentBlue = Color(0xFF7DD3FC), // 月光天蓝：夜底约 11:1（唯一的「彩色」强调）
             accentFillStrong = Color(0xFF38BDF8), // 非文字填充档，夜底 3:1 以上
-            borderBlue = Color(0xFF2A3A55),
-            sheetHandle = Color(0xFF64748B),
-            textWhite = Color(0xFFF1F5F9), // 霜白主文字
-            textGray = Color(0xFF94A3B8), // 月灰：卡片底约 5.9:1
+            borderBlue = Color(0xFF2A2A2A), // 中性描边（仅保留给必须勾边的功能性场景）
+            sheetHandle = Color(0xFF6B6B6B),
+            textWhite = Color(0xFFEDEDED), // 霜白主文字
+            textGray = Color(0xFFA6A6A6), // 月灰：卡片底约 7.2:1
             mintInk = Color(0xFF134E4A),
             selectBlue = Color(0xFF42B8EC),
-            textTertiary = Color(0xFF7E8FA6), // 页面底约 5.7:1
-            surfaceSubtle = Color(0xFF22304A),
-            surfaceMuted = Color(0xFF0E1830),
+            textTertiary = Color(0xFF8C8C8C), // 卡片底约 5.1:1
+            surfaceSubtle = Color(0xFF242424), // 卡片上的控件面（比卡片亮）
+            surfaceMuted = Color(0xFF111111), // 下沉面（比卡片暗）
+            fieldBg = Color(0xFF111111),
+            fieldBgFocused = Color(0xFF232323),
             dangerRed = Color(0xFFF87171),
-            disabledGray = Color(0xFF475569),
+            disabledGray = Color(0xFF4D4D4D),
             warningInk = Color(0xFFFCD34D), // 夜间警示字提亮为琥珀亮档：警示底约 11:1
-            warningBg = Color(0xFF33270B),
-            warningBorder = Color(0xFF7A5C10),
+            warningBg = Color(0xFF2B2312),
+            warningBorder = Color(0xFF5C4A12),
             premiumGold = Color(0xFFF59E0B),
             premiumGoldDeep = Color(0xFFFBBF24), // 夜底金色文字提亮：卡片底约 8:1
             premiumGoldInk = Color(0xFF431407),
@@ -155,14 +178,15 @@ internal data class AppPalette(
             successGreen = Color(0xFF34D399),
             brandInk = Color(0xFF064E3B),
             brandInkSoft = Color(0xFF065F46),
-            trackGray = Color(0xFF33415C),
-            chipTextInk = Color(0xFFC6D2E2),
-            auroraMint = Color(0xFF14B8A6), // 夜光版：压暗的青
-            auroraSky = Color(0xFF0EA5E9), // 夜光版：压暗的天蓝
-            auroraMist = Color(0xFF1E3A5F), // 夜光版末段：没入夜色
-            overlayCard = Color(0xFF1E2436),
-            drawerGlassBg = Color(0xFF0B1220),
-            drawerGlassTint = Color(0x8C0B1220), // 深底 55%：与日间同等的透出度
+            trackGray = Color(0xFF333333),
+            chipTextInk = Color(0xFFC9C9C9),
+            // 夜间极光：中性炭黑微光，不带蓝紫（用户明确不要紫色背景）
+            auroraMint = Color(0xFF101010),
+            auroraSky = Color(0xFF171717),
+            auroraMist = Color(0xFF0A0A0A),
+            overlayCard = Color(0xFF191919),
+            drawerGlassBg = Color(0xFF0A0A0A),
+            drawerGlassTint = Color(0x8C0A0A0A), // 深底 55%：与日间同等的透出度
         )
     }
 }
@@ -178,6 +202,8 @@ internal val darkBg: Color @Composable get() = LocalAppPalette.current.darkBg
 internal val panelTrack: Color @Composable get() = LocalAppPalette.current.panelTrack
 
 internal val cardBg: Color @Composable get() = LocalAppPalette.current.cardBg
+
+internal val surfaceRaised: Color @Composable get() = LocalAppPalette.current.surfaceRaised
 
 internal val accentBlue: Color @Composable get() = LocalAppPalette.current.accentBlue
 
@@ -200,6 +226,10 @@ internal val textTertiary: Color @Composable get() = LocalAppPalette.current.tex
 internal val surfaceSubtle: Color @Composable get() = LocalAppPalette.current.surfaceSubtle
 
 internal val surfaceMuted: Color @Composable get() = LocalAppPalette.current.surfaceMuted
+
+internal val fieldBg: Color @Composable get() = LocalAppPalette.current.fieldBg
+
+internal val fieldBgFocused: Color @Composable get() = LocalAppPalette.current.fieldBgFocused
 
 internal val dangerRed: Color @Composable get() = LocalAppPalette.current.dangerRed
 

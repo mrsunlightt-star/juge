@@ -1,9 +1,7 @@
 package com.juge.app.ui.main
 
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -157,8 +155,9 @@ fun MainTopBar(
                             ambientColor = AppShadows.ambientShadow,
                             spotColor = AppShadows.spotShadow,
                         )
-                        .background(Color.White, CircleShape)
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)), CircleShape),
+                        // 不画 1dp 描边（2026-10 改版）：38dp 白圆自身的填充 + 柔和阴影
+                        // 已经能和英雄区的天空/压暗拉开边界，白描边在亮天空上本来也看不见。
+                        .background(Color.White, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isRefreshing) {
@@ -202,8 +201,8 @@ fun MainTopBar(
                             ambientColor = AppShadows.ambientShadow,
                             spotColor = AppShadows.spotShadow,
                         )
-                        .background(Color.White, CircleShape)
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)), CircleShape),
+                        // 同刷新圆：去掉白色 1dp 描边，只留白圆填充 + 阴影。
+                        .background(Color.White, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -241,7 +240,6 @@ fun MainTopBar(
                     modifier = Modifier
                         .clip(AppShape.pill)
                         .background(badgeBg)
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)), AppShape.pill)
                         .padding(horizontal = 14.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

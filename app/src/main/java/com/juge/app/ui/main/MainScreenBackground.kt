@@ -43,7 +43,8 @@ import com.juge.app.ui.theme.gridLine
 
 /**
  * 主界面底板：顶部「阳光海滩」图 + 薄荷极光渐变，内部套 Scaffold 与纵向 Column。
- * 方格网只保留在抽屉上沿以上（被顶图盖住，仅首帧兜底），不再透过抽屉毛玻璃显形。
+ * 方格网只保留在**日间**的抽屉上沿以上（被顶图盖住，仅首帧兜底）；夜间不画网格——
+ * 网格色是强调色 12%，在纯黑上会泛蓝，与中性黑背景冲突。
  *
  * 顶部预览区（顶栏 + 组件预览 + 提示行）铺一张明亮的海滩插画，图像顶部是蓝天，
  * 因此顶栏文字保持白色并加一层暗压与文字阴影；页面其余部分保留原来的
@@ -81,6 +82,10 @@ fun MainScreenBackground(
         val auroraFade = auroraMist.copy(alpha = 0.50f) // 晨露浅青
         val pageBg = darkBg
         val grid = gridLine
+        // 暗色模式不画方格网：gridLine 是 accentBlue 12%，夜间 accentBlue 是明亮的月光天蓝，
+        // 12% 叠在纯黑上会泛出一层冷蓝底纹，与「中性纯黑」直接冲突。这段网格本来也只
+        // 在首帧/无图时兜底露出，夜间直接跳过还能省掉一遍逐线绘制。
+        val drawGrid = !LocalAppDarkTheme.current
         Box(modifier = Modifier.fillMaxSize()) {
             // 背景层单独作为 hazeSource：它必须是抽屉的兄弟而不是祖先。
             // Haze 只采样「zIndex 低于最近祖先 source」的区域；source 作为祖先时
@@ -107,19 +112,24 @@ fun MainScreenBackground(
                         // 2. 网站同款精细方格网 (Subtle Clean Grid)
                         //    只画在抽屉上沿以上：这一段被顶部海滩图完全盖住，
                         //    仅在首帧/无图时作为兜底露出来。
-                        val stroke = 1.dp.toPx()
+                        //    夜间跳过：网格色是强调色 12%，在纯黑上会泛蓝（见 drawGrid 的说明）。
+                        // heroPx 始终要算：下一段「抽屉上沿以下铺平底色」也用它，
+                        // 所以放在 if 外面，不能跟着网格一起被跳过。
                         val heroPx = heroHeight.toPx().coerceIn(0f, size.height)
-                        val gridSize = 24.dp.toPx()
+                        if (drawGrid) {
+                            val stroke = 1.dp.toPx()
+                            val gridSize = 24.dp.toPx()
 
-                        var x = 0f
-                        while (x < size.width) {
-                            drawLine(grid, Offset(x, 0f), Offset(x, heroPx), stroke)
-                            x += gridSize
-                        }
-                        var y = 0f
-                        while (y < heroPx) {
-                            drawLine(grid, Offset(0f, y), Offset(size.width, y), stroke)
-                            y += gridSize
+                            var x = 0f
+                            while (x < size.width) {
+                                drawLine(grid, Offset(x, 0f), Offset(x, heroPx), stroke)
+                                x += gridSize
+                            }
+                            var y = 0f
+                            while (y < heroPx) {
+                                drawLine(grid, Offset(0f, y), Offset(size.width, y), stroke)
+                                y += gridSize
+                            }
                         }
 
                         // 3. 抽屉上沿以下铺回**平坦的页面底色**：斜向极光渐变在屏幕左下

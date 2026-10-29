@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,20 +23,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
-import com.juge.app.ui.AppDivider
+import com.juge.app.ui.AppDialogTitle
+import com.juge.app.ui.AppTextField
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppTextButton
-import com.juge.app.ui.appTextFieldColors
-import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textPrimary
 import com.juge.app.ui.theme.textTertiary
 import kotlinx.coroutines.launch
 
@@ -150,11 +146,8 @@ fun AccountDialog(
         AppDialogSurface(scrollable = true) {
             val current = snapshot
 
-            Text(
-                text = "账号",
-                style = AppType.hero,
-                color = textPrimary
-            )
+            // 标题与其它子页面统一为 AppDialogTitle（18sp），不再单独用 20sp hero
+            AppDialogTitle("账号")
 
             if (current == null) {
                 Text(
@@ -162,7 +155,8 @@ fun AccountDialog(
                     style = AppType.body,
                     color = textGray
                 )
-                AppDivider()
+                // 原 1dp 分割线删除：上下相邻元素靠 AppDialogSurface 的 spacedBy
+                // (controlGap) 间距分组，层次只用明度色阶
                 Row(horizontalArrangement = Arrangement.Center) {
                     AppTextButton(
                         text = "登录",
@@ -178,10 +172,11 @@ fun AccountDialog(
                     )
                 }
 
-                OutlinedTextField(
+                // 全 App 统一输入框：无 1dp 描边，靠明度台阶区分
+                AppTextField(
                     value = username,
                     onValueChange = { username = it.take(32) },
-                    label = { Text("用户名", style = AppType.body) },
+                    label = "用户名",
                     singleLine = true,
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(
@@ -189,20 +184,20 @@ fun AccountDialog(
                         imeAction = ImeAction.Next,
                     ),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = AppShape.button,
                     textStyle = AppType.body,
-                    colors = appTextFieldColors(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = { password = it.take(64) },
-                    label = { Text("密码", style = AppType.body) },
+                    label = "密码",
                     singleLine = true,
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                         imeAction = if (isRegister) ImeAction.Next else ImeAction.Done,
                     ),
+                    // 密码仍走 PasswordVisualTransformation：绘制层拿到的就是圆点串，
+                    // 不能泄漏明文
                     visualTransformation = if (passwordVisible) {
                         VisualTransformation.None
                     } else {
@@ -221,15 +216,13 @@ fun AccountDialog(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = AppShape.button,
                     textStyle = AppType.body,
-                    colors = appTextFieldColors(),
                 )
                 if (isRegister) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = nickname,
                         onValueChange = { nickname = it.take(32) },
-                        label = { Text("昵称（选填）", style = AppType.body) },
+                        label = "昵称（选填）",
                         singleLine = true,
                         enabled = !busy,
                         keyboardOptions = KeyboardOptions(
@@ -237,9 +230,7 @@ fun AccountDialog(
                             imeAction = ImeAction.Done,
                         ),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = AppShape.button,
                         textStyle = AppType.body,
-                        colors = appTextFieldColors(),
                     )
                 }
 
@@ -294,7 +285,8 @@ fun AccountDialog(
                     style = AppType.body,
                     color = textGray,
                 )
-                AppDivider()
+                // 原 1dp 分割线删除：上下相邻元素靠 AppDialogSurface 的 spacedBy
+                // (controlGap) 间距分组，层次只用明度色阶
                 Text(
                     text = "退出登录不会收回已解锁的风格。",
                     style = AppType.micro,
@@ -320,7 +312,8 @@ fun AccountDialog(
                         color = dangerRed
                     )
                 } else {
-                    AppDivider()
+                    // 不再画 1dp 分割线：注销确认区靠 AppDialogSurface 的 spacedBy
+                    // 间距 + dangerRed 文字自成一组
                     Text(
                         text = "注销后将永久删除服务端账号与订单绑定信息，且无法恢复、无法再通过本账号找回 PRO。本机已解锁的风格不受影响。",
                         style = AppType.caption,

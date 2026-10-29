@@ -3,6 +3,7 @@ package com.juge.app.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
@@ -28,8 +29,9 @@ import androidx.compose.ui.unit.sp
 data class TextRole(val style: TextStyle, val color: Color)
 
 /**
- * 语义文字角色。带主题色的角色是 `@Composable get()`：组合期从 [LocalAppPalette] 解析，
- * 日/夜切换即随之变化，调用点写法不变。固定白字角色（OnFill/brand 系）不吃调色板，保留普通 val。
+ * 语义文字角色。带主题色/主题字重的角色都是 `@Composable get()`：组合期从 [LocalAppPalette]
+ * 解析颜色、从 [LocalAppFontWeightScale] 解析字重（暗色 -40%），日/夜切换即随之变化，
+ * 调用点写法不变。固定白字角色（OnFill/brand 系）不吃调色板，但字重仍跟随模式。
  */
 object AppTextRole {
 
@@ -46,12 +48,27 @@ object AppTextRole {
     // —— 控件标签 ——
     // 14sp：与它们身下的选项文字（chip 14sp）同级——标签比选项还小会显得层级倒挂
     // （用户反馈）。AppType.label(12sp) 保留给徽章类小字（PRO 徽章等直接用 AppType）。
-    private val labelStyle = AppType.label.copy(fontSize = 14.sp, lineHeight = 20.sp)
+    private val labelStyle: TextStyle @Composable get() =
+        AppType.label.copy(fontSize = 14.sp, lineHeight = 20.sp)
     val label: TextRole @Composable get() = TextRole(labelStyle, textSecondary)
     val labelAccent: TextRole @Composable get() = TextRole(labelStyle, accentBlue)
 
     // —— 正文 ——
     val body: TextRole @Composable get() = TextRole(AppType.body, textPrimary)
+
+    /**
+     * 逐行阅读/逐行操作的设置页（金句分类管理中心）正文：16sp / Medium，比常规弹窗正文大一档
+     * （用户反馈小字读起来吃力）。设计规范 §6.1.4：同一弹窗内的菜单、输入、按钮必须一起放大，
+     * 所以这里的菜单项、输入框、按钮 style 都从这个令牌取，不要再写 `fontSize = 16.sp` 字面量。
+     */
+    val dialogBody: TextRole @Composable get() = TextRole(
+        AppType.body.copy(
+            fontSize = 16.sp,
+            lineHeight = 24.sp,
+            fontWeight = appFontWeight(FontWeight.Medium),
+        ),
+        textPrimary,
+    )
     val bodySecondary: TextRole @Composable get() = TextRole(AppType.body, textSecondary)
     val bodyTertiary: TextRole @Composable get() = TextRole(AppType.body, textTertiary)
     val bodyStrong: TextRole @Composable get() = TextRole(AppType.bodyStrong, textPrimary)
@@ -69,14 +86,14 @@ object AppTextRole {
     val link: TextRole @Composable get() = TextRole(AppType.link, accentBlue)
 
     // —— 填充色上的白字（角标、按钮、选中胶囊） ——
-    val badgeOnFill = TextRole(AppType.badge, Color.White)
-    val buttonOnFill = TextRole(AppType.button, Color.White)
-    val chipOnFill = TextRole(AppType.chip, Color.White)
+    val badgeOnFill: TextRole @Composable get() = TextRole(AppType.badge, Color.White)
+    val buttonOnFill: TextRole @Composable get() = TextRole(AppType.button, Color.White)
+    val chipOnFill: TextRole @Composable get() = TextRole(AppType.chip, Color.White)
 
     // —— 未选中胶囊 ——
     val chip: TextRole @Composable get() = TextRole(AppType.chip, textSecondary)
 
     // —— 品牌标题（英雄图上的白字，阴影由调用方叠加） ——
-    val brand = TextRole(AppType.brand, Color.White)
-    val brandSub = TextRole(AppType.brandSub, Color.White.copy(alpha = 0.82f))
+    val brand: TextRole @Composable get() = TextRole(AppType.brand, Color.White)
+    val brandSub: TextRole @Composable get() = TextRole(AppType.brandSub, Color.White.copy(alpha = 0.82f))
 }

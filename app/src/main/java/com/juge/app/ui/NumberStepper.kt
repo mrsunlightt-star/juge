@@ -2,7 +2,6 @@ package com.juge.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -43,7 +42,6 @@ import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.TextRole
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
@@ -182,6 +180,8 @@ private fun StepButton(
         }
     }
 
+    // 视觉圆钮不画描边（2026-10 改版：结构性分层描边一律去掉），层次靠底色明度表达：
+    // 可用态 surfaceSubtle、按下态更亮一档、禁用态整体降透明度并配 disabledGray 图标。
     val background by animateColorAsState(
         targetValue = when {
             !enabled -> surfaceSubtle.copy(alpha = 0.45f)
@@ -191,7 +191,6 @@ private fun StepButton(
         animationSpec = AppMotion.color,
         label = "stepButtonBackground",
     )
-    val border = if (enabled) borderBlue else borderBlue.copy(alpha = 0.35f)
     val tint = if (enabled) accentBlue else disabledGray
 
     Box(
@@ -221,8 +220,7 @@ private fun StepButton(
             modifier = Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(background)
-                .border(1.dp, border, CircleShape),
+                .background(background),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

@@ -9,22 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +31,6 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
@@ -49,26 +40,26 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
-import com.juge.app.ui.theme.selectBlue
-import com.juge.app.ui.theme.surfaceMuted
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textTertiary
 import com.juge.app.ui.theme.rememberAppHaptics
 import kotlin.math.roundToInt
 
-/** 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗。视觉 34dp，热区 48dp。 */
+/**
+ * 预设颜色一栏末尾的「+」按钮，点击后打开取色弹窗。视觉 34dp，热区 48dp。
+ *
+ * 2026-10 改版：内层方块不再画 1dp 描边，改由 [surfaceSubtle] 一档下沉的填充从卡片
+ * （cardBg）上分出来——明度台阶替代描边。选中态（3dp 强调环）属于 adjust 里的色板方块，
+ * 「+」入口本身没有选中态，原先只为 1dp 描边服务的 `borderColor` 参数一并删掉。
+ */
 @Composable
 fun AddColorPresetButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 34.dp,
     corner: Dp = 10.dp,
-    borderColor: Color = borderBlue,
     contentColor: Color = textGray
 ) {
     val haptics = rememberAppHaptics()
@@ -86,8 +77,7 @@ fun AddColorPresetButton(
             modifier = Modifier
                 .size(size)
                 .clip(RoundedCornerShape(corner))
-                .background(surfaceMuted)
-                .border(1.dp, borderColor, RoundedCornerShape(corner))
+                .background(surfaceSubtle)
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
@@ -124,7 +114,9 @@ fun DeleteColorPresetDialog(
                         .size(28.dp)
                         .clip(AppShape.badge)
                         .background(Color(bound))
-                        .border(1.dp, borderBlue, AppShape.badge)
+                        // 去 1dp 描边：白色/浅色块在白卡上会消失，改用 2dp surfaceSubtle
+                        // 明度台阶兜住边界（属于「台阶」，不是 1dp 线）
+                        .border(2.dp, surfaceSubtle, AppShape.badge)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 AppText(
@@ -191,38 +183,30 @@ fun ColorPickerDialog(
     var hexInput by remember { mutableStateOf(toHexColor(initialColor)) }
     val picked = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
 
-    AppDialog(visible = show, onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(AppShape.dialog)
-                .background(cardBg)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.controlGap)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppDialogTitle(text = title, modifier = Modifier.weight(1f))
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = textTertiary)
-                }
-            }
+    AppDialog(
+        visible = show,
+        onDismissRequest = onDismiss,
+        // 与其它子页面同一套宽度处理：关掉平台默认宽度（否则手机上只有约 280dp），
+        // 交给 AppDialogSurface 撑到 420dp 上限，阴影 / 圆角 / 毛玻璃底板全部一致
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        AppDialogSurface(scrollable = true) {
+            AppDialogHeader(title = title, onClose = onDismiss)
 
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(AppShape.card)
                     .background(Color(picked))
-                    .border(1.dp, borderBlue, AppShape.card)
+                    // 1dp borderBlue 换成 2dp 明度台阶衬边，纯白颜色也能看出方块边界
+                    .border(2.dp, surfaceSubtle, AppShape.card)
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)) {
                 AppSectionLabel("颜色编码")
-                OutlinedTextField(
+                // 全 App 统一输入框：容器描边由 AppTextField 内部用明度台阶表达，
+                // 这里只保留「比卡片浅一档」的底色指定
+                AppTextField(
                     value = hexInput,
                     onValueChange = { raw ->
                         // 只接受 # 与十六进制字符，最长 #RRGGBB
@@ -243,10 +227,9 @@ fun ColorPickerDialog(
                         autoCorrect = false,
                         capitalization = KeyboardCapitalization.Characters
                     ),
-                    shape = AppShape.button,
                     textStyle = AppType.body,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = appTextFieldColors(container = surfaceSubtle)
+                    containerColor = surfaceSubtle
                 )
             }
 
@@ -292,20 +275,17 @@ fun ColorPickerDialog(
                 }
             )
 
+            // 与新增/编辑/删除等弹窗同一套收口：右下角「取消 + 主操作」，不再左右等分的两颗实心按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                AppSecondaryButton(
-                    text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                )
+                AppTextButton(text = "取消", onClick = onDismiss)
+                Spacer(modifier = Modifier.width(8.dp))
                 AppPrimaryButton(
                     text = "添加",
                     onClick = { onConfirm(picked) },
-                    modifier = Modifier.weight(1f),
-                    containerColor = selectBlue
                 )
             }
         }

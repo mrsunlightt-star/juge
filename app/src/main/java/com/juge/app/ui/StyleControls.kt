@@ -36,6 +36,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.appFontWeight
 import com.juge.app.ui.theme.chipTextInk
 import com.juge.app.ui.theme.disabledGray
 import com.juge.app.ui.theme.selectBlue
@@ -115,16 +116,24 @@ fun GradientTrackSlider(
 }
 
 /**
- * 带勾选框的胶囊选项（加粗/倾斜/文字阴影/对齐方式）：
+ * 胶囊选项（加粗/倾斜/文字阴影/对齐方式，以及单选的金句字体）：
  * 未选中为浅灰胶囊 + 蓝框空心勾选框，选中变蓝底白字 + 白框对勾。
- * 纵向 15dp 内边距让整颗胶囊达到 48dp，满足移动端最小触控目标。
+ * 纵向 16dp 内边距 + 14sp 文本让整颗胶囊达到 ~52dp，满足移动端最小触控目标。
+ *
+ * [showCheckBox] = false 时是**同尺寸、同配色的单选变体**：不画勾选框，只靠蓝底白字
+ * 表达选中。金句字体的 4 个选项复用它，从而和「加粗 / 对齐方式」那两排选项视觉一致
+ * （用户反馈字体选项比其它选项小一档）。
+ *
+ * 勾选框的 2dp 描边与滑块的 2dp 强调色外圈属于**状态表达**（勾没勾、可不可拖），
+ * 不属于 2026-10 改版里要删掉的结构性分层描边，故保留。
  */
 @Composable
 fun CheckChip(
     checked: Boolean,
     label: String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showCheckBox: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val background by animateColorAsState(
@@ -159,28 +168,32 @@ fun CheckChip(
             )
             .padding(horizontal = 12.dp, vertical = 16.dp)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(16.dp)
-                .clip(AppShape.check)
-                .background(if (checked) Color.Transparent else Color.White)
-                .border(2.dp, borderColor, AppShape.check)
-        ) {
-            if (checked) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp)
-                )
+        if (showCheckBox) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(AppShape.check)
+                    .background(if (checked) Color.Transparent else Color.White)
+                    .border(2.dp, borderColor, AppShape.check)
+            ) {
+                if (checked) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
             }
+            Spacer(modifier = Modifier.width(6.dp))
         }
-        Spacer(modifier = Modifier.width(6.dp))
         Text(
             label,
             style = AppType.chip.copy(
-                fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium
+                // 覆写字重必须经过 appFontWeight（暗色模式整体 -40%），
+                // 否则 AppType.chip 里 theme 算好的夜色字重会被这里的原始值盖掉。
+                fontWeight = appFontWeight(if (checked) FontWeight.SemiBold else FontWeight.Medium)
             ),
             color = textColor,
             maxLines = 1

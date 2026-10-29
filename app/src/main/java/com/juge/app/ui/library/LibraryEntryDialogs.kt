@@ -1,19 +1,14 @@
 package com.juge.app.ui.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,11 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.data.Category
 import com.juge.app.data.Reminder
@@ -40,17 +32,12 @@ import com.juge.app.ui.AppFormGroup
 import com.juge.app.ui.AppFormRow
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppTextButton
-import com.juge.app.ui.appTextFieldColors
+import com.juge.app.ui.AppTextField
 import com.juge.app.ui.theme.AppTextRole
-import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.dangerRed
-import com.juge.app.ui.theme.selectBlue
-import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textTertiary
-import com.juge.app.ui.theme.textWhite
 import com.juge.app.ui.theme.rememberAppHaptics
 
 internal fun categoryNameError(name: String): String? =
@@ -88,19 +75,14 @@ internal fun AddCategoryDialog(
     ) {
         AppDialogSurface {
             AppDialogTitle(title)
-            OutlinedTextField(
+            // 全 App 统一输入框：框体不画 1dp 描边，靠明度台阶与卡片区分
+            AppTextField(
                 value = name,
                 onValueChange = onNameChange,
-                placeholder = {
-                    AppText(
-                        text = "输入分类名称，如“电影”",
-                        role = AppTextRole.bodyTertiary
-                    )
-                },
+                placeholder = "输入分类名称，如“电影”",
                 modifier = Modifier.fillMaxWidth(),
-                shape = AppShape.button,
                 textStyle = AppType.body,
-                colors = appTextFieldColors(),
+                singleLine = true,
                 enabled = !isSaving,
                 isError = validationError != null
             )
@@ -148,24 +130,18 @@ internal fun AddReminderDialog(
             val haptics = rememberAppHaptics()
             AppDialogTitle("新增记录到句阁")
 
-            // 放大文本输入框，设定固定高度以显示更多内容
-            OutlinedTextField(
+            // 多行输入框：不再固定 height(130dp) / maxLines=6，改成 minLines=4、
+            // maxLines 不设上限——输入越多框越高，绝不在框内滚动藏文本，
+            // 与个性定制页的金句框行为保持一致
+            AppTextField(
                 value = content,
                 onValueChange = onContentChange,
-                placeholder = {
-                    Text(
-                        text = "输入金句或提醒文字",
-                        style = AppType.body,
-                        color = textTertiary
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp),
-                maxLines = 6,
-                shape = AppShape.button,
+                placeholder = "输入金句或提醒文字",
+                modifier = Modifier.fillMaxWidth(),
                 textStyle = AppType.body,
-                colors = appTextFieldColors(),
+                singleLine = false,
+                minLines = 4,
+                maxLines = Int.MAX_VALUE,
                 enabled = !isSaving,
                 isError = validationError != null
             )
@@ -201,7 +177,6 @@ internal fun AddReminderDialog(
                     AppFormRow(
                         label = cat.name,
                         selected = selectedCategory?.id == cat.id,
-                        showDivider = index < categories.lastIndex,
                         onClick = { if (!isSaving) onSelectCategory(cat) }
                     )
                 }
@@ -250,18 +225,16 @@ internal fun EditReminderDialog(
             val haptics = rememberAppHaptics()
             AppDialogTitle("编辑金句内容")
 
-            // 放大文本输入框
-            OutlinedTextField(
+            // 多行输入框：与新增金句一致，高度随内容增长（minLines=4，maxLines 不限）
+            AppTextField(
                 value = content,
                 onValueChange = onContentChange,
-                label = { Text("金句内容", style = AppType.body) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp),
-                maxLines = 6,
-                shape = AppShape.button,
+                label = "金句内容",
+                modifier = Modifier.fillMaxWidth(),
                 textStyle = AppType.body,
-                colors = appTextFieldColors(),
+                singleLine = false,
+                minLines = 4,
+                maxLines = Int.MAX_VALUE,
                 enabled = !isSaving,
                 isError = validationError != null
             )
@@ -297,7 +270,6 @@ internal fun EditReminderDialog(
                     AppFormRow(
                         label = cat.name,
                         selected = selectedCategory?.id == cat.id,
-                        showDivider = index < categories.lastIndex,
                         onClick = { if (!isSaving) onSelectCategory(cat) }
                     )
                 }

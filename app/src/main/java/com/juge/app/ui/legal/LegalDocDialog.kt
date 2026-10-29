@@ -1,30 +1,24 @@
 package com.juge.app.ui.legal
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppText
-import com.juge.app.ui.AppDialogTitle
+import com.juge.app.ui.AppDialogHeader
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
+import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
-import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textTertiary
 
 /**
  * 《用户协议》/《隐私政策》/《字体许可》全文查看器。
@@ -44,36 +38,30 @@ fun LegalDocDialog(show: Boolean, title: String, body: String, onDismiss: () -> 
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 420.dp)
                 .fillMaxHeight(0.85f)
-                .padding(vertical = 12.dp),
+                .padding(vertical = 12.dp)
+                // 不画 1dp 描边（2026-10 改版）：卡片边界改由「cardBg 比压暗背景亮一档」
+                // 加 AppShadows.dialog 弥散阴影表达，与其它弹窗一致。
+                .shadow(
+                    elevation = AppShadows.dialog,
+                    shape = AppShape.dialog,
+                    clip = false,
+                    ambientColor = AppShadows.ambientShadow,
+                    spotColor = AppShadows.spotShadow,
+                ),
             shape = AppShape.dialog,
             colors = CardDefaults.cardColors(containerColor = cardBg),
-            border = BorderStroke(1.dp, borderBlue)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(AppSpacing.cardPadding)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AppDialogTitle(title)
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "关闭",
-                            tint = textTertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                // 与取色 / 分类管理等高内容子页面同一颗头部（标题 + 右侧 X）
+                AppDialogHeader(title = title, onClose = onDismiss)
 
-                HorizontalDivider(
-                    color = borderBlue,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
+                // 标题与正文之间不再画分割线：改由 12dp 间距分组（结构性分割线一律去掉）
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Column(
                     modifier = Modifier

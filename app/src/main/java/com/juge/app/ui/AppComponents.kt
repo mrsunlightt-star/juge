@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -46,12 +44,12 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.IconButton
+import com.juge.app.ui.theme.textTertiary
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -97,22 +95,22 @@ import com.juge.app.ui.theme.LocalAppDarkTheme
 import com.juge.app.ui.theme.LocalAppPalette
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textPrimary
-import com.juge.app.ui.theme.textWhite
 
 /**
  * 白色区块卡片：定制页的五个设置区块、教程卡片、跃然纸上的金句卡片共用。
  *
- * 统一项：16dp 圆角、1dp 中性描边 + 低透明度弥散软阴影、16dp 内边距、12dp 行距；
+ * 统一项：16dp 圆角、低透明度弥散软阴影、16dp 内边距、12dp 行距；
  * 高度变化默认走 [AppMotion.resize]；嵌套展开控件可关闭，避免重复执行高度动画。
- * 描边必须保留：抽屉面板是近白的毛玻璃，只靠阴影白卡会融进面板里
- * （用户反馈「卡片框轮廓要清晰、有层次感」），1dp borderBlue 才勾得出边界。
+ *
+ * **不再画 1dp 描边**（2026-10 改版）：卡片与页面的层次由「页面底 → 卡片 → 控件面」
+ * 的微明度色阶表达（见 [com.juge.app.ui.theme.AppPalette]），配合软阴影；描边属于
+ * 「画线分层」的旧语言，用户明确要求去掉。
  * [contentPadding] 放宽为 [PaddingValues]：金句卡片要「左右 16 / 上下 12」的非对称
  * 内边距（用户定档的整卡瘦身 ~10%），四边同值的 Dp 表达不了。
  */
@@ -141,7 +139,6 @@ fun AppSectionCard(
                 }
             ),
         colors = CardDefaults.cardColors(containerColor = cardBg),
-        border = BorderStroke(1.dp, borderBlue),
         shape = AppShape.card,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -182,6 +179,7 @@ fun AppPrimaryButton(
     loading: Boolean = false,
     containerColor: Color = selectBlue,
     contentColor: Color = Color.White,
+    textStyle: TextStyle = AppType.button,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -222,7 +220,11 @@ fun AppPrimaryButton(
     }
 }
 
-/** 次要操作按钮：白底细描边，和主按钮同高、同圆角 */
+/**
+ * 次要操作按钮：**控件面填充、无描边**，和主按钮同高、同圆角。
+ * 原来的「白底 1dp 细描边」改版后由明度台阶表达：按钮底比卡片深/浅一档（surfaceSubtle），
+ * 不再画线；文字色仍可由调用方用 [contentColor] 指定（如链接蓝）。
+ */
 @Composable
 fun AppSecondaryButton(
     text: String,
@@ -239,7 +241,7 @@ fun AppSecondaryButton(
         label = "secondaryButtonScale",
     )
     val haptics = rememberAppHaptics()
-    OutlinedButton(
+    Button(
         onClick = {
             haptics.click()
             onClick()
@@ -249,8 +251,12 @@ fun AppSecondaryButton(
             .scale(scale),
         enabled = enabled,
         shape = AppShape.button,
-        border = BorderStroke(1.dp, borderBlue),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = surfaceSubtle,
+            contentColor = contentColor,
+            disabledContainerColor = surfaceSubtle.copy(alpha = 0.5f),
+            disabledContentColor = contentColor.copy(alpha = 0.45f),
+        ),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         interactionSource = interaction,
     ) {
@@ -286,6 +292,7 @@ fun AppTextButton(
     modifier: Modifier = Modifier,
     color: Color = textGray,
     enabled: Boolean = true,
+    textStyle: TextStyle = AppType.link,
 ) {
     val haptics = rememberAppHaptics()
     TextButton(
@@ -296,13 +303,14 @@ fun AppTextButton(
         modifier = modifier,
         enabled = enabled,
     ) {
-        Text(text = text, style = AppType.link, color = color)
+        Text(text = text, style = textStyle, color = color)
     }
 }
 
 /**
  * 筛选胶囊：文字库分类、字体选择、图片填充模式共用。
- * 未选中白底灰字，选中浅蓝底白字；圆角与边框都走令牌。
+ * **不画描边**：未选中用「控件面」填充（比卡片深/浅一档）表达可点，选中用浅蓝底白字，
+ * 层次全部由明度与色相表达（2026-10 改版，用户要求去掉 1dp 边框）。
  */
 @Composable
 fun AppFilterChip(
@@ -311,7 +319,7 @@ fun AppFilterChip(
     label: String,
     modifier: Modifier = Modifier,
     textStyle: TextStyle = AppType.chip,
-    containerColor: Color = cardBg,
+    containerColor: Color = surfaceSubtle,
 ) {
     val haptics = rememberAppHaptics()
     FilterChip(
@@ -329,12 +337,7 @@ fun AppFilterChip(
             containerColor = containerColor,
             selectedContainerColor = selectBlue,
         ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = borderBlue,
-            selectedBorderColor = accentBlue,
-        ),
+        border = null,
     )
 }
 
@@ -346,6 +349,34 @@ fun AppDialogTitle(text: String, modifier: Modifier = Modifier) {
         role = AppTextRole.dialogTitle,
         modifier = modifier,
     )
+}
+
+/**
+ * 子页面（页面型弹窗）统一头部：标题 + 右侧关闭。
+ *
+ * 取色、分类管理、协议全文、背景图裁剪等「有自己内容的子页面」一律用这颗头部，
+ * 同一层级不再出现「X 图标 / '< 关闭' / 只有底部取消」三种收口方式；
+ * 简单确认框（新增/删除确认）没有自己的内容，不需要 X，继续用底部取消按钮。
+ */
+@Composable
+fun AppDialogHeader(title: String, onClose: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppDialogTitle(title)
+        if (onClose != null) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "关闭",
+                    tint = textTertiary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -421,26 +452,6 @@ fun AppDialogSurface(
         )
     }
 }
-
-/**
- * 输入框配色：**描边式**输入框——透明底 + 1dp 中性描边，聚焦时描边转强调色。
- * 抽屉面板是近白的毛玻璃，填充式浅灰底在面板上几乎看不出来，用户反馈要
- * 「轮廓清晰、像之前一样有层次感」，故恢复描边。所有 OutlinedTextField 共用。
- * [container] 可覆写底色（取色弹窗等特殊底色场景）。
- */
-@Composable
-fun appTextFieldColors(container: Color? = null): TextFieldColors =
-    OutlinedTextFieldDefaults.colors(
-        focusedTextColor = textWhite,
-        unfocusedTextColor = textWhite,
-        focusedBorderColor = accentBlue,
-        unfocusedBorderColor = borderBlue,
-        focusedLabelColor = accentBlue,
-        unfocusedLabelColor = textGray,
-        cursorColor = accentBlue,
-        focusedContainerColor = container ?: Color.Transparent,
-        unfocusedContainerColor = container ?: Color.Transparent,
-    )
 
 /**
  * 纵向滚动条（可拖动）：与滚动内容**同层绘制**的独立覆盖层，用法：
@@ -593,17 +604,6 @@ fun Modifier.pressScale(
     return scale(scale)
 }
 
-/** 浅色分隔线：与卡片描边同色，不用 Material 默认的深色 Divider */
-@Composable
-fun AppDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(borderBlue),
-    )
-}
-
 /**
  * iOS 分组列表（inset grouped）容器：白底圆角卡，配合 [AppFormRow] 使用。
  * 录入/编辑弹窗的分类单选、分类管理列表、协议入口等「设置页式」内容的统一底座。
@@ -627,16 +627,17 @@ fun AppFormGroup(
  *
  * 按压反馈是 iOS 式的灰底高亮（surfaceSubtle 渐入），不是 Material 波纹——
  * 波纹在全宽行上会拉出一道矩形光晕，与圆角分组卡割裂。
- * [selected] 为 true 时右侧显示强调色对勾（iOS 单选行的惯例）；
- * [showDivider] 控制行底分隔线，分组最后一行传 false。
+ * [selected] 为 true 时右侧显示强调色对勾（iOS 单选行的惯例）。
+ * [labelRole] 允许个别设置页（如分类管理）放大标签字号/字重，默认仍是正文角色。
+ * 行间不再画 1dp 分隔线（2026-10 改版）：分组的边界由圆角分组底 + 行内边距表达。
  */
 @Composable
 fun AppFormRow(
     label: String,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
-    showDivider: Boolean = true,
     onClick: (() -> Unit)? = null,
+    labelRole: TextRole = AppTextRole.body,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -676,7 +677,7 @@ fun AppFormRow(
         ) {
             AppText(
                 text = label,
-                role = AppTextRole.body,
+                role = labelRole,
                 modifier = Modifier.weight(1f),
             )
             if (selected) {
@@ -689,9 +690,6 @@ fun AppFormRow(
                 )
             }
             trailing()
-        }
-        if (showDivider) {
-            AppDivider(modifier = Modifier.padding(start = AppSpacing.cardPadding))
         }
     }
 }
