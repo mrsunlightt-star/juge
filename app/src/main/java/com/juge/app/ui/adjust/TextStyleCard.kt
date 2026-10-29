@@ -209,8 +209,8 @@ internal fun TextStyleCard(
             )
         }
 
-        // 文字对齐方式：3+1 双排——四个胶囊在窄屏上比单行更易点，两端对齐单独成行
-        AppSectionLabel("对齐方式")
+        // 水平对齐：3+1 双排——四个胶囊在窄屏上比单行更易点，两端对齐单独成行
+        AppSectionLabel("水平对齐")
         val alignments = listOf(
             "LEFT" to "左对齐",
             "CENTER" to "居中对齐",
@@ -243,6 +243,23 @@ internal fun TextStyleCard(
                         }
                     )
                 }
+            }
+        }
+
+        // 垂直位置：默认垂直居中；顶部对齐让短句从文本区最顶端开始排（长句仍自动折行、
+        // 超出安全区仍按省略号收尾）。两个选项与上面的对齐胶囊同一套 CheckChip 样式。
+        AppSectionLabel("垂直位置")
+        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)) {
+            listOf("CENTER" to "垂直居中", "TOP" to "顶部对齐").forEach { (alignKey, label) ->
+                CheckChip(
+                    checked = selectedStyle.verticalAlign.uppercase(java.util.Locale.ROOT) == alignKey,
+                    label = label,
+                    onClick = {
+                        val newStyle = selectedStyle.copy(verticalAlign = alignKey)
+                        onStyleStateChange(newStyle)
+                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                    }
+                )
             }
         }
     }

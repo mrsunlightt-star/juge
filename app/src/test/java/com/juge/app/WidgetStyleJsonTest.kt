@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.json.JSONObject
 import org.junit.Test
 
 /**
@@ -314,6 +315,26 @@ class WidgetStyleJsonTest {
         val restoredFree = WidgetStyle.fromJsonString(freePreset.copy(cornerRadiusDp = 0f).toJsonString())
         assertEquals(freePreset.presetId, restoredFree.presetId)
         assertFalse("免费预设往返后仍应为免费", WidgetStyle.isProPreset(restoredFree))
+    }
+
+    @Test
+    fun `vertical align round trips and old json defaults to center`() {
+        val top = WidgetStyle.DEFAULT.copy(verticalAlign = "TOP")
+        assertEquals("TOP", WidgetStyle.fromJsonString(top.toJsonString()).verticalAlign)
+
+        // 旧存档里没有 verticalAlign 字段：必须读成 CENTER，保证升级后排版与旧版一致
+        val legacyJson = JSONObject(WidgetStyle.DEFAULT.toJsonString())
+            .apply { remove("verticalAlign") }
+            .toString()
+        assertEquals("CENTER", WidgetStyle.fromJsonString(legacyJson).verticalAlign)
+
+        // 非法值只降级这一个字段，不影响其它字段
+        val invalidJson = JSONObject(WidgetStyle.DEFAULT.copy(fontSizeSp = 27f).toJsonString())
+            .put("verticalAlign", "DIAGONAL")
+            .toString()
+        val degraded = WidgetStyle.fromJsonString(invalidJson)
+        assertEquals("CENTER", degraded.verticalAlign)
+        assertEquals(27f, degraded.fontSizeSp)
     }
 
     @Test

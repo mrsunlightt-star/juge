@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import androidx.compose.ui.graphics.toArgb
 import org.json.JSONObject
+import java.util.Locale
 
 // 预定义字体枚举
 enum class WidgetFont(val fontPath: String?, val displayName: String) {
@@ -187,6 +188,13 @@ data class WidgetStyle(
     val fontItalic: Boolean = false,
     val fontColor: Int = Color.parseColor("#333333"), // 字体颜色
     val textAlign: String = "CENTER", // LEFT, CENTER, RIGHT, JUSTIFY（两端对齐，API 26+ 生效）
+    /**
+     * 垂直对齐：CENTER（默认，文本在安全区内垂直居中）/ TOP（从安全区最顶端开始向下排）。
+     *
+     * 老存档没有这个字段时读成 CENTER，保证升级后排版与旧版完全一致；
+     * 只有用户在「个性定制 → 文本内容与字形定制 → 垂直位置」显式选择顶部对齐才会变成 TOP。
+     */
+    val verticalAlign: String = "CENTER", // CENTER, TOP
     val shadow: TextShadow = TextShadow(),
     val gradientColors: List<Int>? = null,
     val gradientAngle: Float = 45f,
@@ -245,7 +253,7 @@ data class WidgetStyle(
         append(backgroundOpacity).append('|').append(backgroundImagePath ?: "").append('|')
         append(bgImageScaleMode.name).append('|').append(font.name).append('|')
         append(fontSizeSp).append('|').append(fontBold).append('|').append(fontItalic).append('|')
-        append(fontColor).append('|').append(textAlign).append('|')
+        append(fontColor).append('|').append(textAlign).append('|').append(verticalAlign).append('|')
         append(shadow.enabled).append('|').append(shadow.color).append('|')
         append(shadow.radius).append('|').append(shadow.dx).append('|').append(shadow.dy).append('|')
         append(gradientColors?.joinToString(",") ?: "").append('|')
@@ -272,6 +280,7 @@ data class WidgetStyle(
             put("fontItalic", fontItalic)
             put("fontColor", fontColor)
             put("textAlign", textAlign)
+            put("verticalAlign", verticalAlign)
             put("shadow", shadow.toJson())
             
             // 序列化新增字段
@@ -337,6 +346,11 @@ data class WidgetStyle(
                     fontItalic = json.optBoolean("fontItalic", false),
                     fontColor = json.optInt("fontColor", Color.parseColor("#333333")),
                     textAlign = json.optString("textAlign", "CENTER"),
+                    // 未知值（旧版本/手改数据）一律降级为 CENTER，与旧版排版一致
+                    verticalAlign = when (json.optString("verticalAlign", "CENTER").uppercase(Locale.ROOT)) {
+                        "TOP" -> "TOP"
+                        else -> "CENTER"
+                    },
                     shadow = if (json.has("shadow")) {
                         TextShadow.fromJson(json.getJSONObject("shadow"))
                     } else {

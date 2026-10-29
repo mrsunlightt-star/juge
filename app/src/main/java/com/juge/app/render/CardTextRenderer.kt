@@ -396,9 +396,16 @@ internal object CardTextRenderer {
         val totalContentHeight = staticLayout.height
 
         canvas.save()
-        // 垂直居中计算
-        val centerY = box.top + (cardHeight - totalContentHeight) / 2f
-        canvas.translate(box.left, centerY.coerceAtLeast(box.top + 4f * densityScale))
+        // 垂直落点：默认在安全区内垂直居中（旧版行为）；用户在「垂直位置」选了顶部对齐时，
+        // 从安全区最顶端 + 4dp 内边距开始向下排——短句会贴着文本区顶部，不再悬浮在正中。
+        // 底部仍然受 maxLines/省略号保护，不会画出安全区。
+        val topInset = 4f * densityScale
+        val textTop = if (style.verticalAlign.equals("TOP", ignoreCase = true)) {
+            box.top + topInset
+        } else {
+            (box.top + (cardHeight - totalContentHeight) / 2f).coerceAtLeast(box.top + topInset)
+        }
+        canvas.translate(box.left, textTop)
         staticLayout.draw(canvas)
 
         canvas.restore()
