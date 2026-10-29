@@ -178,6 +178,21 @@ class DbHelperTest {
     }
 
     @Test
+    fun `配置内容允许为空——无文字纯风格组件也能落库`() {
+        // 用户可以只挑风格/背景图、不放文字（纯装饰组件）。
+        // 旧版 require(content.isNotBlank) 会让清空文字后的保存/同步一直报「保存失败」。
+        val id = db.insertWidgetConfig(WidgetConfig(name = "纯风格", content = "", styleJson = "{}"))
+        assertTrue(id > 0)
+        val loaded = db.getAllWidgetConfigs().first { it.id == id }
+        assertEquals("", loaded.content)
+
+        // 清空已有一行内容同样合法（编辑期把文字删光再保存）
+        val filled = db.insertWidgetConfig(WidgetConfig(name = "先有字", content = "金句", styleJson = "{}"))
+        db.updateWidgetConfig(WidgetConfig(id = filled, name = "先有字", content = "", styleJson = "{}"))
+        assertEquals("", db.getAllWidgetConfigs().first { it.id == filled }.content)
+    }
+
+    @Test
     fun `v7升级后同毫秒金句顺序不变`() {
         // 复刻升级用户现场：v7 库、三条同毫秒种子（onCreate 就是同一毫秒插入的）。
         // 旧查询 `ORDER BY created_at DESC` 走索引倒序扫描，并列键按 rowid 降序出

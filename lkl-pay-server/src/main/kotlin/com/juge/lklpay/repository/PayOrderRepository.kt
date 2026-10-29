@@ -10,8 +10,13 @@ interface PayOrderRepository : JpaRepository<PayOrder, String> {
     /** 找回激活：按支付宝用户 ID 反查其历史订单 */
     fun findByBuyerUserId(buyerUserId: String): List<PayOrder>
 
-    /** 注销账号时反查归属订单，用于解除绑定 */
+    /** 反查归属订单。修改绑定关系必须使用字段级 UPDATE，不能整行保存旧订单。 */
     fun findByUserId(userId: Long): List<PayOrder>
+
+    /** 注销只解除账号绑定，保留并发付款写入的状态与交易信息。 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update PayOrder o set o.userId = null where o.userId = :userId")
+    fun unbindUser(userId: Long): Int
 
     /**
      * 原子地把订单从 [created] 置为 [paid]（compare-and-set）。
@@ -47,4 +52,14 @@ interface PayOrderRepository : JpaRepository<PayOrder, String> {
         buyerLogonId: String?,
         notifyRaw: String?,
     ): Int
+
+    /** 闭单同样用 CAS，不能让读到 CREATED 的旧实体覆盖已经提交的付款。 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PayOrder o set o.status = :closed
+         where o.outTradeNo = :outTradeNo and o.status = :created
+        """
+    )
+    fun markClosedIfCreated(outTradeNo: String, closed: String, created: String): Int
 }

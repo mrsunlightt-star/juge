@@ -121,13 +121,14 @@ object CropImageHelper {
                     com.juge.app.data.WidgetStyle.fromJsonString(config.styleJson).backgroundImagePath == path
             }
             if (referencedByConfig) return true
-            // 组件级样式缓存（widget_bindings_prefs 里的 widget_style_<id>）也持有引用；
-            // 直接扫全部字符串值，key 名字变化也不怕
             val prefs = context.getSharedPreferences(
                 com.juge.app.ReminderWidgetProvider.PREFS_WIDGET_BINDINGS,
                 Context.MODE_PRIVATE
             )
-            return prefs.all.values.any { it is String && it.contains(path) }
+            return prefs.all.any { (key, value) ->
+                key.startsWith("widget_style_") && value is String &&
+                    org.json.JSONObject(value).optString("backgroundImagePath") == path
+            }
         } catch (e: Exception) {
             // 检查失败按「仍被引用」处理：宁可留下一个无主图片文件，也不回头删用户的内容
             Timber.w(e, "isBackgroundFileStillReferenced failed")
@@ -141,9 +142,8 @@ object CropImageHelper {
             val bounds = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
             }
-            context.contentResolver.openInputStream(uri)?.use {
-                BitmapFactory.decodeStream(it, null, bounds)
-            } ?: return null
+            val boundsInput = context.contentResolver.openInputStream(uri) ?: return null
+            boundsInput.use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
             var sampleSize = 1

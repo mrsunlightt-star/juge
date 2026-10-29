@@ -38,4 +38,29 @@ object WidgetConfigBinding {
      */
     fun findReusableAutoConfig(configs: List<WidgetConfig>, boundConfigIds: Set<Long>): WidgetConfig? =
         configs.firstOrNull { isAutoCreated(it) && it.id !in boundConfigIds }
+
+    data class Binding(val configId: Long? = null, val styleJson: String? = null)
+
+    fun isShared(configId: Long, widgetId: Int, bindings: Map<Int, Binding>): Boolean =
+        bindings.any { (id, binding) -> id != widgetId && binding.configId == configId }
+
+    fun remap(
+        bindings: Map<Int, Binding>,
+        oldIds: IntArray,
+        newIds: IntArray,
+        source: Map<Int, Binding> = bindings,
+        restoredIds: Set<Int> = emptySet()
+    ): Map<Int, Binding> {
+        require(oldIds.size == newIds.size)
+        require(oldIds.all { it > 0 } && newIds.all { it > 0 })
+        require(oldIds.toSet().size == oldIds.size && newIds.toSet().size == newIds.size)
+        val snapshot = oldIds.map { source[it] }
+        return bindings.toMutableMap().apply {
+            oldIds.filterNot { it in restoredIds }.forEach { remove(it) }
+            newIds.forEachIndexed { index, id ->
+                val binding = snapshot[index]
+                if (binding == null) remove(id) else put(id, binding)
+            }
+        }
+    }
 }

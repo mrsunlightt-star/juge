@@ -430,7 +430,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     fun insertWidgetConfig(config: WidgetConfig): Long {
         require(config.name.isNotBlank()) { "微件配置名称不能为空" }
         require(config.name.length <= 100) { "微件配置名称过长，最多100个字符" }
-        require(config.content.isNotBlank()) { "微件配置内容不能为空" }
+        // 内容允许为空：用户可以只挑风格/背景图、不放文字（纯装饰组件），渲染端对空文本安全
         require(config.content.length <= 500) { "微件配置内容过长，最多500个字符" }
 
         val db = writableDatabase
@@ -444,10 +444,34 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         return db.insert("widget_config", null, values)
     }
 
+    fun cloneWidgetConfigForBinding(sourceId: Long, widgetId: Int, styleJson: String?): WidgetConfig? {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val id = db.compileStatement(
+                """
+                INSERT INTO widget_config (name, content, size_type, style_json, auto_created)
+                SELECT ?, content, size_type, COALESCE(?, style_json), 1
+                FROM widget_config WHERE id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.bindString(1, "${WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX}$widgetId")
+                if (styleJson == null) statement.bindNull(2) else statement.bindString(2, styleJson)
+                statement.bindLong(3, sourceId)
+                statement.executeInsert()
+            }
+            val cloned = if (id > 0) getWidgetConfigById(id) else null
+            db.setTransactionSuccessful()
+            return cloned
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun updateWidgetConfig(config: WidgetConfig) {
         require(config.name.isNotBlank()) { "微件配置名称不能为空" }
         require(config.name.length <= 100) { "微件配置名称过长，最多100个字符" }
-        require(config.content.isNotBlank()) { "微件配置内容不能为空" }
+        // 内容允许为空：清空文字保存不应报「保存失败」（同 insertWidgetConfig）
         require(config.content.length <= 500) { "微件配置内容过长，最多500个字符" }
 
         val db = writableDatabase

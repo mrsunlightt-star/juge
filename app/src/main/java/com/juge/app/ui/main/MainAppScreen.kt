@@ -137,7 +137,6 @@ fun MainAppScreen(
         if (!trialManager.isActivated() &&
             ProPurchase.recoverPending(context) is ProPurchase.Outcome.Paid
         ) {
-            trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
             isActivatedState = true
             ReminderWidgetProvider.triggerUpdateAllWidgets(context)
             Toast.makeText(context, "🎉 已找回支付订单，PRO 激活成功！", Toast.LENGTH_SHORT).show()
@@ -263,7 +262,7 @@ fun MainAppScreen(
         scope.launch { subTabPagerState.animateScrollToPage(1) }
     }
 
-    val selectedConfigId = remember(selectedWidgetId) {
+    val selectedConfigId = remember(selectedWidgetId, widgetConfigs) {
         if (selectedWidgetId != -1) {
             ReminderWidgetProvider.getBoundConfigId(context, selectedWidgetId)
         } else {
@@ -380,6 +379,17 @@ fun MainAppScreen(
 
     // 编辑/预览期真正落库。调用前已经判断过付费权限。
     val persistStyle: (Int, Long, String, WidgetStyle) -> SaveOutcome = persist@{ widgetId, configId, newContent, style ->
+        val target = try {
+            if (widgetId != -1) {
+                ReminderWidgetProvider.ensureIndependentConfig(context, widgetId, configId)
+            } else {
+                widgetConfigs.find { it.id == configId }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "prepare widget config failed")
+            Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+            null
+        } ?: return@persist SaveOutcome.PREVIEW_ONLY
         // 编辑期背景图先落在 bg_tmp；走到这里说明用户确实在保存，提交为正式资源（可重复调用）
         val committedPath = CropImageHelper.commitBackground(context, style.backgroundImagePath)
         val finalStyle = if (committedPath != style.backgroundImagePath) {
@@ -392,23 +402,16 @@ fun MainAppScreen(
         if (widgetId != -1) {
             ReminderWidgetProvider.saveWidgetStyle(context, widgetId, finalStyle)
         }
-        val target = widgetConfigs.find { it.id == configId }
-        if (target == null) {
-            // 没有可写目标（典型是未放置桌面组件、配置行也未绑定）：UI 状态已更新，
-            // 但库里没落任何东西。不能返回 SAVED——那会让调用方弹「已成功保存并同步」，
-            // 而这些内容下次进来并不会出现
-            return@persist SaveOutcome.PREVIEW_ONLY
-        }
         // 防抖写库：同一配置的连续编辑只保留末次（取消一个正在等待中的任务重新排期）；
         // **不同配置之间不能互相取消**——快速切到另一个组件再改动时，上一个组件的
         // 末次编辑说不定还没等到 400ms，被取消就永远丢了
-        if (pendingPersistConfigId == configId) {
+        if (pendingPersistConfigId == target.id) {
             persistJob?.cancel()
         }
         // 用进程级 scope 而非 lifecycleScope：Activity 销毁（返回键/最近任务划掉）
         // 正常会取消 lifecycleScope 的 delay(400)，与防抖机制的本意背道而驰；
         // 组件实际尺寸变化提示仍在这里做
-        pendingPersistConfigId = configId
+        pendingPersistConfigId = target.id
         persistJob = (context.applicationContext as JugeApplication).appScope.launch {
             kotlinx.coroutines.delay(400)
             try {

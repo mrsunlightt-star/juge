@@ -16,6 +16,55 @@ object WidgetCanvasRenderer {
 
     private const val RENDER_DENSITY_SCALE = 1.5f
 
+    internal data class RenderDimensions(val width: Int, val height: Int, val densityScale: Float, val scale: Float)
+
+    internal fun widgetPixelBudget(screenWidthPx: Int, screenHeightPx: Int): Long {
+        val screenPixels = screenWidthPx.coerceAtLeast(1).toLong() * screenHeightPx.coerceAtLeast(1)
+        return (screenPixels.toDouble() * 1.5 * 0.95).toLong()
+            .coerceIn(1L, (Int.MAX_VALUE.toLong() - 4096L) / 4L)
+    }
+
+    internal fun calculateWidgetRenderDimensions(
+        widthDp: Int,
+        heightDp: Int,
+        density: Float,
+        screenWidthPx: Int,
+        screenHeightPx: Int
+    ): RenderDimensions {
+        val scale = density.takeIf { it.isFinite() && it > 0f } ?: 1f
+        val densityScale = (scale * RENDER_DENSITY_SCALE).coerceAtMost(Float.MAX_VALUE)
+        val width = (widthDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
+        val height = (heightDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
+        val maxPixels = widgetPixelBudget(screenWidthPx, screenHeightPx)
+        val pixels = width.toLong() * height
+        if (pixels <= maxPixels) return RenderDimensions(width, height, densityScale, scale)
+        val factor = minOf(
+            kotlin.math.sqrt(maxPixels.toDouble() / pixels),
+            maxPixels.toDouble() / width,
+            maxPixels.toDouble() / height
+        )
+        return RenderDimensions(
+            (width * factor).toInt().coerceAtLeast(1),
+            (height * factor).toInt().coerceAtLeast(1),
+            (densityScale * factor).toFloat().coerceAtLeast(Float.MIN_VALUE),
+            (scale * factor).toFloat().coerceAtLeast(Float.MIN_VALUE)
+        )
+    }
+
+    fun renderForWidget(
+        context: Context,
+        widthDp: Int,
+        heightDp: Int,
+        content: String,
+        style: WidgetStyle
+    ): Bitmap {
+        val metrics = context.resources.displayMetrics
+        val dimensions = calculateWidgetRenderDimensions(
+            widthDp, heightDp, metrics.density, metrics.widthPixels, metrics.heightPixels
+        )
+        return renderBitmap(context, widthDp, heightDp, content, style, dimensions)
+    }
+
     /**
      * 渲染一张组件位图。
      *
@@ -31,12 +80,21 @@ object WidgetCanvasRenderer {
         heightDp: Int,
         content: String,
         style: WidgetStyle
+    ): Bitmap = renderBitmap(context, widthDp, heightDp, content, style)
+
+    private fun renderBitmap(
+        context: Context,
+        widthDp: Int,
+        heightDp: Int,
+        content: String,
+        style: WidgetStyle,
+        dimensions: RenderDimensions? = null
     ): Bitmap {
         // 将 dp 尺寸转为像素，增加 RENDER_DENSITY_SCALE 倍分辨率防止桌面模糊
-        val scale = context.resources.displayMetrics.density
-        val densityScale = scale * RENDER_DENSITY_SCALE
-        val targetWidth = (widthDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
-        val targetHeight = (heightDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
+        val scale = dimensions?.scale ?: context.resources.displayMetrics.density
+        val densityScale = dimensions?.densityScale ?: (scale * RENDER_DENSITY_SCALE)
+        val targetWidth = dimensions?.width ?: (widthDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
+        val targetHeight = dimensions?.height ?: (heightDp * densityScale).toInt().coerceAtLeast(MIN_BITMAP_SIZE)
 
         val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
 

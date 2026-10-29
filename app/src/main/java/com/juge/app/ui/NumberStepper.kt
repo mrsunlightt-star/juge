@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,10 +35,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppTextRole
+import com.juge.app.ui.theme.TextRole
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.borderBlue
 import com.juge.app.ui.theme.disabledGray
@@ -51,6 +55,17 @@ private const val STEP_REPEAT_DELAY_MS = 420L
 
 /** 连发间隔：约 14 步/秒，视觉上能跟上，又不会一步跨太多 */
 private const val STEP_REPEAT_INTERVAL_MS = 70L
+
+/**
+ * 行内文字统一样式：关闭字体自带的顶部填充。
+ *
+ * 各角色样式的 lineHeight 都大于 fontSize，Compose 默认把额外行高全部垫在
+ * 第一行上方，文字会显得比右侧 48dp 圆钮「下沉」半格（视觉重心偏低）；
+ * includeFontPadding = false 让额外空间上下均分，文字视觉中心与圆钮中心对齐。
+ */
+private fun tightVertical(role: TextRole): TextStyle = role.style.copy(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+)
 
 /**
  * 数值行 + 步进器：「标签 …… − 当前值 +」。
@@ -88,15 +103,19 @@ fun AppNumberStepperRow(
             .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppText(
+        val labelRole = AppTextRole.label
+        Text(
             text = label,
-            role = AppTextRole.label,
+            style = tightVertical(labelRole),
+            color = labelRole.color,
             modifier = Modifier.weight(1f),
         )
         if (!enabled && disabledHint != null) {
-            AppText(
+            val hintRole = AppTextRole.caption
+            Text(
                 text = disabledHint,
-                role = AppTextRole.caption,
+                style = tightVertical(hintRole),
+                color = hintRole.color,
                 modifier = Modifier.padding(end = 4.dp),
             )
         } else {
@@ -108,9 +127,11 @@ fun AppNumberStepperRow(
                     onValueChange(snap((value - step).coerceIn(valueRange.start, valueRange.endInclusive)))
                 },
             )
-            AppText(
+            val valueRole = AppTextRole.bodyStrong
+            Text(
                 text = format(value),
-                role = AppTextRole.bodyStrong,
+                style = tightVertical(valueRole),
+                color = valueRole.color,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 modifier = Modifier

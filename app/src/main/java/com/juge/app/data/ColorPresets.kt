@@ -39,12 +39,12 @@ object UserColorPresets {
         merge(context, KEY_BACKGROUND, KEY_BACKGROUND_HIDDEN, ColorPresets.BACKGROUND_COLORS)
 
     fun addFontColor(context: Context, color: Int): List<Int> {
-        addUserColor(context, KEY_FONT, ColorPresets.FONT_COLORS, color)
+        addUserColor(context, KEY_FONT, KEY_FONT_HIDDEN, ColorPresets.FONT_COLORS, color)
         return fontColors(context)
     }
 
     fun addBackgroundColor(context: Context, color: Int): List<Int> {
-        addUserColor(context, KEY_BACKGROUND, ColorPresets.BACKGROUND_COLORS, color)
+        addUserColor(context, KEY_BACKGROUND, KEY_BACKGROUND_HIDDEN, ColorPresets.BACKGROUND_COLORS, color)
         return backgroundColors(context)
     }
 
@@ -90,11 +90,14 @@ object UserColorPresets {
         prefs(context).edit().putString(key, (current + color).joinToString(",")).apply()
     }
 
-    /** 用户自添加新色：与任一内置色相同时直接忽略，避免面板出现重复色块 */
-    private fun addUserColor(context: Context, key: String, builtIns: List<String>, color: Int) {
+    private fun addUserColor(context: Context, key: String, hiddenKey: String, builtIns: List<String>, color: Int) {
         val builtInValues = builtIns.map { android.graphics.Color.parseColor(it) }
-        if (color in builtInValues) return
-        add(context, key, color)
+        if (color in builtInValues) {
+            remove(context, hiddenKey, color)
+            remove(context, key, color)
+        } else {
+            add(context, key, color)
+        }
     }
 
     private fun remove(context: Context, key: String, color: Int) {

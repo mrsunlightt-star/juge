@@ -79,7 +79,7 @@ internal fun Modifier.horizontalControlUsage(state: ScrollState): Modifier {
             }
         }
     }
-    return usageModifier
+    return this.then(usageModifier)
 }
 
 /**
@@ -136,6 +136,7 @@ private fun Modifier.swipeBackObserver(
 ): Modifier {
     val extraPx = with(LocalDensity.current) { SWIPE_BACK_DISTANCE_DP.dp.toPx() }
     val latestOnSwipeBack by rememberUpdatedState(onSwipeBack)
+    val latestRequirePagerMovement by rememberUpdatedState(requirePagerMovement)
     return pointerInput(pagerState, extraPx) {
         awaitEachGesture {
             // 在 Initial 阶段取 DOWN：比横向滚动行等子控件先看到按下，
@@ -143,7 +144,9 @@ private fun Modifier.swipeBackObserver(
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             val controlDownBaseline = SwipeBackControlUsage.downCount
             val controlValueBaseline = SwipeBackControlUsage.valueChangeCount
-            val startFraction = pagerState?.currentPageOffsetFraction ?: 0f
+            val startPosition = pagerState?.let {
+                it.currentPage + it.currentPageOffsetFraction
+            } ?: 0f
             val pagePx = pagerState?.let {
                 (it.layoutInfo.pageSize + it.layoutInfo.pageSpacing).toFloat()
             } ?: 0f
@@ -179,10 +182,10 @@ private fun Modifier.swipeBackObserver(
             if (verticalWon || !armed || postSlopDx < extraPx) return@awaitEachGesture
             if (pagerState != null) {
                 if (pagePx <= 0f) return@awaitEachGesture
-                val pagerMovedPx =
-                    (startFraction - pagerState.currentPageOffsetFraction) * pagePx
+                val currentPosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                val pagerMovedPx = (startPosition - currentPosition) * pagePx
                 val pagerMoved = pagerMovedPx >= extraPx
-                if (requirePagerMovement) {
+                if (latestRequirePagerMovement) {
                     // 内容区：pager 必须被推走（普通区域、滚到左端的横向行）。
                     // 例外是横向滚动行——它自己消费指针、pager 不会动：
                     // 行没滚动（已在最左端）说明这次右滑没有别的用途，交给翻页；

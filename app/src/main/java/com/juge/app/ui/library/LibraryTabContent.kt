@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,21 @@ import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.selectBlue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import timber.log.Timber
+
+private enum class CategoryDialogOrigin { AddReminder, EditReminder, Manager }
+
+private suspend fun saveLibraryEntry(block: suspend () -> Unit): String? = try {
+    block()
+    null
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Exception) {
+    Timber.e(error, "Library save failed")
+    "保存失败，请重试，输入内容已保留"
+}
 
 // --- 子Tab：我的文库内容 ---
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,21 +70,31 @@ fun LibraryTabContent(
     editingReminder: Reminder?,
     onEditReminderRequest: (Reminder?) -> Unit,
     onCategorySelect: (Category?) -> Unit,
-    onAddCategory: (String) -> Unit,
+    onAddCategory: suspend (String) -> Category,
     onDeleteCategory: (Long) -> Unit,
-    onRenameCategory: (Long, String) -> Unit,
+    onRenameCategory: suspend (Long, String) -> Unit,
     /** 金句拖拽排序落库：参数为全局新顺序的 id 序列 */
     onReorderReminders: (List<Long>) -> Unit,
     /** 分类拖拽排序落库：参数为新顺序的 id 序列 */
     onReorderCategories: (List<Long>) -> Unit,
-    onAddReminder: (String, Long) -> Unit,
-    onEditReminderSave: (Long, String, Long) -> Unit,
+    onAddReminder: suspend (String, Long) -> Unit,
+    onEditReminderSave: suspend (Long, String, Long) -> Unit,
     onDeleteReminder: (Long) -> Unit,
     onReminderClick: (Reminder) -> Unit,
     onOpenDoc: (String) -> Unit
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
+    val scope = rememberCoroutineScope()
+    var categoryOrigin by remember { mutableStateOf(CategoryDialogOrigin.Manager) }
+    var categorySaving by remember { mutableStateOf(false) }
+    var categorySaveError by remember { mutableStateOf<String?>(null) }
+    var reminderSaving by remember { mutableStateOf(false) }
+    var reminderSaveError by remember { mutableStateOf<String?>(null) }
+    var editSaving by remember { mutableStateOf(false) }
+    var editSaveError by remember { mutableStateOf<String?>(null) }
+    var renameSaving by remember { mutableStateOf(false) }
+    var renameSaveError by remember { mutableStateOf<String?>(null) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddReminderDialog by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
@@ -95,10 +121,33 @@ fun LibraryTabContent(
         categoryMenuFor = null
     }
 
-    LaunchedEffect(editingReminder) {
+    LaunchedEffect(editingReminder?.id) {
+        editSaveError = null
         if (editingReminder != null) {
             editContentField = editingReminder.content
             editCategorySelection = categories.find { it.id == editingReminder.categoryId }
+        }
+    }
+
+    fun saveCategory() {
+        if (categorySaving || newCategoryName.isBlank() || categoryNameError(newCategoryName) != null) return
+        categorySaving = true
+        categorySaveError = null
+        scope.launch {
+            try {
+                categorySaveError = saveLibraryEntry {
+                    val category = onAddCategory(newCategoryName)
+                    when (categoryOrigin) {
+                        CategoryDialogOrigin.AddReminder -> selectedCatForReminder = category
+                        CategoryDialogOrigin.EditReminder -> editCategorySelection = category
+                        CategoryDialogOrigin.Manager -> Unit
+                    }
+                    newCategoryName = ""
+                    showAddCategoryDialog = false
+                }
+            } finally {
+                categorySaving = false
+            }
         }
     }
 
@@ -236,79 +285,147 @@ fun LibraryTabContent(
     AddCategoryDialog(
         show = showAddCategoryDialog,
         name = newCategoryName,
-            onNameChange = { newCategoryName = it },
-            onConfirm = {
-                onAddCategory(newCategoryName)
-                newCategoryName = ""
-                showAddCategoryDialog = false
-            },
-        onDismiss = { showAddCategoryDialog = false }
+        onNameChange = {
+            newCategoryName = it
+            categorySaveError = null
+        },
+        onConfirm = { saveCategory() },
+        onDismiss = { showAddCategoryDialog = false },
+        isSaving = categorySaving,
+        errorMessage = categorySaveError
     )
 
     // 2. 新增句阁记录弹窗
     AddReminderDialog(
-        show = showAddReminderDialog,
+        show = showAddReminderDialog && !showAddCategoryDialog,
         content = newReminderContent,
-            onContentChange = { newReminderContent = it },
-            categories = categories,
-            selectedCategory = selectedCatForReminder,
-            onSelectCategory = { selectedCatForReminder = it },
-            onRequestNewCategory = {
-                showAddReminderDialog = false
-                showAddCategoryDialog = true
-            },
-            onConfirm = {
-                onAddReminder(newReminderContent, selectedCatForReminder!!.id)
-                newReminderContent = ""
-                showAddReminderDialog = false
-            },
-        onDismiss = { showAddReminderDialog = false }
+        onContentChange = {
+            newReminderContent = it
+            reminderSaveError = null
+        },
+        categories = categories,
+        selectedCategory = selectedCatForReminder,
+        onSelectCategory = { selectedCatForReminder = it },
+        onRequestNewCategory = {
+            categoryOrigin = CategoryDialogOrigin.AddReminder
+            categorySaveError = null
+            showAddCategoryDialog = true
+        },
+        onConfirm = {
+            val category = selectedCatForReminder
+            if (!reminderSaving && category != null) {
+                reminderSaving = true
+                reminderSaveError = null
+                scope.launch {
+                    try {
+                        reminderSaveError = saveLibraryEntry {
+                            onAddReminder(newReminderContent, category.id)
+                            newReminderContent = ""
+                            showAddReminderDialog = false
+                        }
+                    } finally {
+                        reminderSaving = false
+                    }
+                }
+            }
+        },
+        onDismiss = { showAddReminderDialog = false },
+        isSaving = reminderSaving,
+        errorMessage = reminderSaveError
     )
 
     // 3. 点击金句卡片后：弹出的纯粹文字与分类编辑弹窗
     EditReminderDialog(
-        show = editingReminder != null,
+        show = editingReminder != null && !showAddCategoryDialog,
         content = editContentField,
-            onContentChange = { editContentField = it },
-            categories = categories,
-            selectedCategory = editCategorySelection,
-            onSelectCategory = { editCategorySelection = it },
-            onRequestNewCategory = {
-                onEditReminderRequest(null) // 先关掉编辑框
-                showAddCategoryDialog = true // 开启新建分类
-            },
-            onSave = {
-                onEditReminderSave(editingReminder!!.id, editContentField, editCategorySelection!!.id)
-                // 保存后立即关闭：此前只写库不关闭，弹窗停在原位、没有任何完成反馈，
-                // 用户会再点一次或误以为失败（其余弹窗都有各自的关闭路径）
-                onEditReminderRequest(null)
-            },
-        onDismiss = { onEditReminderRequest(null) }
+        onContentChange = {
+            editContentField = it
+            editSaveError = null
+        },
+        categories = categories,
+        selectedCategory = editCategorySelection,
+        onSelectCategory = { editCategorySelection = it },
+        onRequestNewCategory = {
+            categoryOrigin = CategoryDialogOrigin.EditReminder
+            categorySaveError = null
+            showAddCategoryDialog = true
+        },
+        onSave = {
+            val reminder = editingReminder
+            val category = editCategorySelection
+            if (!editSaving && reminder != null && category != null) {
+                editSaving = true
+                editSaveError = null
+                scope.launch {
+                    try {
+                        editSaveError = saveLibraryEntry {
+                            onEditReminderSave(reminder.id, editContentField, category.id)
+                            onEditReminderRequest(null)
+                        }
+                    } finally {
+                        editSaving = false
+                    }
+                }
+            }
+        },
+        onDismiss = { onEditReminderRequest(null) },
+        isSaving = editSaving,
+        errorMessage = editSaveError
     )
 
     // 5. 分类管理中心弹窗（排序已移到文库页长按拖拽，这里只管重命名/删除/新建）
     CategoryManagerDialog(
-        show = showCategoryManagerDialog,
+        show = showCategoryManagerDialog && !showAddCategoryDialog && renamingCategory == null,
         categories = categories,
-            onRenameRequest = { cat ->
-                renamingCategory = cat
-                renameCategoryNewName = cat.name
-            },
-            onDeleteRequest = { deletingCategory = it },
-            onAddCategory = onAddCategory,
+        onRenameRequest = { cat ->
+            renamingCategory = cat
+            renameCategoryNewName = cat.name
+            renameSaveError = null
+        },
+        onDeleteRequest = { deletingCategory = it },
+        onAddCategory = { name ->
+            newCategoryName = name
+            categoryOrigin = CategoryDialogOrigin.Manager
+            categorySaveError = null
+            showAddCategoryDialog = true
+            saveCategory()
+        },
         onDismiss = { showCategoryManagerDialog = false }
     )
 
     // 6. 重命名分类子 Dialog
-    RenameCategoryDialog(
+    AddCategoryDialog(
         show = renamingCategory != null,
         name = renameCategoryNewName,
-            onNameChange = { renameCategoryNewName = it },
-            onConfirm = {
-                onRenameCategory(renamingCategory!!.id, renameCategoryNewName)
-                renamingCategory = null
-            },
-        onDismiss = { renamingCategory = null }
+        onNameChange = {
+            renameCategoryNewName = it
+            renameSaveError = null
+        },
+        onConfirm = {
+            val category = renamingCategory
+            if (!renameSaving && category != null) {
+                renameSaving = true
+                renameSaveError = null
+                scope.launch {
+                    try {
+                        renameSaveError = saveLibraryEntry {
+                            onRenameCategory(category.id, renameCategoryNewName)
+                            renamingCategory = null
+                        }
+                    } finally {
+                        renameSaving = false
+                    }
+                }
+            }
+        },
+        onDismiss = {
+            renamingCategory = null
+            renameSaveError = null
+        },
+        isSaving = renameSaving,
+        errorMessage = renameSaveError,
+        title = "修改分类目录名称",
+        confirmText = "保存"
     )
 
     // 4. 二次确认删除分类目录弹窗 (防误触高级 Dialog)；退出动画期间对象已被置

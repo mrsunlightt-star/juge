@@ -13,7 +13,11 @@ import kotlin.test.assertNull
  *
  * 这两条是资金安全的关键：异步通知会重投多次，金额则决定「1 分钱能否买到 PRO」。
  */
-@SpringBootTest(properties = ["spring.datasource.url=jdbc:h2:mem:payorder-test;DB_CLOSE_DELAY=-1"])
+@SpringBootTest(properties = [
+    "spring.config.location=optional:classpath:/local-payment-test.properties",
+    "spring.datasource.url=jdbc:h2:mem:payorder-test;DB_CLOSE_DELAY=-1",
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+])
 class PayOrderServiceTest {
 
     @Autowired
@@ -120,5 +124,52 @@ class PayOrderServiceTest {
         service.markClosed(no)
 
         assertEquals(PayOrder.STATUS_PAID, service.find(no)!!.status)
+    }
+
+    @Test
+    fun `关闭订单不能被当作幂等付款成功`() {
+        val no = "T_CLOSED_THEN_PAY"
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.markClosed(no)
+
+        assertEquals(PayOrderService.MarkPaidOutcome.NotPaid, service.markPaid(no, "TRADE_X", null, null, "1.99"))
+        assertEquals(PayOrderService.MarkPaidOutcome.NotPaid, service.markClosed(no))
+        val order = service.find(no)!!
+        assertEquals(PayOrder.STATUS_CLOSED, order.status)
+        assertNull(order.paidAt)
+        assertNull(order.tradeNo)
+    }
+
+    @Test
+    fun `已支付订单的重复结果仍需核对金额`() {
+        val no = "T_PAID_AMOUNT_CHECK"
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.markPaid(no, "TRADE_VALID", null, null, "1.99")
+        val paidAt = service.find(no)!!.paidAt
+
+        assertEquals(PayOrderService.MarkPaidOutcome.AmountMissing, service.markPaid(no, "OTHER", null, null, null))
+        assertEquals(PayOrderService.MarkPaidOutcome.AmountMismatch, service.markPaid(no, "OTHER", null, null, "0.01"))
+        assertEquals(PayOrderService.MarkPaidOutcome.AlreadyPaid, service.markPaid(no, "TRADE_VALID", null, null, "1.990"))
+        val order = service.find(no)!!
+        assertEquals(PayOrder.STATUS_PAID, order.status)
+        assertEquals(paidAt, order.paidAt)
+        assertEquals("TRADE_VALID", order.tradeNo)
+    }
+
+    @Test
+    fun `金额不能截断小数或溢出后恰好匹配订单`() {
+        // 18446744073709551815 分截断到 Long 后恰好是 199，必须精确转换。
+        listOf("1.999", "184467440737095518.15", "", "NaN").forEachIndexed { index, amount ->
+            val no = "T_INEXACT_AMOUNT_$index"
+            service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+            assertEquals(PayOrderService.MarkPaidOutcome.AmountMissing, service.markPaid(no, null, null, null, amount))
+            assertEquals(PayOrder.STATUS_CREATED, service.find(no)!!.status)
+            assertNull(service.find(no)!!.paidAt)
+        }
+    }
+
+    @Test
+    fun `关闭不存在的订单不会报告已付款`() {
+        assertEquals(PayOrderService.MarkPaidOutcome.OrderMissing, service.markClosed("T_CLOSE_MISSING"))
     }
 }

@@ -1,6 +1,7 @@
 package com.juge.lklpay.web
 
 import com.juge.lklpay.config.PayProperties
+import com.juge.lklpay.domain.PayOrder
 import com.juge.lklpay.service.AlipayPayService
 import com.juge.lklpay.service.AuthException
 import com.juge.lklpay.service.PayApiThrottle
@@ -112,7 +113,9 @@ class AlipayController(
                 .body(mapOf("success" to false, "code" to "RATE_LIMITED", "message" to "操作过于频繁，请稍后再试"))
         }
 
-        val ownerId = payOrderService.find(outTradeNo)?.userId
+        val localOrder = payOrderService.find(outTradeNo)
+            ?: return queryError(HttpStatus.NOT_FOUND, "ORDER_MISSING", "订单不存在")
+        val ownerId = localOrder.userId
         if (ownerId != null) {
             val requester = runCatching { userService.authenticate(bearerToken(authorization)) }.getOrNull()
             if (requester == null || requester.id != ownerId) {
@@ -125,7 +128,7 @@ class AlipayController(
         return try {
             val result = alipayPayService.queryOrder(outTradeNo)
             reconcile(outTradeNo, result)
-            ResponseEntity.ok(mapOf("success" to true, "data" to publicQueryFields(result)))
+                ?: ResponseEntity.ok(mapOf("success" to true, "data" to publicQueryFields(result)))
         } catch (e: Exception) {
             log.error("支付宝查单异常 outTradeNo={}", outTradeNo, e)
             ResponseEntity.internalServerError().body(mapOf("success" to false, "message" to "服务暂时不可用，请稍后重试"))
@@ -231,6 +234,9 @@ class AlipayController(
             PayOrderService.MarkPaidOutcome.AlreadyPaid ->
                 log.info("重复异步通知，已幂等忽略 outTradeNo={}", outTradeNo)
 
+            PayOrderService.MarkPaidOutcome.NotPaid ->
+                log.error("异步通知未能将本地订单转为已支付，需人工核查 outTradeNo={}", outTradeNo)
+
             PayOrderService.MarkPaidOutcome.OrderMissing ->
                 log.error("异步通知对应订单不存在，需人工核查 outTradeNo={}", outTradeNo)
 
@@ -248,18 +254,46 @@ class AlipayController(
         }
     }
 
-    /** 用查单结果补齐本地状态，避免「支付宝已收款、本地仍是待支付」 */
-    private fun reconcile(outTradeNo: String, result: Map<String, Any?>) {
-        when (result["trade_status"]) {
-            "TRADE_SUCCESS", "TRADE_FINISHED" -> payOrderService.markPaid(
-                outTradeNo = outTradeNo,
-                tradeNo = result["trade_no"] as? String,
-                buyerUserId = result["buyer_user_id"] as? String,
-                buyerLogonId = result["buyer_logon_id"] as? String,
-                paidAmountYuan = result["total_amount"] as? String,
-            )
-
-            "TRADE_CLOSED" -> payOrderService.markClosed(outTradeNo)
+    /** 返回 null 才允许回传网关状态；拒绝落单时不能让 App 看到可激活的成功响应。 */
+    private fun reconcile(outTradeNo: String, result: Map<String, Any?>): ResponseEntity<*>? {
+        val status = result["trade_status"]
+        val paid = status == "TRADE_SUCCESS" || status == "TRADE_FINISHED"
+        if (!paid && status != "TRADE_CLOSED") return null
+        if (result["code"] != "10000" || result["out_trade_no"] != outTradeNo) {
+            log.error("查单结果未通过网关状态或订单号核对 outTradeNo={}", outTradeNo)
+            return queryError(HttpStatus.BAD_GATEWAY, "QUERY_RESULT_INVALID", "支付查询结果校验失败，请稍后重试")
         }
+        if (!paid) {
+            payOrderService.markClosed(outTradeNo)
+            return null
+        }
+
+        val outcome = payOrderService.markPaid(
+            outTradeNo = outTradeNo,
+            tradeNo = result["trade_no"] as? String,
+            buyerUserId = result["buyer_user_id"] as? String,
+            buyerLogonId = result["buyer_logon_id"] as? String,
+            paidAmountYuan = result["total_amount"] as? String,
+        )
+        when (outcome) {
+            PayOrderService.MarkPaidOutcome.AmountMissing ->
+                return queryError(HttpStatus.CONFLICT, "AMOUNT_MISSING", "支付结果缺少有效金额，无法确认支付")
+            PayOrderService.MarkPaidOutcome.AmountMismatch ->
+                return queryError(HttpStatus.CONFLICT, "AMOUNT_MISMATCH", "支付金额与订单不符，无法确认支付")
+            PayOrderService.MarkPaidOutcome.OrderMissing ->
+                return queryError(HttpStatus.NOT_FOUND, "ORDER_MISSING", "订单不存在")
+            PayOrderService.MarkPaidOutcome.NotPaid ->
+                return queryError(HttpStatus.CONFLICT, "ORDER_NOT_PAID", "本地订单未确认支付，请联系客服核查")
+            PayOrderService.MarkPaidOutcome.Marked, PayOrderService.MarkPaidOutcome.AlreadyPaid -> Unit
+        }
+        val confirmed = payOrderService.find(outTradeNo)
+            ?: return queryError(HttpStatus.NOT_FOUND, "ORDER_MISSING", "订单不存在")
+        if (confirmed.status != PayOrder.STATUS_PAID) {
+            return queryError(HttpStatus.CONFLICT, "ORDER_NOT_PAID", "本地订单未确认支付，请联系客服核查")
+        }
+        return null
     }
+
+    private fun queryError(status: HttpStatus, code: String, message: String): ResponseEntity<*> =
+        ResponseEntity.status(status).body(mapOf("success" to false, "code" to code, "message" to message))
 }

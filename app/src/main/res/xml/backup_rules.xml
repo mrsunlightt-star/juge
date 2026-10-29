@@ -10,7 +10,6 @@
 
     <!-- 付费激活状态与设备绑定数据：恢复后无意义，且属于敏感状态 -->
     <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
-    <exclude domain="sharedpref" path="widget_bindings_prefs.xml"/>
 
     <!-- 登录凭证（Bearer Token）：不随普通 App 数据备份，新设备重新登录即可 -->
     <exclude domain="sharedpref" path="account_prefs.xml"/>

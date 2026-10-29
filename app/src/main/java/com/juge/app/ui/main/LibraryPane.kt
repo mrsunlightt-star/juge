@@ -1,5 +1,6 @@
 package com.juge.app.ui.main
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import com.juge.app.ReminderWidgetProvider
@@ -10,10 +11,12 @@ import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.library.LibraryTabContent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /**
  * 「跃然纸上」页签内容：把书库的增删改查回调接到 [DbHelper]，再交给 [LibraryTabContent]。
@@ -43,6 +46,18 @@ fun LibraryPane(
     onOpenDoc: (String) -> Unit
 ) {
     val context = LocalContext.current
+    fun launchLibraryChange(block: suspend () -> Unit) {
+        scope.launch(Dispatchers.Main) {
+            try {
+                withContext(Dispatchers.IO) { block() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Timber.e(error, "Library change failed")
+                Toast.makeText(context, "操作失败，请重试", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     LibraryTabContent(
         categories = categories,
         reminders = reminders,
@@ -52,16 +67,17 @@ fun LibraryPane(
         onEditReminderRequest = onEditReminderRequest,
         onCategorySelect = onCategorySelect,
         onAddCategory = { name ->
-            scope.launch(Dispatchers.IO) {
-                dbHelper.insertCategory(name)
-                val cats = dbHelper.getAllCategories()
-                withContext(Dispatchers.Main) {
-                    onCategoriesChanged(cats)
-                }
+            val (category, cats) = withContext(Dispatchers.IO) {
+                val id = dbHelper.insertCategory(name)
+                check(id != -1L) { "Category insert failed" }
+                val updated = dbHelper.getAllCategories()
+                updated.first { it.id == id } to updated
             }
+            onCategoriesChanged(cats)
+            category
         },
         onDeleteCategory = { id ->
-            scope.launch(Dispatchers.IO) {
+            launchLibraryChange {
                 dbHelper.deleteCategory(id)
                 val cats = dbHelper.getAllCategories()
                 val rems = dbHelper.getAllReminders()
@@ -72,16 +88,15 @@ fun LibraryPane(
             }
         },
         onRenameCategory = { id, name ->
-            scope.launch(Dispatchers.IO) {
+            val cats = withContext(Dispatchers.IO) {
+                check(dbHelper.getAllCategories().any { it.id == id }) { "Category no longer exists" }
                 dbHelper.renameCategory(id, name)
-                val cats = dbHelper.getAllCategories()
-                withContext(Dispatchers.Main) {
-                    onCategoriesChanged(cats)
-                }
+                dbHelper.getAllCategories()
             }
+            onCategoriesChanged(cats)
         },
         onReorderReminders = { orderedIds ->
-            scope.launch(Dispatchers.IO) {
+            launchLibraryChange {
                 dbHelper.updateReminderSortOrders(orderedIds)
                 val rems = dbHelper.getAllReminders()
                 withContext(Dispatchers.Main) {
@@ -90,7 +105,7 @@ fun LibraryPane(
             }
         },
         onReorderCategories = { orderedIds ->
-            scope.launch(Dispatchers.IO) {
+            launchLibraryChange {
                 dbHelper.updateCategorySortOrders(orderedIds)
                 val cats = dbHelper.getAllCategories()
                 withContext(Dispatchers.Main) {
@@ -99,28 +114,22 @@ fun LibraryPane(
             }
         },
         onAddReminder = { content, catId ->
-            scope.launch(Dispatchers.IO) {
-                dbHelper.insertReminder(content, catId)
-                val rems = dbHelper.getAllReminders()
-                withContext(Dispatchers.Main) {
-                    onRemindersChanged(rems)
-                }
+            val rems = withContext(Dispatchers.IO) {
+                check(dbHelper.insertReminder(content, catId) != -1L) { "Reminder insert failed" }
+                dbHelper.getAllReminders()
             }
+            onRemindersChanged(rems)
         },
         onEditReminderSave = { id, content, catId ->
-            scope.launch(Dispatchers.IO) {
-                val rem = reminders.find { it.id == id }
-                if (rem != null) {
-                    dbHelper.updateReminder(id, content, catId, rem.isFavorite, rem.styleJson)
-                    val rems = dbHelper.getAllReminders()
-                    withContext(Dispatchers.Main) {
-                        onRemindersChanged(rems)
-                    }
-                }
+            val rems = withContext(Dispatchers.IO) {
+                val rem = checkNotNull(dbHelper.getReminderById(id)) { "Reminder no longer exists" }
+                dbHelper.updateReminder(id, content, catId, rem.isFavorite, rem.styleJson)
+                dbHelper.getAllReminders()
             }
+            onRemindersChanged(rems)
         },
         onDeleteReminder = { id ->
-            scope.launch(Dispatchers.IO) {
+            launchLibraryChange {
                 dbHelper.deleteReminder(id)
                 val rems = dbHelper.getAllReminders()
                 withContext(Dispatchers.Main) {
@@ -134,7 +143,7 @@ fun LibraryPane(
                 // 绑定可能新建 widget_config 并写入新绑定关系，
                 // 必须在绑定完成后重新读取配置 ID，否则下方保存会命中旧的 -1 配置
                 val widgetId = selectedWidgetId
-                scope.launch(Dispatchers.IO) {
+                launchLibraryChange {
                     ReminderWidgetProvider.bindReminderToWidget(context, widgetId, reminder.id)
                     val newConfigId = ReminderWidgetProvider.getBoundConfigId(context, widgetId)
                     val configs = dbHelper.getAllWidgetConfigs()

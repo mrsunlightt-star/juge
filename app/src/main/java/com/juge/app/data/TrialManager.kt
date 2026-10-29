@@ -75,20 +75,24 @@ class TrialManager private constructor(context: Context) {
      *
      * 激活记录（时间 + 支付方式）仅用于「我的」页展示，不参与 isActivated() 的放行判定，
      * 因此故意不纳入 [computeChecksum]——否则新增字段会让存量用户的校验和失配而被误判为未激活。
+     *
+     * 在 IO 线程调用；commit 失败仍可能更新内存，不能用 isActivated() 代替返回值判断落盘。
      */
     fun activate(
         payMethod: String = PAY_METHOD_UNRECORDED,
         activatedAt: Long = System.currentTimeMillis()
-    ) {
-        prefs.edit()
+    ): Boolean {
+        val saved = prefs.edit()
             .putBoolean(obfuscateKey(KEY_ACTIVATED_1), true)
             .putBoolean(obfuscateKey(KEY_ACTIVATED_2), true)
             .putBoolean(obfuscateKey(KEY_ACTIVATED_3), true)
             .putString(obfuscateKey(KEY_CHECKSUM), computeChecksum(true))
             .putLong(obfuscateKey(KEY_ACTIVATED_AT), activatedAt)
             .putString(obfuscateKey(KEY_PAY_METHOD), payMethod)
-            .apply()
-        Timber.i("TrialManager: activated via %s", payMethod)
+            .commit()
+        if (saved) Timber.i("TrialManager: activated via %s", payMethod)
+        else Timber.w("TrialManager: activation commit failed")
+        return saved
     }
 
     /**

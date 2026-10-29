@@ -46,11 +46,25 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
+import com.juge.app.ui.theme.dangerRed
 import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
 import com.juge.app.ui.theme.textTertiary
 import com.juge.app.ui.theme.textWhite
 import com.juge.app.ui.theme.rememberAppHaptics
+
+internal fun categoryNameError(name: String): String? =
+    if (name.length > 100) "分类名称最多100个字符" else null
+
+internal fun reminderContentError(content: String): String? =
+    if (content.length > 500) "金句内容最多500个字符" else null
+
+@Composable
+private fun LibraryInputError(message: String?) {
+    if (message != null) {
+        AppText(message, role = AppTextRole.bodySecondary, color = dangerRed)
+    }
+}
 
 /** 新建分类目录弹窗。分类名由调用方持有，避免弹窗自己再持有一份状态。 */
 @Composable
@@ -59,15 +73,21 @@ internal fun AddCategoryDialog(
     name: String,
     onNameChange: (String) -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
+    title: String = "新建分类目录",
+    confirmText: String = "确认"
 ) {
+    val validationError = categoryNameError(name)
+    val canSubmit = name.isNotBlank() && validationError == null && !isSaving
     AppDialog(
         visible = show,
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface {
-            AppDialogTitle("新建分类目录")
+            AppDialogTitle(title)
             OutlinedTextField(
                 value = name,
                 onValueChange = onNameChange,
@@ -80,19 +100,22 @@ internal fun AddCategoryDialog(
                 modifier = Modifier.fillMaxWidth(),
                 shape = AppShape.button,
                 textStyle = AppType.body,
-                colors = appTextFieldColors()
+                colors = appTextFieldColors(),
+                enabled = !isSaving,
+                isError = validationError != null
             )
+            LibraryInputError(validationError ?: errorMessage)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppTextButton(text = "取消", onClick = onDismiss)
+                AppTextButton(text = "取消", onClick = onDismiss, enabled = !isSaving)
                 Spacer(modifier = Modifier.width(8.dp))
                 AppPrimaryButton(
-                    text = "确认",
-                    onClick = { if (name.isNotBlank()) onConfirm() },
-                    enabled = name.isNotBlank()
+                    text = if (isSaving) "保存中" else confirmText,
+                    onClick = { if (canSubmit) onConfirm() },
+                    enabled = canSubmit
                 )
             }
         }
@@ -110,11 +133,15 @@ internal fun AddReminderDialog(
     onSelectCategory: (Category) -> Unit,
     onRequestNewCategory: () -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isSaving: Boolean = false,
+    errorMessage: String? = null
 ) {
+    val validationError = reminderContentError(content)
+    val canSubmit = content.isNotBlank() && validationError == null && selectedCategory != null && !isSaving
     AppDialog(
         visible = show,
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface(scrollable = true) {
@@ -138,8 +165,11 @@ internal fun AddReminderDialog(
                 maxLines = 6,
                 shape = AppShape.button,
                 textStyle = AppType.body,
-                colors = appTextFieldColors()
+                colors = appTextFieldColors(),
+                enabled = !isSaving,
+                isError = validationError != null
             )
+            LibraryInputError(validationError ?: errorMessage)
 
             // 分类标题行并排集成“+ 新建目录”按钮
             Row(
@@ -152,8 +182,9 @@ internal fun AddReminderDialog(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
                         .clickable(
-                            interactionSource = MutableInteractionSource(),
+                            interactionSource = remember { MutableInteractionSource() },
                             indication = null,
+                            enabled = !isSaving,
                         ) {
                             haptics.click()
                             onRequestNewCategory()
@@ -171,7 +202,7 @@ internal fun AddReminderDialog(
                         label = cat.name,
                         selected = selectedCategory?.id == cat.id,
                         showDivider = index < categories.lastIndex,
-                        onClick = { onSelectCategory(cat) }
+                        onClick = { if (!isSaving) onSelectCategory(cat) }
                     )
                 }
             }
@@ -181,14 +212,12 @@ internal fun AddReminderDialog(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppTextButton(text = "取消", onClick = onDismiss)
+                AppTextButton(text = "取消", onClick = onDismiss, enabled = !isSaving)
                 Spacer(modifier = Modifier.width(8.dp))
                 AppPrimaryButton(
-                    text = "确认",
-                    onClick = {
-                        if (content.isNotBlank() && selectedCategory != null) onConfirm()
-                    },
-                    enabled = content.isNotBlank() && selectedCategory != null
+                    text = if (isSaving) "保存中" else "确认",
+                    onClick = { if (canSubmit) onConfirm() },
+                    enabled = canSubmit
                 )
             }
         }
@@ -206,11 +235,15 @@ internal fun EditReminderDialog(
     onSelectCategory: (Category) -> Unit,
     onRequestNewCategory: () -> Unit,
     onSave: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isSaving: Boolean = false,
+    errorMessage: String? = null
 ) {
+    val validationError = reminderContentError(content)
+    val canSubmit = content.isNotBlank() && validationError == null && selectedCategory != null && !isSaving
     AppDialog(
         visible = show,
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AppDialogSurface(scrollable = true) {
@@ -228,8 +261,11 @@ internal fun EditReminderDialog(
                 maxLines = 6,
                 shape = AppShape.button,
                 textStyle = AppType.body,
-                colors = appTextFieldColors()
+                colors = appTextFieldColors(),
+                enabled = !isSaving,
+                isError = validationError != null
             )
+            LibraryInputError(validationError ?: errorMessage)
 
             // 归类并排集成“+ 新建目录”按钮
             Row(
@@ -242,8 +278,9 @@ internal fun EditReminderDialog(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
                         .clickable(
-                            interactionSource = MutableInteractionSource(),
+                            interactionSource = remember { MutableInteractionSource() },
                             indication = null,
+                            enabled = !isSaving,
                         ) {
                             haptics.click()
                             onRequestNewCategory()
@@ -261,7 +298,7 @@ internal fun EditReminderDialog(
                         label = cat.name,
                         selected = selectedCategory?.id == cat.id,
                         showDivider = index < categories.lastIndex,
-                        onClick = { onSelectCategory(cat) }
+                        onClick = { if (!isSaving) onSelectCategory(cat) }
                     )
                 }
             }
@@ -271,14 +308,12 @@ internal fun EditReminderDialog(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppTextButton(text = "取消", onClick = onDismiss)
+                AppTextButton(text = "取消", onClick = onDismiss, enabled = !isSaving)
                 Spacer(modifier = Modifier.width(8.dp))
                 AppPrimaryButton(
-                    text = "保存并更新",
-                    onClick = {
-                        if (content.isNotBlank() && selectedCategory != null) onSave()
-                    },
-                    enabled = content.isNotBlank() && selectedCategory != null
+                    text = if (isSaving) "保存中" else "保存并更新",
+                    onClick = { if (canSubmit) onSave() },
+                    enabled = canSubmit
                 )
             }
         }

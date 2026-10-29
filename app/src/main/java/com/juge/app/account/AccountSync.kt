@@ -35,16 +35,25 @@ object AccountSync {
      *
      * 对账失败不影响任何本地功能。
      */
-    suspend fun refresh(context: Context): Outcome {
+    suspend fun refresh(context: Context): Outcome = refresh(context, AccountApi::me)
+
+    internal suspend fun refresh(
+        context: Context,
+        fetchAccount: suspend (String) -> Result<AccountApi.Account>,
+    ): Outcome {
         val token = AccountStore.token(context) ?: return Outcome.NotLoggedIn
-        return AccountApi.me(token).fold(
+        return fetchAccount(token).fold(
             onSuccess = { account ->
-                AccountStore.updateAccount(context, account.username, account.nickname, account.pro)
-                Outcome.ServerSays(account.pro)
+                // 检查令牌与写入必须在同一临界区；旧请求不得覆盖新登录或复活已登出的账号。
+                if (AccountStore.updateAccountIfTokenMatches(
+                        context, token, account.username, account.nickname, account.pro,
+                    )
+                ) Outcome.ServerSays(account.pro)
+                else Outcome.Unavailable // 旧结论也不能传给 UI，尤其是撤销 PRO 的 pro=false。
             },
             onFailure = { e ->
                 if (e is AccountApi.ApiException && e.code == AccountApi.CODE_UNAUTHORIZED) {
-                    AccountStore.clear(context)
+                    AccountStore.clearIfTokenMatches(context, token)
                 }
                 Outcome.Unavailable
             },

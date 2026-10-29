@@ -50,7 +50,7 @@ class TrialManagerTest {
         val tm = TrialManager.getInstance(context)
         assertNull(tm.activationRecord())
 
-        tm.activate(TrialManager.PAY_METHOD_ALIPAY)
+        assertTrue("激活必须报告持久化成功", tm.activate(TrialManager.PAY_METHOD_ALIPAY))
 
         assertTrue(tm.isActivated())
         val record = tm.activationRecord()

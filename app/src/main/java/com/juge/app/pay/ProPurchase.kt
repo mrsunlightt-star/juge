@@ -3,23 +3,18 @@ package com.juge.app.pay
 import android.app.Activity
 import android.content.Context
 import com.juge.app.account.AccountStore
+import com.juge.app.data.TrialManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
-/**
- * PRO 会员购买流程编排：下单 → 拉起支付宝 → 服务端查单确认 → 交由调用方激活。
- *
- * 关键约束（支付宝官方）：客户端 resultStatus=9000 只是同步结果，
- * 必须以服务端查单 trade_status=TRADE_SUCCESS 为最终结论，才允许激活。
- */
+/** 仅在服务端确认付款且本地激活落盘后返回 [Outcome.Paid]。 */
 object ProPurchase {
 
-    /**
-     * 商品 ID，对应服务端 application.yml 的 pay.products。
-     * 真实金额由服务端商品目录决定，App 不参与定价。
-     */
+    /** 商品 ID，真实金额由服务端商品目录决定，App 不参与定价。 */
     const val PRODUCT_ID = "pro_permanent"
 
     /** 仅用于界面展示，必须与服务端商品目录中的价格保持一致 */
@@ -27,58 +22,65 @@ object ProPurchase {
 
     private const val PREFS = "pro_purchase_prefs"
     private const val KEY_PENDING_ORDER = "pending_order_no"
-    /** 9000 之后的到账确认节奏 */
     private const val SUCCESS_ATTEMPTS = 5
     private const val SUCCESS_INTERVAL_MS = 1_200L
-
-    /** 8000 / 6004 结果未知，需更耐心地查单 */
     private const val UNKNOWN_ATTEMPTS = 5
     private const val UNKNOWN_INTERVAL_MS = 2_000L
 
+    // 只锁本地队列的读改写，不在锁内等待网络或收银台。
+    private val pendingLock = Any()
+    private val recoveryMutex = Mutex()
+
+    /** 每次调用独立注入，正式路径始终使用默认实现，无全局可变测试钩子。 */
+    internal data class Dependencies(
+        val createOrder: suspend (String, String?) -> Result<AlipayPayApi.OrderCreated> = AlipayPayApi::createOrder,
+        val queryOrder: suspend (String, String?) -> Result<AlipayPayApi.OrderStatus> = AlipayPayApi::queryOrder,
+        val pay: (Activity, String) -> String = AlipayPay::pay,
+        val activate: (Context) -> Boolean = {
+            TrialManager.getInstance(it).activate(TrialManager.PAY_METHOD_ALIPAY)
+        },
+    )
+
     sealed interface Outcome {
-        /** 已确认到账，调用方应执行 TrialManager.activate() */
+        /** 已确认到账且本地激活已持久化；调用方只刷新 UI / 组件，不再调用 activate。 */
         data object Paid : Outcome
 
         /** 未完成支付（用户取消、到账确认中），不是错误 */
         data class Unpaid(val message: String) : Outcome
 
-        /** 流程性失败（下单失败、网络异常） */
+        /** 流程性失败（下单失败、网络异常、本地持久化失败） */
         data class Failed(val message: String) : Outcome
     }
 
-    /**
-     * 发起一次完整购买。内部会把阻塞的收银台调用切到 IO 线程，可在主线程调用。
-     */
-    suspend fun purchase(activity: Activity): Outcome {
-        // 已登录则把令牌带上：PRO 会开到账号上，换机登录即可找回；
-        // 未登录也能买，只是激活状态只留在本机
+    /** 完整购买；阻塞的收银台调用和本地 commit 均在 IO 线程，可在主线程调用。 */
+    suspend fun purchase(activity: Activity): Outcome = purchase(activity, Dependencies())
+
+    internal suspend fun purchase(activity: Activity, dependencies: Dependencies): Outcome {
+        // 未登录也能买，只是激活状态只留在本机。
         val token = AccountStore.token(activity)
-        val created = AlipayPayApi.createOrder(PRODUCT_ID, token).getOrElse { e ->
+        val created = dependencies.createOrder(PRODUCT_ID, token).getOrElse { e ->
             Timber.e(e, "ProPurchase: 下单失败")
-            // 服务端明确告知的业务失败（如令牌失效需重新登录）直接透传文案，网络异常才给通用提示
             val serverMessage = (e as? AlipayPayApi.ApiException)?.message?.takeIf { it.isNotBlank() }
             return Outcome.Failed(serverMessage ?: "下单失败，请检查网络后重试")
         }
-        // 先落盘订单号：支付途中 App 被杀也能在下次启动时找回。
-        // 追加而非覆盖：连续两次下单时，上一张可能已付款但还没在服务端落库，
-        // 只留一张就会把它永久丢掉（找不到单号 → 钱花了本机却没激活）
-        appendPendingOrder(activity, created.outTradeNo)
+        // 必须在唤支付前确认落盘；失败时不能让用户付款后失去唯一的找回凭据。
+        val saved = withContext(Dispatchers.IO) { appendPendingOrder(activity, created.outTradeNo) }
+        if (!saved) return Outcome.Failed("订单保存失败，请检查存储空间后重试，尚未发起支付")
 
         val resultStatus = withContext(Dispatchers.IO) {
-            AlipayPay.pay(activity, created.orderStr)
+            dependencies.pay(activity, created.orderStr)
         }
-
-        val outcome = when (resultStatus) {
+        return when (resultStatus) {
             AlipayPay.STATUS_SUCCESS ->
-                if (confirmPaid(created.outTradeNo, token, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS)) {
-                    Outcome.Paid
+                if (confirmPaid(created.outTradeNo, token, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS, dependencies)) {
+                    finishPaid(activity, created.outTradeNo, dependencies)
                 } else {
                     Outcome.Unpaid("支付已提交，到账确认中，稍后重新打开应用会自动找回")
                 }
 
             AlipayPay.STATUS_PROCESSING, AlipayPay.STATUS_UNKNOWN ->
-                if (confirmPaid(created.outTradeNo, token, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS)) {
-                    Outcome.Paid
+                if (confirmPaid(created.outTradeNo, token, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS, dependencies)) {
+                    finishPaid(activity, created.outTradeNo, dependencies)
                 } else {
                     Outcome.Unpaid("支付处理中，稍后重新打开应用会自动找回")
                 }
@@ -89,72 +91,98 @@ object ProPurchase {
             "" -> Outcome.Failed("未能唤起支付宝，请确认已安装支付宝")
             else -> Outcome.Failed("支付未完成（状态码 $resultStatus）")
         }
-
-        if (outcome is Outcome.Paid) removePendingOrder(activity, created.outTradeNo)
-        return outcome
     }
 
-    /**
-     * 找回：上次支付流程被中断（App 被杀、切后台）时，用留存订单号复查，
-     * 兜底「已付款但没激活成功」的情况。留存的是**订单队列**——用户连续下单时
-     * 每一张都记着，任何一张付了都能找回；结算完成/不存在的单会从队列里摘掉。
-     * 无留存订单时直接返回 [Outcome.Unpaid]。
-     */
-    suspend fun recoverPending(context: Context): Outcome {
-        val orders = pendingOrders(context)
-        if (orders.isEmpty()) return Outcome.Unpaid("")
-        // 带上下单时的登录令牌：订单若归属账号，服务端只允许本人查询。
-        // 与下单时的登录态无关（历史遗留），服务端按归属拒绝就当作 Untreated 保留原单
-        val token = AccountStore.token(context)
-        for (outTradeNo in orders) {
-            val status = AlipayPayApi.queryOrder(outTradeNo, token).getOrNull() ?: continue
-            when {
-                status.isPaid -> {
-                    removePendingOrder(context, outTradeNo)
-                    return Outcome.Paid
+    /** 限流后轮转队列，避免前面的未付订单一直挡住后面的已付订单。 */
+    suspend fun recoverPending(context: Context): Outcome = recoverPending(context, Dependencies())
+
+    internal suspend fun recoverPending(context: Context, dependencies: Dependencies): Outcome =
+        recoveryMutex.withLock {
+            val orders = withContext(Dispatchers.IO) { pendingOrders(context) }
+            // 使用当前令牌：历史队列未保存下单令牌，归属拒绝时保留原单。
+            val token = AccountStore.token(context)
+            for (outTradeNo in orders) {
+                val result = dependencies.queryOrder(outTradeNo, token)
+                val status = result.getOrNull()
+                when {
+                    status?.isPaid == true -> return@withLock finishPaid(context, outTradeNo, dependencies)
+                    status?.isNotExist == true || status?.isClosed == true ->
+                        withContext(Dispatchers.IO) { removePendingOrder(context, outTradeNo) }
+                    else -> withContext(Dispatchers.IO) { rotatePendingOrder(context, outTradeNo) }
                 }
-                // 订单已过期/不存在，继续留着只会反复查询
-                status.isNotExist -> removePendingOrder(context, outTradeNo)
-                else -> Unit
+                if ((result.exceptionOrNull() as? AlipayPayApi.ApiException)?.isRateLimited == true) {
+                    return@withLock Outcome.Unpaid("查单过于频繁，稍后重新打开应用会继续找回")
+                }
             }
+            Outcome.Unpaid("")
         }
-        return Outcome.Unpaid("")
-    }
 
-    /** 轮询查单直到确认到账，用于抹平「支付成功但异步通知尚未落库」的时间差 */
+    /** 激活与消费之间没有挂起点：即便中途进程退出，也至少留下激活或 pending 之一。 */
+    private suspend fun finishPaid(context: Context, outTradeNo: String, dependencies: Dependencies): Outcome =
+        withContext(Dispatchers.IO) {
+            if (!dependencies.activate(context)) {
+                return@withContext Outcome.Failed("支付已到账，但激活保存失败，请检查存储空间后重新打开应用找回")
+            }
+            // 激活已可靠持久化。清理失败至多留下可重试订单，绝不能先清理再激活。
+            removePendingOrder(context, outTradeNo)
+            Outcome.Paid
+        }
+
+    /** 抹平支付与服务端落库的时间差；限流和终态不继续轮询。 */
     private suspend fun confirmPaid(
         outTradeNo: String,
         token: String?,
         attempts: Int,
         intervalMs: Long,
+        dependencies: Dependencies,
     ): Boolean {
         repeat(attempts) { index ->
-            if (AlipayPayApi.queryOrder(outTradeNo, token).getOrNull()?.isPaid == true) return true
+            val result = dependencies.queryOrder(outTradeNo, token)
+            val status = result.getOrNull()
+            if (status?.isPaid == true) return true
+            if (status?.isClosed == true || status?.isNotExist == true ||
+                (result.exceptionOrNull() as? AlipayPayApi.ApiException)?.isRateLimited == true
+            ) return false
             if (index < attempts - 1) delay(intervalMs)
         }
         return false
     }
 
-    /** 留存的所有未结算订单号，逗号分隔（历史版本只存一个，解析时天然兼容单值） */
-    private fun pendingOrders(context: Context): List<String> =
+    /** 逗号分隔，兼容历史版本单值。所有访问与读改写都使用同一把锁。 */
+    private fun pendingOrders(context: Context): List<String> = synchronized(pendingLock) {
         prefs(context).getString(KEY_PENDING_ORDER, null)
             ?.split(',')
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() }
+            ?.distinct()
             .orEmpty()
-
-    private fun appendPendingOrder(context: Context, outTradeNo: String) {
-        val current = pendingOrders(context)
-        if (outTradeNo in current) return
-        prefs(context).edit().putString(KEY_PENDING_ORDER, (current + outTradeNo).joinToString(",")).apply()
     }
 
-    private fun removePendingOrder(context: Context, outTradeNo: String) {
-        val remaining = pendingOrders(context) - outTradeNo
+    private fun appendPendingOrder(context: Context, outTradeNo: String): Boolean = synchronized(pendingLock) {
+        // commit 失败仍可能更新 prefs 内存，故不能因内存中已有单号就跳过再次提交。
+        savePendingOrders(context, (pendingOrders(context) + outTradeNo).distinct())
+    }
+
+    private fun removePendingOrder(context: Context, outTradeNo: String): Boolean = synchronized(pendingLock) {
+        savePendingOrders(context, pendingOrders(context) - outTradeNo)
+    }
+
+    private fun rotatePendingOrder(context: Context, outTradeNo: String) {
+        synchronized(pendingLock) {
+            val current = pendingOrders(context)
+            // 另一购买流程可能刚消费了该单，不能用旧网络快照将其重新追加。
+            if (outTradeNo in current) savePendingOrders(context, (current - outTradeNo) + outTradeNo)
+        }
+    }
+
+    /** 调用方持有 pendingLock，且在 IO 线程执行。 */
+    private fun savePendingOrders(context: Context, orders: List<String>): Boolean {
         val edit = prefs(context).edit()
-        if (remaining.isEmpty()) edit.remove(KEY_PENDING_ORDER)
-        else edit.putString(KEY_PENDING_ORDER, remaining.joinToString(","))
-        edit.apply()
+        if (orders.isEmpty()) edit.remove(KEY_PENDING_ORDER)
+        else edit.putString(KEY_PENDING_ORDER, orders.joinToString(","))
+        return edit.commit().also { saved ->
+            if (!saved) Timber.w("ProPurchase: pending orders commit failed")
+        }
     }
 
     private fun prefs(context: Context) =

@@ -6,9 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppFilterChip
@@ -25,6 +35,7 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.surfaceSubtle
 import com.juge.app.ui.theme.textTertiary
 import kotlin.math.roundToInt
@@ -48,7 +59,9 @@ internal fun TextStyleCard(
     AppSectionCard(modifier = Modifier.fillMaxWidth()) {
         AppSectionHeader(title = "文本内容与字形定制")
 
-        // 金句输入（最多 500 字）
+        // 金句输入（最多 500 字）。默认 3 行，点右侧箭头可展开成 12 行大输入框，
+        // 长文本在框内可滚动，不再被窗口「吞」掉；框下右下角实时显示字数。
+        var textExpanded by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = selectedContent,
             onValueChange = {
@@ -64,10 +77,32 @@ internal fun TextStyleCard(
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-            maxLines = 3,
+            minLines = if (textExpanded) 12 else 1,
+            maxLines = if (textExpanded) 12 else 3,
             shape = AppShape.button,
             textStyle = AppType.body,
-            colors = appTextFieldColors()
+            colors = appTextFieldColors(),
+            trailingIcon = {
+                IconButton(onClick = { textExpanded = !textExpanded }) {
+                    Icon(
+                        imageVector = if (textExpanded) {
+                            Icons.Filled.KeyboardArrowUp
+                        } else {
+                            Icons.Filled.KeyboardArrowDown
+                        },
+                        contentDescription = if (textExpanded) "收起输入框" else "展开输入框",
+                        tint = accentBlue,
+                    )
+                }
+            },
+            supportingText = {
+                AppText(
+                    text = "${selectedContent.length} / 500",
+                    role = AppTextRole.caption,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End,
+                )
+            },
         )
 
         // 字体选择（横滚动）

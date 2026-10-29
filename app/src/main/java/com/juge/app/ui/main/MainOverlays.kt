@@ -49,7 +49,7 @@ fun MainOverlays(
                     activity.lifecycleScope.launch {
                         when (val outcome = ProPurchase.purchase(activity)) {
                             is ProPurchase.Outcome.Paid -> {
-                                trialManager.activate(TrialManager.PAY_METHOD_ALIPAY)
+                                // Paid 已保证激活落盘，这里只更新界面，不能重复覆盖激活记录。
                                 onActivatedChange(true)
                                 onProDialogDismiss()
                                 // 桌面组件上未激活时的提示位图需要重绘

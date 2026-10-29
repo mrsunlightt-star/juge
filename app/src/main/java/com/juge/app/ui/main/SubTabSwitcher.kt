@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -122,7 +123,7 @@ fun SubTabSwitcher(
                             selected = pagerState.currentPage == index,
                             // 不画 Material 波纹：全宽 selectable 的矩形波纹与胶囊滑块割裂，
                             // 触感反馈（haptics.tap）+ 滑块弹簧位移就是按下反馈（iOS 分段控制同款）。
-                            interactionSource = MutableInteractionSource(),
+                            interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {
                                 if (pagerState.currentPage != index) haptics.tap()

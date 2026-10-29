@@ -315,11 +315,13 @@ internal object CardTextRenderer {
             textSize = style.fontSizeSp * scale * FONT_SIZE_SCALE
             typeface = style.font.getTypeface(context)
 
-            // 处理粗体与斜体
-            var styleFlags = 0
-            if (style.fontBold) styleFlags = styleFlags or android.graphics.Typeface.BOLD
-            if (style.fontItalic) styleFlags = styleFlags or android.graphics.Typeface.ITALIC
-            if (styleFlags != 0) {
+            val styleFlags = when {
+                style.fontBold && style.fontItalic -> android.graphics.Typeface.BOLD_ITALIC
+                style.fontBold -> android.graphics.Typeface.BOLD
+                style.fontItalic -> android.graphics.Typeface.ITALIC
+                else -> android.graphics.Typeface.NORMAL
+            }
+            if (styleFlags != android.graphics.Typeface.NORMAL) {
                 typeface = android.graphics.Typeface.create(style.font.getTypeface(context), styleFlags)
             }
 
@@ -374,7 +376,7 @@ internal object CardTextRenderer {
             .setAlignment(textAlignment)
             .setLineSpacing(0f, style.lineSpacingMultiplier)
             .setIncludePad(true)
-            .apply { if (isJustify) setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD) }
+            .apply { if (isJustify) setJustificationMode(android.graphics.text.LineBreaker.JUSTIFICATION_MODE_INTER_WORD) }
             .build()
         val staticLayout = if (fullLayout.lineCount > maxLines) {
             StaticLayout.Builder.obtain(scene.content, 0, scene.content.length, textPaint, textWidth.toInt())
@@ -383,7 +385,7 @@ internal object CardTextRenderer {
                 .setIncludePad(true)
                 .setMaxLines(maxLines)
                 .setEllipsize(android.text.TextUtils.TruncateAt.END)
-                .apply { if (isJustify) setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD) }
+                .apply { if (isJustify) setJustificationMode(android.graphics.text.LineBreaker.JUSTIFICATION_MODE_INTER_WORD) }
                 .build()
         } else {
             fullLayout

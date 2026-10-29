@@ -78,4 +78,47 @@ class WidgetConfigBindingTest {
         assertEquals(emptyList<Long>(), WidgetConfigBinding.orphanIds(emptyList(), emptySet()))
         assertNull(WidgetConfigBinding.findReusableAutoConfig(emptyList(), emptySet()))
     }
+
+    @Test
+    fun `恢复交换ID时从原始快照读取绑定和样式`() {
+        val bindings = mapOf(
+            10 to WidgetConfigBinding.Binding(1L, "style-a"),
+            20 to WidgetConfigBinding.Binding(2L, "style-b")
+        )
+        assertEquals(
+            mapOf(20 to bindings.getValue(10), 10 to bindings.getValue(20)),
+            WidgetConfigBinding.remap(bindings, intArrayOf(10, 20), intArrayOf(20, 10))
+        )
+        assertEquals(1L, bindings.getValue(10).configId)
+    }
+
+    @Test
+    fun `跨Provider恢复不删除已经成为新ID的旧ID`() {
+        val source = mapOf(
+            10 to WidgetConfigBinding.Binding(1L, "style-a"),
+            20 to WidgetConfigBinding.Binding(2L, "style-b")
+        )
+        val first = WidgetConfigBinding.remap(source, intArrayOf(10), intArrayOf(20))
+        val second = WidgetConfigBinding.remap(first, intArrayOf(20), intArrayOf(30), source, setOf(20))
+        assertEquals(mapOf(20 to source.getValue(10), 30 to source.getValue(20)), second)
+    }
+
+    @Test
+    fun `恢复来源缺失时不会继承目标碰撞ID的样式`() {
+        val bindings = mapOf(20 to WidgetConfigBinding.Binding(2L, "unrelated"))
+        assertEquals(
+            mapOf(30 to bindings.getValue(20)),
+            WidgetConfigBinding.remap(bindings, intArrayOf(10, 20), intArrayOf(20, 30))
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `重复目标ID不会静默覆盖恢复数据`() {
+        WidgetConfigBinding.remap(emptyMap(), intArrayOf(10, 20), intArrayOf(30, 30))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `长度不一致的恢复映射被拒绝`() {
+        WidgetConfigBinding.remap(emptyMap(), intArrayOf(10), intArrayOf(20, 30))
+    }
 }

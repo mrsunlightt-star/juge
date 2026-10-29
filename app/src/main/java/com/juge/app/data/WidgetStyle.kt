@@ -454,8 +454,7 @@ data class WidgetStyle(
          * 字段的迁移边界不同，差别就在于**用户能不能自己调**：
          * - **形状**不是用户可调项（界面上没有形状选择器，形状只随预设来），
          *   存档里只要还是上一版的形状，就一定是过时的，直接换成当前预设的形状；
-         * - **铺图方式**用户可调（个性定制的「铺图模式」），只在存档值**恰好等于上一版预设值**时
-         *   才迁移——用户自己选过的值（不等于旧值）一律保留，哪怕它与新版预设不同；
+         * - **铺图方式**用户可调，仅在形状尚未迁移且铺图方式仍为旧预设值时追平；
          * - **方版素材字段**（presetImageResNameSquare）用户不可调、又是后加的字段，
          *   旧存档没有它就会在 4×4 上继续用横版素材（纵向拉 76%），从当前预设补齐即可；
          * - **投影 / 描边**（showCardShadow、cardBorderWidthDp、cardBorderColor）用户不可调，
@@ -482,8 +481,8 @@ data class WidgetStyle(
                 cardBorderWidthDp = current.cardBorderWidthDp,
                 cardBorderColor = current.cardBorderColor
             )
-            PRESET_LEGACY_LOOKS.firstOrNull { it.presetId == id }?.let { legacy ->
-                if (out.shape == legacy.shape) out = out.copy(shape = current.shape)
+            PRESET_LEGACY_LOOKS.firstOrNull { it.presetId == id && it.shape == out.shape }?.let { legacy ->
+                out = out.copy(shape = current.shape)
                 val legacyMode = legacy.bgImageScaleMode
                 if (legacyMode != null &&
                     out.bgImageScaleMode == legacyMode &&

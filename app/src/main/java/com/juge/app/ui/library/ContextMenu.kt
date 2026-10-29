@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -219,6 +220,7 @@ internal fun ContextMenuOverlay(
  *   [onDrag] 流出并消费掉（LazyColumn 滚动接不走）；
  * - 拖拽中抬起：[onDragEnd]；菜单开着原地抬起：菜单保持，事件消费掉防止触发 chip 单击。
  */
+@Composable
 internal fun Modifier.longPressMenuDragGestures(
     key: Any?,
     onTap: (() -> Unit)?,
@@ -227,66 +229,77 @@ internal fun Modifier.longPressMenuDragGestures(
     onDrag: (delta: Offset) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit
-): Modifier = pointerInput(key) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        val pressPosition = down.position
-        val slop = viewConfiguration.touchSlop
+): Modifier {
+    val latestOnTap by rememberUpdatedState(onTap)
+    val latestOnLongPress by rememberUpdatedState(onLongPress)
+    val latestOnDragStart by rememberUpdatedState(onDragStart)
+    val latestOnDrag by rememberUpdatedState(onDrag)
+    val latestOnDragEnd by rememberUpdatedState(onDragEnd)
+    val latestOnDragCancel by rememberUpdatedState(onDragCancel)
+    return pointerInput(key) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val pressPosition = down.position
+            val slop = viewConfiguration.touchSlop
 
-        // 阶段一：长按判定。越界移动 = 滚动，整体放行；抬起 = 单击。
-        // 位移（ slop 内）不算打断：input 注入的微小抖动也走长按。
-        val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-            var traveled = 0f
-            while (true) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == down.id }
-                    ?: return@withTimeoutOrNull PressOutcome.Cancelled
-                if (change.changedToUpIgnoreConsumed()) {
-                    if (!change.isConsumed) onTap?.invoke()
-                    return@withTimeoutOrNull PressOutcome.Tap
+            // 阶段一：长按判定。越界移动 = 滚动，整体放行；抬起 = 单击。
+            // 位移（ slop 内）不算打断：input 注入的微小抖动也走长按。
+            val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                var traveled = 0f
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                        ?: return@withTimeoutOrNull PressOutcome.Cancelled
+                    if (change.changedToUpIgnoreConsumed()) {
+                        if (!change.isConsumed) latestOnTap?.invoke()
+                        return@withTimeoutOrNull PressOutcome.Tap
+                    }
+                    traveled += change.positionChange().getDistance()
+                    if (traveled > slop) return@withTimeoutOrNull PressOutcome.Scroll
                 }
-                traveled += change.positionChange().getDistance()
-                if (traveled > slop) return@withTimeoutOrNull PressOutcome.Scroll
+                @Suppress("UNREACHABLE_CODE") PressOutcome.LongPress
+            } ?: PressOutcome.LongPress
+            when (outcome) {
+                PressOutcome.Tap, PressOutcome.Scroll, PressOutcome.Cancelled ->
+                    return@awaitEachGesture
+                PressOutcome.LongPress -> Unit
             }
-            @Suppress("UNREACHABLE_CODE") PressOutcome.LongPress
-        } ?: PressOutcome.LongPress
-        when (outcome) {
-            PressOutcome.Tap, PressOutcome.Scroll, PressOutcome.Cancelled ->
-                return@awaitEachGesture
-            PressOutcome.LongPress -> Unit
-        }
 
-        // 长按成立：弹菜单。此后指针归本检测器，移动按拖拽处理。
-        onLongPress(pressPosition)
+            // 长按成立：弹菜单。此后指针归本检测器，移动按拖拽处理。
+            latestOnLongPress(pressPosition)
 
-        // 阶段二：菜单开着——按住不动保持菜单，移动越过 slop 进入拖拽。
-        var dragStarted = false
-        var moveTotal = Offset.Zero
-        while (true) {
-            val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id }
-            if (change == null) {
-                // 指针消失（被系统打断）：按拖拽取消收尾
-                if (dragStarted) onDragCancel()
-                return@awaitEachGesture
-            }
-            if (change.changedToUpIgnoreConsumed()) {
-                change.consume()
-                if (dragStarted) onDragEnd()
-                // 菜单开着原地松手：菜单保持打开，无拖拽收尾
-                return@awaitEachGesture
-            }
-            val delta = change.positionChangeIgnoreConsumed()
-            if (!dragStarted) {
-                moveTotal += delta
-                if (moveTotal.getDistance() > slop) {
-                    dragStarted = true
-                    onDragStart()
+            // 阶段二：菜单开着——按住不动保持菜单，移动越过 slop 进入拖拽。
+            var dragStarted = false
+            var moveTotal = Offset.Zero
+            try {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null) return@awaitEachGesture
+                    if (change.changedToUpIgnoreConsumed()) {
+                        // ACTION_CANCEL 会生成已消费的抬起事件，应交给 finally 取消拖拽。
+                        if (dragStarted && !change.isConsumed) {
+                            dragStarted = false
+                            latestOnDragEnd()
+                        }
+                        change.consume()
+                        return@awaitEachGesture
+                    }
+                    val delta = change.positionChangeIgnoreConsumed()
+                    if (!dragStarted) {
+                        moveTotal += delta
+                        if (moveTotal.getDistance() > slop) {
+                            dragStarted = true
+                            latestOnDragStart()
+                        }
+                    }
+                    if (dragStarted) latestOnDrag(delta)
+                    // 长按后事件全部消费：列表滚动、chip 单击都不再插手
+                    change.consume()
                 }
+            } finally {
+                if (dragStarted) latestOnDragCancel()
             }
-            if (dragStarted) onDrag(delta)
-            // 长按后事件全部消费：列表滚动、chip 单击都不再插手
-            change.consume()
         }
     }
 }

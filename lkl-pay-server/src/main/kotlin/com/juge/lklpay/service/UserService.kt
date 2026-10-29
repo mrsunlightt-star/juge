@@ -75,9 +75,14 @@ class UserService(
         }
 
         throttle.clear(username)
-        user.lastLoginAt = System.currentTimeMillis()
-        log.info("账号登录成功 userId={} username={}", user.id, user.username)
-        return issue(user)
+        // 不修改验密时的旧实体，避免整行 flush 覆盖并发付款权益；字段更新清空上下文后重新读取。
+        if (users.updateLastLoginAt(user.id!!, System.currentTimeMillis()) != 1) {
+            throw AuthException(AuthException.UNAUTHORIZED, "账号不存在")
+        }
+        val latestUser = users.findById(user.id!!).orElse(null)
+            ?: throw AuthException(AuthException.UNAUTHORIZED, "账号不存在")
+        log.info("账号登录成功 userId={} username={}", latestUser.id, latestUser.username)
+        return issue(latestUser)
     }
 
     /** 校验登录态并续期最近使用时间；失败一律抛 UNAUTHORIZED */
@@ -119,9 +124,10 @@ class UserService(
     fun deleteAccount(token: String?) {
         val user = authenticateInternal(token)
         val uid = user.id!!
-        val unbound = orders.findByUserId(uid).onEach { it.userId = null }.size
+        val unbound = orders.unbindUser(uid)
         val tokenCount = tokens.deleteByUserId(uid)
-        users.delete(user)
+        // unbindUser 已清空上下文，不再合并旧账号实体。
+        users.deleteById(uid)
         log.info("账号已注销 userId={} username={} 解绑订单={} 清除令牌={}", uid, user.username, unbound, tokenCount)
     }
 

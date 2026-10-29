@@ -180,6 +180,28 @@ class WidgetStyleJsonTest {
     }
 
     @Test
+    fun `当前四小只预设保留用户选择的居中适应`() {
+        val style = WidgetStyle.PRESETS.first { it.presetId == "p_cute_four_kids" }.copy(
+            bgImageScaleMode = com.juge.app.data.ImageScaleMode.CENTER_FIT,
+            backgroundImagePath = "/data/user/0/app/files/bg_images/custom.png"
+        )
+        assertEquals(style, WidgetStyle.fromJsonString(style.toJsonString()))
+    }
+
+    @Test
+    fun `旧预设迁移后仍可重新选择居中适应`() {
+        val current = WidgetStyle.PRESETS.first { it.presetId == "p_cute_four_kids" }
+        val legacy = current.copy(
+            shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
+            bgImageScaleMode = com.juge.app.data.ImageScaleMode.CENTER_FIT
+        )
+        val migrated = WidgetStyle.fromJsonString(legacy.toJsonString())
+        assertEquals(current, migrated)
+        val customized = migrated.copy(bgImageScaleMode = com.juge.app.data.ImageScaleMode.CENTER_FIT)
+        assertEquals(customized, WidgetStyle.fromJsonString(customized.toJsonString()))
+    }
+
+    @Test
     fun `旧存档自动补上方版素材字段`() {
         val plushForest = WidgetStyle.PRESETS.first { it.presetId == "p_plush_forest" }
         val legacyJson = org.json.JSONObject(plushForest.toJsonString())

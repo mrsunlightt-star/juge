@@ -102,7 +102,8 @@ class AlipayPayService(private val props: AlipayProperties) {
             outTradeNo, response.code, response.subCode, response.tradeStatus,
         )
         return mapOf(
-            "out_trade_no" to outTradeNo,
+            // 必须保留网关实际返回的订单号，不能用请求值掩盖缺失或串单。
+            "out_trade_no" to response.outTradeNo,
             "trade_no" to response.tradeNo,
             "trade_status" to response.tradeStatus,
             "total_amount" to response.totalAmount,

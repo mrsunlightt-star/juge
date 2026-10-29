@@ -65,10 +65,7 @@ class PayOrderService(
         val order = orders.findById(outTradeNo).orElse(null)
             ?: return MarkPaidOutcome.OrderMissing
 
-        if (order.status == PayOrder.STATUS_PAID) {
-            return MarkPaidOutcome.AlreadyPaid
-        }
-
+        // 已付款也必须核对本次结果的金额，不能让幂等分支绕过查询的校验闸门。
         val paidFen = yuanToFen(paidAmountYuan)
         if (paidFen == null) {
             // 金额缺失/解析失败时绝不放行：防改价是最后一道闸，没有「跳过核对」的安全分支
@@ -85,6 +82,9 @@ class PayOrderService(
             )
             return MarkPaidOutcome.AmountMismatch
         }
+        if (order.status == PayOrder.STATUS_PAID) {
+            return MarkPaidOutcome.AlreadyPaid
+        }
 
         // compare-and-set：只有把状态从 CREATED 改成 PAID 的那一次才继续发货
         val affected = orders.markPaidIfCreated(
@@ -98,18 +98,18 @@ class PayOrderService(
             notifyRaw = notifyRaw?.takeIf { it.isNotBlank() }?.take(4000) ?: order.notifyRaw,
         )
         if (affected == 0) {
-            // 并发下另一个请求已先完成置位：幂等短路，绝不重复发货
-            log.info("订单已被并发请求置为已支付，本次幂等忽略 outTradeNo={}", outTradeNo)
-            return MarkPaidOutcome.AlreadyPaid
+            // CAS 失败也可能是 CLOSED 或订单已删除，只有重新确认 PAID 才算幂等成功。
+            return unchangedOutcome(outTradeNo)
         }
 
-        // 批量 UPDATE 已清掉持久化上下文，这里重新读取本次写入后的行
-        val paidOrder = orders.findById(outTradeNo).orElse(null)
-        if (paidOrder != null) grantProIfBound(paidOrder)
+        // 批量 UPDATE 已清掉持久化上下文；违反事务内状态不变量时回滚，不能报告成功。
+        val paidOrder = checkNotNull(orders.findById(outTradeNo).orElse(null))
+        check(paidOrder.status == PayOrder.STATUS_PAID)
+        grantProIfBound(paidOrder)
 
         log.info(
             "订单已置为已支付 outTradeNo={} tradeNo={} buyerUserId={} amountFen={}",
-            outTradeNo, paidOrder?.tradeNo ?: tradeNo, paidOrder?.buyerUserId ?: buyerUserId, order.amountFen,
+            outTradeNo, paidOrder.tradeNo, paidOrder.buyerUserId, order.amountFen,
         )
         return MarkPaidOutcome.Marked
     }
@@ -123,43 +123,44 @@ class PayOrderService(
      */
     private fun grantProIfBound(order: PayOrder) {
         val userId = order.userId ?: return
-        val user = users.findById(userId).orElse(null)
-        if (user == null) {
+        val affected = users.grantProIfNotGranted(userId, checkNotNull(order.paidAt), order.outTradeNo)
+        if (affected == 1) {
+            log.info("已为账号开通 PRO userId={} outTradeNo={}", userId, order.outTradeNo)
+        } else if (!users.existsById(userId)) {
             log.error("订单已支付但归属账号不存在，需人工核查 outTradeNo={} userId={}", order.outTradeNo, userId)
-            return
         }
-        if (user.pro) return
-        user.pro = true
-        user.proActivatedAt = order.paidAt
-        user.proOutTradeNo = order.outTradeNo
-        log.info("已为账号开通 PRO userId={} username={} outTradeNo={}", user.id, user.username, order.outTradeNo)
     }
 
     /** 交易关闭（超时未付或用户主动关闭），未支付过的订单才需要落状态 */
     @Transactional
     fun markClosed(outTradeNo: String): MarkPaidOutcome {
-        val order = orders.findById(outTradeNo).orElse(null)
-            ?: return MarkPaidOutcome.OrderMissing
-        if (order.status != PayOrder.STATUS_CREATED) {
-            return MarkPaidOutcome.AlreadyPaid
-        }
-        order.status = PayOrder.STATUS_CLOSED
+        val affected = orders.markClosedIfCreated(outTradeNo, PayOrder.STATUS_CLOSED, PayOrder.STATUS_CREATED)
+        if (affected == 0) return unchangedOutcome(outTradeNo)
         log.info("订单已置为已关闭 outTradeNo={}", outTradeNo)
         return MarkPaidOutcome.Marked
     }
 
-    /** 解析「元」为「分」；无法解析时返回 null，调用方必须拒绝置为已支付 */
+    /** 只能在清理过旧实体的 CAS 之后调用，避免把并发闭单误报为付款成功。 */
+    private fun unchangedOutcome(outTradeNo: String): MarkPaidOutcome {
+        val current = orders.findById(outTradeNo).orElse(null) ?: return MarkPaidOutcome.OrderMissing
+        return if (current.status == PayOrder.STATUS_PAID) MarkPaidOutcome.AlreadyPaid else MarkPaidOutcome.NotPaid
+    }
+
+    /** 解析「元」为「分」；非整分或溢出不能截断成一个恰好匹配订单的金额。 */
     private fun yuanToFen(yuan: String?): Long? {
         if (yuan.isNullOrBlank()) return null
-        return runCatching { BigDecimal(yuan).movePointRight(2).toLong() }.getOrNull()
+        return runCatching { BigDecimal(yuan).movePointRight(2).longValueExact() }.getOrNull()
     }
 
     enum class MarkPaidOutcome {
-        /** 本次成功置为已支付 */
+        /** 本次成功流转状态（markPaid 为 PAID，markClosed 为 CLOSED） */
         Marked,
 
-        /** 已是终态，幂等短路 */
+        /** 已确认是 PAID，幂等短路 */
         AlreadyPaid,
+
+        /** 未能转为 PAID（如 CLOSED），绝非支付成功 */
+        NotPaid,
 
         /** 本地无此订单，需人工核查 */
         OrderMissing,

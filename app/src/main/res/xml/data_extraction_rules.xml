@@ -10,7 +10,6 @@
         <!-- 备份 SharedPreferences，但排除凭证/同意状态/设备绑定数据 -->
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
-        <exclude domain="sharedpref" path="widget_bindings_prefs.xml"/>
         <exclude domain="sharedpref" path="account_prefs.xml"/>
         <exclude domain="sharedpref" path="consent_prefs.xml"/>
         <exclude domain="sharedpref" path="app_settings.xml"/>
@@ -20,7 +19,6 @@
         <include domain="file" path="bg_images/"/>
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
-        <exclude domain="sharedpref" path="widget_bindings_prefs.xml"/>
         <exclude domain="sharedpref" path="account_prefs.xml"/>
         <exclude domain="sharedpref" path="consent_prefs.xml"/>
         <exclude domain="sharedpref" path="app_settings.xml"/>

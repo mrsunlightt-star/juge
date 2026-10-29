@@ -66,6 +66,60 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onRestored(context: Context, oldWidgetIds: IntArray, newWidgetIds: IntArray) {
+        synchronized(bindingLock) {
+            if (oldWidgetIds.size != newWidgetIds.size || oldWidgetIds.any { it <= 0 } ||
+                newWidgetIds.any { it <= 0 } || oldWidgetIds.toSet().size != oldWidgetIds.size ||
+                newWidgetIds.toSet().size != newWidgetIds.size || newWidgetIds.isEmpty()
+            ) {
+                Timber.w("Ignoring invalid widget restore mapping")
+                return
+            }
+            val manager = AppWidgetManager.getInstance(context)
+            if (newWidgetIds.all { manager.getAppWidgetOptions(it).getBoolean(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED) }) return
+            val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+            val values = prefs.all
+            val savedTargets = prefs.getStringSet(KEY_RESTORE_TARGETS, emptySet()).orEmpty()
+            val continuing = newWidgetIds.any { it.toString() in savedTargets }
+            val bindings = readBindings(values)
+            val source = if (continuing) readBindings(values, RESTORE_SOURCE_PREFIX) else bindings
+            val restored = if (continuing) {
+                prefs.getStringSet(KEY_RESTORED_IDS, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
+            } else emptySet()
+            val targets = if (continuing) savedTargets else (pendingRestoreIds(context) + newWidgetIds.toSet()).map { it.toString() }.toSet()
+            val remapped = WidgetConfigBinding.remap(bindings, oldWidgetIds, newWidgetIds, source, restored)
+            val editor = prefs.edit()
+            values.keys.filter { it.startsWith(KEY_WIDGET_CONFIG_ID) || it.startsWith(KEY_WIDGET_STYLE) }
+                .forEach { editor.remove(it) }
+            remapped.forEach { (id, binding) ->
+                binding.configId?.let { editor.putLong(KEY_WIDGET_CONFIG_ID + id, it) }
+                binding.styleJson?.let { editor.putString(KEY_WIDGET_STYLE + id, it) }
+            }
+            if (!continuing) {
+                values.keys.filter { it.startsWith(RESTORE_SOURCE_PREFIX) }.forEach { editor.remove(it) }
+                source.forEach { (id, binding) ->
+                    binding.configId?.let { editor.putLong(RESTORE_SOURCE_PREFIX + KEY_WIDGET_CONFIG_ID + id, it) }
+                    binding.styleJson?.let { editor.putString(RESTORE_SOURCE_PREFIX + KEY_WIDGET_STYLE + id, it) }
+                }
+            }
+            val completed = (restored + newWidgetIds.toSet()).map { it.toString() }.toSet()
+            editor.putStringSet(KEY_RESTORE_TARGETS, targets)
+                .putStringSet(KEY_RESTORED_IDS, completed)
+            check(editor.commit()) { "Unable to restore widget bindings" }
+            newWidgetIds.forEach { id ->
+                manager.updateAppWidgetOptions(id, Bundle().apply {
+                    putBoolean(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED, true)
+                })
+            }
+            if (completed.containsAll(targets)) {
+                val cleanup = prefs.edit().remove(KEY_RESTORE_TARGETS).remove(KEY_RESTORED_IDS)
+                prefs.all.keys.filter { it.startsWith(RESTORE_SOURCE_PREFIX) }.forEach { cleanup.remove(it) }
+                check(cleanup.commit()) { "Unable to finish widget restore" }
+                if (restored.isNotEmpty()) triggerUpdateAllWidgets(context)
+            }
+        }
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         for (id in appWidgetIds) {
             clearWidgetData(context, id)
@@ -122,6 +176,10 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         private const val BROADCAST_TIMEOUT_MS = 8_000L
         private const val KEY_WIDGET_CONFIG_ID = "widget_config_id_"
         private const val KEY_WIDGET_STYLE = "widget_style_"
+        private const val KEY_RESTORE_TARGETS = "restore_targets"
+        private const val KEY_RESTORED_IDS = "restored_ids"
+        private const val RESTORE_SOURCE_PREFIX = "restore_source_"
+        private val bindingLock = Any()
         // 公开广播可能被伪造，限制一次最多处理多少个组件 ID
         private const val MAX_BROADCAST_WIDGET_IDS = 64
 
@@ -220,91 +278,150 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             return "${(w + 30) / 70}*${(h + 30) / 70}"
         }
 
-        // 绑定组件对应的微件配置 ID
-        fun bindConfigToWidget(context: Context, appWidgetId: Int, configId: Long) {
-            context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
-                .edit()
-                .putLong(KEY_WIDGET_CONFIG_ID + appWidgetId, configId)
-                .apply()
+        fun ensureIndependentConfig(
+            context: Context,
+            appWidgetId: Int,
+            preferredConfigId: Long = -1L
+        ): WidgetConfig? = synchronized(bindingLock) {
+            if (appWidgetId <= 0 || hasPendingRestore(context)) return@synchronized null
+            val db = DbHelper.getInstance(context)
+            val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+            val bindings = readBindings(prefs.all)
+            val currentId = bindings[appWidgetId]?.configId
+            val current = currentId?.let(db::getWidgetConfigById)
+            val source = current ?: db.getWidgetConfigById(preferredConfigId) ?: run {
+                val configs = db.getAllWidgetConfigs()
+                val boundIds = bindings.values.mapNotNull { it.configId }.toSet()
+                configs.firstOrNull { it.id !in boundIds } ?: configs.firstOrNull()
+            } ?: return@synchronized null
+            bindIndependentConfig(context, appWidgetId, source, bindings, current != null)
         }
 
-        // 兼容原有名言一键推送至桌面小组件的功能
-        fun bindReminderToWidget(context: Context, appWidgetId: Int, reminderId: Long) {
-            val dbHelper = DbHelper.getInstance(context)
-            val reminder = dbHelper.getReminderById(reminderId) ?: return
+        private fun bindIndependentConfig(
+            context: Context,
+            appWidgetId: Int,
+            source: WidgetConfig,
+            bindings: Map<Int, WidgetConfigBinding.Binding>,
+            preserveStyle: Boolean
+        ): WidgetConfig? {
+            val db = DbHelper.getInstance(context)
+            val styleJson = bindings[appWidgetId]?.styleJson.takeIf { preserveStyle }
+            val shared = WidgetConfigBinding.isShared(source.id, appWidgetId, bindings)
+            if (!shared && preserveStyle && bindings[appWidgetId]?.configId == source.id) return source
+            val config = if (shared) {
+                db.cloneWidgetConfigForBinding(source.id, appWidgetId, styleJson) ?: return null
+            } else source
+            val editor = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE).edit()
+                .putLong(KEY_WIDGET_CONFIG_ID + appWidgetId, config.id)
+            if (!preserveStyle) editor.remove(KEY_WIDGET_STYLE + appWidgetId)
+            check(editor.commit()) { "Unable to persist widget binding" }
+            return config
+        }
 
-            val configId = getBoundConfigId(context, appWidgetId)
-            val boundConfig = dbHelper.getWidgetConfigById(configId)
-
-            if (boundConfig != null) {
-                dbHelper.updateWidgetConfig(
-                    boundConfig.copy(
-                        content = reminder.content,
-                        styleJson = reminder.styleJson ?: boundConfig.styleJson
-                    )
-                )
-            } else {
-                // 优先复用一个已没有组件绑定的旧配置（同样是自动建的那种），
-                // 否则每次「把金句推到桌面」都会新增一行，配置行只增不减。
-                val boundIds = getAllAppWidgetIds(context).map { getBoundConfigId(context, it) }.toSet()
-                val reusable = WidgetConfigBinding.findReusableAutoConfig(dbHelper.getAllWidgetConfigs(), boundIds)
-                val styleJson = reminder.styleJson ?: WidgetStyle.DEFAULT.toJsonString()
-                val newId = if (reusable != null) {
-                    dbHelper.updateWidgetConfig(
-                        reusable.copy(content = reminder.content, styleJson = styleJson)
-                    )
-                    reusable.id
-                } else {
-                    // Provider 自动建的行：显式记录 autoCreated，孤儿回收时才可能被回收；
-                    // 用户自建的行（列表里）不带这个标记，绝不入回收名单
-                    dbHelper.insertWidgetConfig(
-                        WidgetConfig(
-                            name = "${WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX}$appWidgetId",
-                            content = reminder.content,
-                            // 记录组件实际网格尺寸（getWidgetSizeString 返回 "4*4" 形式，转为配置表使用的 "4x4"）
-                            sizeType = getWidgetSizeString(context, appWidgetId).replace("*", "x"),
-                            styleJson = styleJson,
-                            autoCreated = true
-                        )
-                    )
-                }
-                if (newId != -1L) {
-                    bindConfigToWidget(context, appWidgetId, newId)
-                }
+        fun bindConfigToWidget(context: Context, appWidgetId: Int, configId: Long) {
+            synchronized(bindingLock) {
+                if (appWidgetId <= 0 || hasPendingRestore(context)) return
+                val source = DbHelper.getInstance(context).getWidgetConfigById(configId) ?: return
+                val bindings = readBindings(context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE).all)
+                bindIndependentConfig(context, appWidgetId, source, bindings, bindings[appWidgetId]?.configId == configId)
             }
         }
 
-        fun getBoundConfigId(context: Context, appWidgetId: Int): Long {
-            return context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+        fun bindReminderToWidget(context: Context, appWidgetId: Int, reminderId: Long) {
+            synchronized(bindingLock) {
+                if (appWidgetId <= 0 || hasPendingRestore(context)) return
+                val db = DbHelper.getInstance(context)
+                val reminder = db.getReminderById(reminderId) ?: return
+                val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+                val bindings = readBindings(prefs.all)
+                val existing = bindings[appWidgetId]?.configId?.let(db::getWidgetConfigById)
+                val config = if (existing != null) {
+                    ensureIndependentConfig(context, appWidgetId) ?: return
+                } else {
+                    val boundIds = bindings.values.mapNotNull { it.configId }.toSet()
+                    val reusable = WidgetConfigBinding.findReusableAutoConfig(db.getAllWidgetConfigs(), boundIds)
+                    val source = reusable ?: run {
+                        val id = db.insertWidgetConfig(
+                            WidgetConfig(
+                                name = "${WidgetConfigBinding.AUTO_CONFIG_NAME_PREFIX}$appWidgetId",
+                                content = reminder.content,
+                                sizeType = getWidgetSizeString(context, appWidgetId).replace("*", "x"),
+                                styleJson = reminder.styleJson ?: WidgetStyle.DEFAULT.toJsonString(),
+                                autoCreated = true
+                            )
+                        )
+                        db.getWidgetConfigById(id) ?: return
+                    }
+                    bindIndependentConfig(context, appWidgetId, source, bindings, false) ?: return
+                }
+                val styleJson = reminder.styleJson ?: getWidgetStyle(context, appWidgetId, config.styleJson).toJsonString()
+                db.updateWidgetConfig(config.copy(content = reminder.content, styleJson = styleJson))
+                prefs.edit().putString(KEY_WIDGET_STYLE + appWidgetId, styleJson).apply()
+            }
+        }
+
+        fun getBoundConfigId(context: Context, appWidgetId: Int): Long = synchronized(bindingLock) {
+            context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
                 .getLong(KEY_WIDGET_CONFIG_ID + appWidgetId, -1L)
         }
 
-        // 写入组件的独立样式
         fun saveWidgetStyle(context: Context, appWidgetId: Int, style: WidgetStyle) {
-            context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_WIDGET_STYLE + appWidgetId, style.toJsonString())
-                .apply()
-        }
-
-        // 读取组件的独立样式
-        fun getWidgetStyle(context: Context, appWidgetId: Int, fallbackConfigStyleJson: String?): WidgetStyle {
-            val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
-            val savedStyleJson = prefs.getString(KEY_WIDGET_STYLE + appWidgetId, null)
-            return if (savedStyleJson != null) {
-                WidgetStyle.fromJsonString(savedStyleJson)
-            } else {
-                WidgetStyle.fromJsonString(fallbackConfigStyleJson)
+            synchronized(bindingLock) {
+                if (appWidgetId <= 0 || hasPendingRestore(context)) return
+                context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_WIDGET_STYLE + appWidgetId, style.toJsonString())
+                    .apply()
             }
         }
 
-        // 清空小组件的所有绑定和样式缓存
+        fun getWidgetStyle(context: Context, appWidgetId: Int, fallbackConfigStyleJson: String?): WidgetStyle =
+            synchronized(bindingLock) {
+                val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+                WidgetStyle.fromJsonString(prefs.getString(KEY_WIDGET_STYLE + appWidgetId, fallbackConfigStyleJson))
+            }
+
         fun clearWidgetData(context: Context, appWidgetId: Int) {
-            context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
-                .edit()
-                .remove(KEY_WIDGET_CONFIG_ID + appWidgetId)
-                .remove(KEY_WIDGET_STYLE + appWidgetId)
-                .apply()
+            synchronized(bindingLock) {
+                if (hasPendingRestore(context)) return
+                context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+                    .edit()
+                    .remove(KEY_WIDGET_CONFIG_ID + appWidgetId)
+                    .remove(KEY_WIDGET_STYLE + appWidgetId)
+                    .apply()
+            }
+        }
+
+        private fun readBindings(values: Map<String, *>, prefix: String = ""): Map<Int, WidgetConfigBinding.Binding> {
+            val ids = values.keys.mapNotNull { key ->
+                when {
+                    key.startsWith(prefix + KEY_WIDGET_CONFIG_ID) -> key.removePrefix(prefix + KEY_WIDGET_CONFIG_ID).toIntOrNull()
+                    key.startsWith(prefix + KEY_WIDGET_STYLE) -> key.removePrefix(prefix + KEY_WIDGET_STYLE).toIntOrNull()
+                    else -> null
+                }
+            }.toSet()
+            return ids.associateWith { id ->
+                WidgetConfigBinding.Binding(
+                    (values[prefix + KEY_WIDGET_CONFIG_ID + id] as? Long)?.takeIf { it > 0L },
+                    values[prefix + KEY_WIDGET_STYLE + id] as? String
+                )
+            }
+        }
+
+        private fun pendingRestoreIds(context: Context): Set<Int> {
+            val manager = AppWidgetManager.getInstance(context)
+            return getAllAppWidgetIds(context).filter { id ->
+                val options = manager.getAppWidgetOptions(id)
+                options.containsKey(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED) &&
+                    !options.getBoolean(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED)
+            }.toSet()
+        }
+
+        private fun hasPendingRestore(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
+            val targets = prefs.getStringSet(KEY_RESTORE_TARGETS, emptySet()).orEmpty()
+            val completed = prefs.getStringSet(KEY_RESTORED_IDS, emptySet()).orEmpty()
+            return targets.any { it !in completed } || pendingRestoreIds(context).isNotEmpty()
         }
 
         /**
@@ -313,15 +430,18 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
          * 只碰自动生成的行，用户手动创建/旧数据迁移出来的配置一律不动，避免误删内容。
          * 组件被删除时调用一次，防止「加一个组件再删掉」反复累积无主配置。
          */
-        private fun pruneOrphanAutoConfigs(context: Context) {
-            val dbHelper = DbHelper.getInstance(context)
-            val boundIds = getAllAppWidgetIds(context)
-                .map { getBoundConfigId(context, it) }
-                .toSet()
-            val orphans = WidgetConfigBinding.orphanIds(dbHelper.getAllWidgetConfigs(), boundIds)
-            for (id in orphans) {
-                dbHelper.deleteWidgetConfig(id)
-                Timber.i("pruned orphan widget config id=%d", id)
+        internal fun pruneOrphanAutoConfigs(context: Context) {
+            synchronized(bindingLock) {
+                if (hasPendingRestore(context)) return
+                val dbHelper = DbHelper.getInstance(context)
+                val values = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE).all
+                val boundIds = (readBindings(values).values + readBindings(values, RESTORE_SOURCE_PREFIX).values)
+                    .mapNotNull { it.configId }.toSet()
+                val orphans = WidgetConfigBinding.orphanIds(dbHelper.getAllWidgetConfigs(), boundIds)
+                for (id in orphans) {
+                    dbHelper.deleteWidgetConfig(id)
+                    Timber.i("pruned orphan widget config id=%d", id)
+                }
             }
         }
 
@@ -330,6 +450,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
          * 主线程请使用 [updateAppWidgetAsync]。
          */
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+            if (synchronized(bindingLock) { hasPendingRestore(context) }) return
             // 检查隐私政策是否已同意（consent_prefs，不参与系统备份）
             val isPrivacyAccepted = com.juge.app.data.AppPrefs.isPrivacyAccepted(context)
 
@@ -363,7 +484,7 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
 
             val bitmap = if (!isPrivacyAccepted) {
                 // 未同意隐私政策：渲染合规兜底文本，不读取本地数据库
-                WidgetCanvasRenderer.render(
+                WidgetCanvasRenderer.renderForWidget(
                     context = context,
                     widthDp = minWidthDp,
                     heightDp = minHeightDp,
@@ -375,55 +496,28 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                 // 触发老数据升级检测迁移，确保数据已从 reminders 导入到 widget_config
                 dbHelper.migrateLegacyDataIfNeeded()
 
-                currentConfigId = getBoundConfigId(context, appWidgetId)
-                var config = if (currentConfigId != -1L) {
-                    dbHelper.getWidgetConfigById(currentConfigId)
-                } else {
-                    null
-                }
-
+                val config = ensureIndependentConfig(context, appWidgetId)
                 if (config == null) {
-                    // 未绑定或绑定的配置已被删除：优先分发"当前尚未被桌面其他小组件绑定"的配置，避免重复
-                    val configs = dbHelper.getAllWidgetConfigs()
-                    if (configs.isEmpty()) {
-                        // 库里一条配置也没有（多为全新安装恰逢迁移尚未完成）：不直接 return，
-                        // 那样桌面只剩透明占位，用户无从区分「组件坏了」还是「还没内容」；
-                        // 用与隐私未同意一致的方式渲染一张引导位图
-                        val fallback = WidgetCanvasRenderer.render(
-                            context = context,
-                            widthDp = minWidthDp,
-                            heightDp = minHeightDp,
-                            content = "打开句阁，添加你的第一条金句",
-                            style = WidgetStyle.DEFAULT
-                        )
-                        views.setImageViewBitmap(R.id.widget_image_view, fallback)
-                        appWidgetManager.updateAppWidget(appWidgetId, views)
-                        fallback.recycle()
-                        return
-                    }
-                    val allIds = getAllAppWidgetIds(context)
-                    val boundConfigIds = allIds.filter { it != appWidgetId }
-                        .map { getBoundConfigId(context, it) }
-                        .toSet()
-                    config = configs.find { it.id !in boundConfigIds } ?: configs.firstOrNull() ?: return
+                    if (synchronized(bindingLock) { hasPendingRestore(context) }) return
+                    val fallback = WidgetCanvasRenderer.renderForWidget(
+                        context = context,
+                        widthDp = minWidthDp,
+                        heightDp = minHeightDp,
+                        content = "打开句阁，添加你的第一条金句",
+                        style = WidgetStyle.DEFAULT
+                    )
+                    views.setImageViewBitmap(R.id.widget_image_view, fallback)
+                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                    fallback.recycle()
+                    return
                 }
-
-                if (currentConfigId != config.id) {
-                    bindConfigToWidget(context, appWidgetId, config.id)
-                    // 换绑后清除旧的组件级样式覆盖：避免上一个配置的样式残留在新配置上继续优先生效，
-                    // 新配置以自身 styleJson 作为样式来源（保存路径会同时写 config 与组件样式，数据不丢）
-                    context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
-                        .edit()
-                        .remove(KEY_WIDGET_STYLE + appWidgetId)
-                        .apply()
-                    currentConfigId = config.id
-                }
+                currentConfigId = config.id
 
                 // 获取绑定的样式配置
                 val style = getWidgetStyle(context, appWidgetId, config.styleJson)
 
                 // 使用 Canvas 渲染生成 Bitmap
-                WidgetCanvasRenderer.render(
+                WidgetCanvasRenderer.renderForWidget(
                     context = context,
                     widthDp = minWidthDp,
                     heightDp = minHeightDp,

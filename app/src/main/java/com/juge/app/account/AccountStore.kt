@@ -18,6 +18,9 @@ object AccountStore {
     private const val KEY_NICKNAME = "nickname"
     private const val KEY_PRO = "pro"
 
+    // 快照、登录、退出和条件更新共用此锁，避免 compare-token 与 mutation 之间被换号。
+    private val sessionLock = Any()
+
     data class Snapshot(
         val token: String,
         val username: String,
@@ -29,10 +32,10 @@ object AccountStore {
     }
 
     /** 未登录返回 null——不登录是正常状态，不是异常 */
-    fun snapshot(context: Context): Snapshot? {
+    fun snapshot(context: Context): Snapshot? = synchronized(sessionLock) {
         val prefs = prefs(context)
-        val token = prefs.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
-        return Snapshot(
+        val token = prefs.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return@synchronized null
+        Snapshot(
             token = token,
             username = prefs.getString(KEY_USERNAME, "").orEmpty(),
             nickname = prefs.getString(KEY_NICKNAME, null),
@@ -43,21 +46,45 @@ object AccountStore {
     fun token(context: Context): String? = snapshot(context)?.token
 
     fun saveSession(context: Context, token: String, username: String, nickname: String?, pro: Boolean) {
-        prefs(context).edit()
-            .putString(KEY_TOKEN, token)
-            .putString(KEY_USERNAME, username)
-            .putString(KEY_NICKNAME, nickname)
-            .putBoolean(KEY_PRO, pro)
-            .apply()
+        synchronized(sessionLock) {
+            prefs(context).edit()
+                .putString(KEY_TOKEN, token)
+                .putString(KEY_USERNAME, username)
+                .putString(KEY_NICKNAME, nickname)
+                .putBoolean(KEY_PRO, pro)
+                .apply()
+        }
     }
 
-    /** 刷新账号快照，令牌保持不变 */
+    /** 刷新账号快照，令牌保持不变；异步响应必须使用 updateAccountIfTokenMatches。 */
     fun updateAccount(context: Context, username: String, nickname: String?, pro: Boolean) {
-        prefs(context).edit()
-            .putString(KEY_USERNAME, username)
-            .putString(KEY_NICKNAME, nickname)
-            .putBoolean(KEY_PRO, pro)
-            .apply()
+        synchronized(sessionLock) {
+            prefs(context).edit()
+                .putString(KEY_USERNAME, username)
+                .putString(KEY_NICKNAME, nickname)
+                .putBoolean(KEY_PRO, pro)
+                .apply()
+        }
+    }
+
+    /** 原子地检查请求令牌并更新；false 表示响应已过期，调用方不得发布该账号的结论。 */
+    fun updateAccountIfTokenMatches(
+        context: Context,
+        expectedToken: String,
+        username: String,
+        nickname: String?,
+        pro: Boolean,
+    ): Boolean = synchronized(sessionLock) {
+        if (token(context) != expectedToken) return@synchronized false
+        updateAccount(context, username, nickname, pro)
+        true
+    }
+
+    /** 只清理由该请求使用的会话，旧 401 不得清掉新登录。 */
+    fun clearIfTokenMatches(context: Context, expectedToken: String): Boolean = synchronized(sessionLock) {
+        if (token(context) != expectedToken) return@synchronized false
+        clear(context)
+        true
     }
 
     /**
@@ -65,7 +92,9 @@ object AccountStore {
      * 用户已经付过款，退出登录不该把已解锁的风格收回去。
      */
     fun clear(context: Context) {
-        prefs(context).edit().clear().apply()
+        synchronized(sessionLock) {
+            prefs(context).edit().clear().apply()
+        }
     }
 
     private fun prefs(context: Context): SharedPreferences =
