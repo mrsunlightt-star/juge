@@ -17,8 +17,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -50,12 +50,14 @@ import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
+import com.juge.app.ui.theme.LocalAppDarkTheme
 import com.juge.app.ui.theme.brandInkSoft
 import com.juge.app.ui.theme.premiumGold
 import com.juge.app.ui.theme.premiumGoldEnd
 import com.juge.app.ui.theme.premiumGoldInk
 import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.selectBlue
+import com.juge.app.ui.theme.surfaceRaised
+import com.juge.app.ui.theme.textWhite
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,10 +71,21 @@ private val HeroTextShadow = Shadow(
 )
 
 /**
- * 顶部导航栏：品牌标题 + 刷新按钮 + 夜色开关 + PRO 徽章 + 开发开关。
+ * 顶部导航栏：品牌标题 + 刷新按钮 + 夜色开关 + 会员入口 + 开发开关。
+ *
+ * 会员入口按激活状态分流（产品要求，2026-10）：
+ * - **未激活**：保持金色的「激活PRO ￥3.99」胶囊，点击直接进付费墙——这是待激活用户
+ *   在 App 顶端唯一且最醒目的转化入口；
+ * - **已激活**：胶囊换成「我的」图标（与刷新/日夜同款 38dp 白圆），点开账户中心——
+ *   买断之后 PRO 徽章不再提供任何动作，用户真正需要的是会员状态与账号操作。
+ *
+ * 三颗圆钮（刷新 / 日夜 / 我的）的底色与图标色跟随 App 主题：
+ * - 日间：白圆 + 墨绿图标——英雄区是亮天空，白圆与白色卡片同一套明度语言；
+ * - 夜间：`surfaceRaised` 暗色浮起面 + 霜白图标——英雄区整体压暗 52%~64%，
+ *   再摆三块纯白圆就成了全屏最亮的东西，与「真正的暗黑背景」主题冲突。
  *
  * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity），只把内联闭包改成入参：
- * 刷新结果、激活状态变化、打开支付弹窗三个动作交回调用方。
+ * 刷新结果、激活状态变化、打开支付弹窗/账户中心四个动作交回调用方。
  */
 @Composable
 fun MainTopBar(
@@ -83,12 +96,16 @@ fun MainTopBar(
     onReloaded: (List<Reminder>, List<Category>, List<WidgetConfig>) -> Unit,
     onActivatedChange: (Boolean) -> Unit,
     onOpenPro: () -> Unit,
+    onOpenMine: () -> Unit,
     isDarkTheme: Boolean,
     onToggleDarkTheme: () -> Unit
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
     var isRefreshing by remember { mutableStateOf(false) }
+    // 顶栏圆钮的底色/图标色随主题：日间白圆墨绿（原有设计），夜间暗色浮起面 + 霜白
+    val circleSurface = if (LocalAppDarkTheme.current) surfaceRaised else Color.White
+    val circleTint = if (LocalAppDarkTheme.current) textWhite else brandInkSoft
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -157,20 +174,20 @@ fun MainTopBar(
                         )
                         // 不画 1dp 描边（2026-10 改版）：38dp 白圆自身的填充 + 柔和阴影
                         // 已经能和英雄区的天空/压暗拉开边界，白描边在亮天空上本来也看不见。
-                        .background(Color.White, CircleShape),
+                        .background(circleSurface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = brandInkSoft,
+                            color = circleTint,
                             strokeWidth = 2.dp
                         )
                     } else {
                         Icon(
                             Icons.Default.Refresh,
                             contentDescription = "刷新数据",
-                            tint = brandInkSoft,
+                            tint = circleTint,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -202,60 +219,96 @@ fun MainTopBar(
                             spotColor = AppShadows.spotShadow,
                         )
                         // 同刷新圆：去掉白色 1dp 描边，只留白圆填充 + 阴影。
-                        .background(Color.White, CircleShape),
+                        .background(circleSurface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
                         contentDescription = if (isDarkTheme) "切换为日间模式" else "切换为夜间模式",
-                        tint = brandInkSoft,
+                        tint = circleTint,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            val badgeBg = if (isActivated) {
-                Brush.horizontalGradient(listOf(selectBlue, selectBlue))
-            } else {
-                Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd))
-            }
-            // 金色底用深棕字，既保留 PRO 的金色识别，又满足 4.5:1
-            val badgeContent = if (isActivated) Color.White else premiumGoldInk
-
-            // 胶囊视觉高约 28dp，外层 48dp 高度补足触控热区
-            Box(
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .clip(AppShape.pill)
-                    .clickable(
-                        onClickLabel = "打开 PRO 激活",
-                        role = Role.Button,
-                    ) {
-                        haptics.click()
-                        onOpenPro()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
+            if (isActivated) {
+                // 已激活：入口收成「我的」图标（38dp 白圆 + 墨色人像，与左侧两颗圆钮同规格）。
+                // 不再常驻 PRO 徽章——买断之后它没有可点的动作，会员状态改在「我的」页展示。
+                Box(
                     modifier = Modifier
-                        .clip(AppShape.pill)
-                        .background(badgeBg)
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            onClickLabel = "打开我的",
+                            role = Role.Button,
+                        ) {
+                            haptics.click()
+                            onOpenMine()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    // 扁平线性图标替代实体 emoji：已激活用认证徽章，未激活用Premium徽章
-                    Icon(
-                        imageVector = if (isActivated) Icons.Filled.Verified else Icons.Filled.WorkspacePremium,
-                        contentDescription = null,
-                        tint = badgeContent,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = if (isActivated) "PRO" else "激活PRO ${ProPurchase.PRICE_TEXT}",
-                        style = AppType.label,
-                        color = badgeContent
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .shadow(
+                                elevation = AppShadows.control,
+                                shape = CircleShape,
+                                clip = false,
+                                ambientColor = AppShadows.ambientShadow,
+                                spotColor = AppShadows.spotShadow,
+                            )
+                            .background(circleSurface, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "我的",
+                            tint = circleTint,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            } else {
+                // 未激活：保持原来的金色待激活胶囊（文案/配色/热区都不变，只有价格跟着定价走）
+                val badgeBg = Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd))
+                // 金色底用深棕字，既保留 PRO 的金色识别，又满足 4.5:1
+                val badgeContent = premiumGoldInk
+
+                // 胶囊视觉高约 28dp，外层 48dp 高度补足触控热区
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clip(AppShape.pill)
+                        .clickable(
+                            onClickLabel = "打开 PRO 激活",
+                            role = Role.Button,
+                        ) {
+                            haptics.click()
+                            onOpenPro()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(AppShape.pill)
+                            .background(badgeBg)
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 扁平线性图标替代实体 emoji：未激活用 Premium 徽章
+                        Icon(
+                            imageVector = Icons.Filled.WorkspacePremium,
+                            contentDescription = null,
+                            tint = badgeContent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "激活PRO ${ProPurchase.PRICE_TEXT}",
+                            style = AppType.label,
+                            color = badgeContent
+                        )
+                    }
                 }
             }
 

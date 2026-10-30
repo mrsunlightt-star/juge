@@ -18,6 +18,11 @@ import kotlinx.coroutines.launch
  *
  * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity）：付费流程与激活回灌写在这里，
  * 但激活状态、弹窗开关、账号昵称仍由调用方持有，只通过回调写回。
+ *
+ * 「我的」页不在这里：它是整屏页面（同窗口上层页面），由 MainAppScreen 直接渲染；
+ * 这里的三个 Dialog 是独立窗口，天然盖在它上面。
+ *
+ * 声明顺序 = 窗口层级：协议全文最后声明——从登录弹窗里点协议要能盖住当前这一层。
  */
 @Composable
 fun MainOverlays(
@@ -34,7 +39,7 @@ fun MainOverlays(
     showAccountDialog: Boolean,
     onAccountDismiss: () -> Unit,
     legalDoc: String?,
-    onLegalDismiss: () -> Unit
+    onLegalDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
 

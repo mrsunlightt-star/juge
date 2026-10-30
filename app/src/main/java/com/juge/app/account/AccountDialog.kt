@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.ui.AppDangerButton
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppDialogTitle
@@ -97,14 +98,14 @@ fun AccountDialog(
         }
     }
 
+    // 退出登录/注销账号与「我的」子页面共用 [AccountActions]：两处对「要不要动本地 PRO、
+    // 服务端失败时本地会话留不留」的规则必须只有一份实现
     val logout: () -> Unit = {
         if (!busy) {
-            val token = snapshot?.token
             busy = true
             message = ""
             scope.launch {
-                if (token != null) AccountApi.logout(token)
-                AccountStore.clear(appContext)
+                AccountActions.logout(appContext)
                 snapshot = null
                 busy = false
             }
@@ -113,27 +114,20 @@ fun AccountDialog(
 
     val deleteAccount: () -> Unit = {
         if (!busy) {
-            val token = snapshot?.token
-            if (token == null) {
-                AccountStore.clear(appContext)
-                snapshot = null
-            } else {
-                busy = true
-                message = ""
-                scope.launch {
-                    AccountApi.deleteAccount(token).fold(
-                        onSuccess = {
-                            AccountStore.clear(appContext)
-                            snapshot = null
-                            confirmDelete = false
-                            busy = false
-                        },
-                        onFailure = { e ->
-                            busy = false
-                            message = e.message ?: "注销失败，请稍后重试"
-                        },
-                    )
-                }
+            busy = true
+            message = ""
+            scope.launch {
+                AccountActions.deleteAccount(appContext).fold(
+                    onSuccess = {
+                        snapshot = null
+                        confirmDelete = false
+                        busy = false
+                    },
+                    onFailure = { e ->
+                        busy = false
+                        message = e.message ?: "注销失败，请稍后重试"
+                    },
+                )
             }
         }
     }
@@ -326,11 +320,12 @@ fun AccountDialog(
                             enabled = !busy,
                             color = textTertiary
                         )
-                        AppTextButton(
+                        // 危险操作用实心 AppDangerButton（设计规范 §6.1.3），
+                        // 与「我的」页的注销账号确认同一形态
+                        AppDangerButton(
                             text = if (busy) "注销中…" else "确认注销",
                             onClick = deleteAccount,
                             enabled = !busy,
-                            color = dangerRed
                         )
                     }
                 }

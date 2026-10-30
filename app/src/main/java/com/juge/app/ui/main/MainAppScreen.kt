@@ -128,9 +128,19 @@ fun MainAppScreen(
     // 支付进行中：用于按钮置忙，避免重复拉起收银台
     var isPaying by remember { mutableStateOf(false) }
     var showAccountDialog by remember { mutableStateOf(false) }
-    // 「我的」页打开的协议全文：null / "user" / "privacy"
+    // 激活后顶栏的「我的」入口：账号与会员状态都在这个子页面里
+    var showMinePage by remember { mutableStateOf(false) }
+    // 「我的」页/协议行打开的协议全文：null / "user" / "privacy" / "license"
     var showLegalDoc by remember { mutableStateOf<String?>(null) }
-    var accountName by remember { mutableStateOf(AccountStore.snapshot(context)?.displayName) }
+    // 账号快照（含昵称/服务端 PRO 缓存）是唯一状态源：登录、退出、注销后都重新读一次，
+    // 顶栏「我的」页与付费墙里的账号名一起跟着变
+    var accountSnapshot by remember { mutableStateOf(AccountStore.snapshot(context)) }
+
+    // PRO 一旦被撤销（账号同步判定失效），「我的」页就没有入口了：顶栏已回到待激活胶囊，
+    // 页面若还开着就成了孤岛，直接收掉
+    LaunchedEffect(isActivatedState) {
+        if (!isActivatedState) showMinePage = false
+    }
 
     // 上次支付被中断（App 被杀 / 切后台）时复查留存订单，兜底「已付款但没激活成功」
     LaunchedEffect(Unit) {
@@ -146,7 +156,7 @@ fun MainAppScreen(
     // 已登录时用服务端结论回灌本地 PRO：换机、重装后这是唯一的找回入口。
     // 未登录或网络不可用时静默跳过，不影响本地任何功能。
     LaunchedEffect(Unit) {
-        accountName = AccountStore.snapshot(context)?.displayName
+        accountSnapshot = AccountStore.snapshot(context)
         when (val outcome = AccountSync.refresh(context)) {
             is AccountSync.Outcome.ServerSays -> {
                 if (outcome.pro && !trialManager.isActivated()) {
@@ -481,7 +491,7 @@ fun MainAppScreen(
         showProDialog = showProDialog,
         isActivated = isActivatedState,
         isPaying = isPaying,
-        accountName = accountName,
+        accountName = accountSnapshot?.displayName,
         activity = activity,
         trialManager = trialManager,
         onActivatedChange = { isActivatedState = it },
@@ -491,7 +501,8 @@ fun MainAppScreen(
         showAccountDialog = showAccountDialog,
         onAccountDismiss = {
             showAccountDialog = false
-            accountName = AccountStore.snapshot(context)?.displayName
+            // 登录/注册成功后账号名要立刻反映到付费墙与「我的」页
+            accountSnapshot = AccountStore.snapshot(context)
         },
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
@@ -510,222 +521,238 @@ fun MainAppScreen(
             composeView.isHardwareAccelerated && Build.FINGERPRINT != "robolectric"
     }
 
-    MainScreenBackground(heroHeight = heroHeight, hazeState = hazeState) {
-        // 顶部区域（顶栏 + 预览轮播 + 组件标签）不在抽屉里，也纳入右滑返回：
-        // 预览轮播还能往右翻时让轮播自己翻；单个组件/已在第一个预览时右滑返回。
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .swipeBackToPage(
-                    pagerState = pagerState,
-                    onSwipeBack = {
-                        scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
-                    },
-                    requirePagerMovement = false
-                )
-        ) {
-            MainTopBar(
-                isActivated = isActivatedState,
-                dbHelper = dbHelper,
-                trialManager = trialManager,
-                scope = scope,
-                onReloaded = { rems, cats, configs ->
-                    reminders = rems
-                    categories = cats
-                    widgetConfigs = configs
-                },
-                onActivatedChange = { isActivatedState = it },
-                onOpenPro = { showProDialog = true },
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme
-            )
-            WidgetPreviewPager(
-                pagerState = pagerState,
-                appWidgetIds = appWidgetIds,
-                widgetConfigs = widgetConfigs,
-                selectedWidgetId = selectedWidgetId,
-                currentStyle = currentStyle,
-                textContentState = textContentState,
-                previewBoxHeightDp = previewBoxHeightDp,
-                previewHeightForPage = ::previewHeightForPage,
-                onEditClick = { scope.launch { subTabPagerState.animateToPageOnUserInput(1) } }
-            )
-            // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                AppText(
-                    text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
-                    role = AppTextRole.label,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.30f), AppShape.pill)
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        // 下 2/3 面板容器 (苹果风格大抽屉)
-        Card(
-            colors = CardDefaults.cardColors(
-                // 面板本体透明，材质（白色半透明底 + 背景实时模糊）由 hazeEffect 绘制
-                containerColor = Color.Transparent
-            ),
-            shape = AppShape.sheet,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                // 先裁剪再模糊：haze 的模糊层默认是矩形，不裁的话会从抽屉圆角
-                // 外面露出一圈方角（用户反馈的「矩形渲染层」）
-                .clip(AppShape.sheet)
-                .hazeEffect(
-                    state = hazeState,
-                    // 日间白 45% / 夜间深底 55% tint（比 HazeMaterials.thin 的 60% 更透一档，用户确认）：
-                    // 面板顶边透出模糊的海滩图带，玻璃质感由它提供；噪点保持 0
-                    style = HazeStyle(
-                        backgroundColor = drawerGlassBg,
-                        tint = HazeTint(drawerGlassTint),
-                        blurRadius = 24.dp,
-                        noiseFactor = 0f,
-                    ),
-                ) {
-                    // 模糊输入按 0.5× 采样：模糊前的像素量降到 1/4，Haze 会把模糊半径
-                    // 按同一比例换算，观感基本不变。抽屉是静态毛玻璃，不值得为它全分辨率采样。
-                    inputScale = HazeInputScale.Fixed(0.5f)
-                    // 模糊层的边缘默认是矩形：不指定形状的话，磨砂会从抽屉圆角
-                    // 外面露出方形的一块（用户反馈的「矩形渲染」）。与抽屉同圆角。
-                    blurredEdgeTreatment = BlurredEdgeTreatment(AppShape.sheet)
-                }
-                .onGloballyPositioned { coordinates ->
-                    // 取抽屉上沿的绝对位置交给背景图收边；只在变化时写回，避免无谓重组
-                    val top = coordinates.positionInRoot().y.roundToInt()
-                    if (top != drawerTopPx) drawerTopPx = top
-                },
-            // 不给任何 elevation（Card 默认还有 1dp，必须显式归零）：
-            // 用户要求去掉描边、高光、落影，面板与背景的边界只由毛玻璃 tint 区分
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            // 顶缘不画白色「唇线」高光，也不画深灰外描边与落影（用户要求去掉），
-            // 原先托住唇线的 4% 内阴影一并移除。
+    // 「我的」页是全屏页面（不是弹窗）：作为同一窗口里的上层页面盖在主界面之上，
+    // 从右侧滑入；协议/登录/付费墙仍是独立 Dialog 窗口，天然盖在它上面。
+    Box(modifier = Modifier.fillMaxSize()) {
+        MainScreenBackground(heroHeight = heroHeight, hazeState = hazeState) {
+            // 顶部区域（顶栏 + 预览轮播 + 组件标签）不在抽屉里，也纳入右滑返回：
+            // 预览轮播还能往右翻时让轮播自己翻；单个组件/已在第一个预览时右滑返回。
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 7.dp)
+                    .fillMaxWidth()
+                    .swipeBackToPage(
+                        pagerState = pagerState,
+                        onSwipeBack = {
+                            scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
+                        },
+                        requirePagerMovement = false
+                    )
             ) {
-                // 抽屉顶栏（把手 + 分段页签）不在 pager 内：右滑返回单独接一层观察者。
-                // 只包住顶栏，不包 pager，避免和内容层的观察者重复触发。
-                Column(
+                MainTopBar(
+                    isActivated = isActivatedState,
+                    dbHelper = dbHelper,
+                    trialManager = trialManager,
+                    scope = scope,
+                    onReloaded = { rems, cats, configs ->
+                        reminders = rems
+                        categories = cats
+                        widgetConfigs = configs
+                    },
+                    onActivatedChange = { isActivatedState = it },
+                    onOpenPro = { showProDialog = true },
+                    onOpenMine = { showMinePage = true },
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = onToggleDarkTheme
+                )
+                WidgetPreviewPager(
+                    pagerState = pagerState,
+                    appWidgetIds = appWidgetIds,
+                    widgetConfigs = widgetConfigs,
+                    selectedWidgetId = selectedWidgetId,
+                    currentStyle = currentStyle,
+                    textContentState = textContentState,
+                    previewBoxHeightDp = previewBoxHeightDp,
+                    previewHeightForPage = ::previewHeightForPage,
+                    onEditClick = { scope.launch { subTabPagerState.animateToPageOnUserInput(1) } }
+                )
+                // 组件标签：位于预览卡片与下方抽屉之间的空白区域，随 Pager 翻页同步
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .swipeBackChrome {
-                            scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
-                        }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
+                    AppText(
+                        text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
+                        role = AppTextRole.label,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(40.dp)
-                            .height(4.dp)
-                            .clip(AppShape.handle)
-                            .background(sheetHandle)
+                            .background(Color.Black.copy(alpha = 0.30f), AppShape.pill)
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
                     )
-
-                    Spacer(modifier = Modifier.height(AppSpacing.controlGap))
-
-                    // 苹果风分段控制器 Segmented Control (全动态测量)
-                    SubTabSwitcher(
-                        pagerState = subTabPagerState,
-                        onSelectTab = { scope.launch { subTabPagerState.animateToPageOnUserInput(it) } }
-                    )
-
-                    Spacer(modifier = Modifier.height(AppSpacing.sectionGap))
                 }
 
-                // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
-                // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
-                HorizontalPager(
-                    state = subTabPagerState,
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // 下 2/3 面板容器 (苹果风格大抽屉)
+            Card(
+                colors = CardDefaults.cardColors(
+                    // 面板本体透明，材质（白色半透明底 + 背景实时模糊）由 hazeEffect 绘制
+                    containerColor = Color.Transparent
+                ),
+                shape = AppShape.sheet,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    // 先裁剪再模糊：haze 的模糊层默认是矩形，不裁的话会从抽屉圆角
+                    // 外面露出一圈方角（用户反馈的「矩形渲染层」）
+                    .clip(AppShape.sheet)
+                    .hazeEffect(
+                        state = hazeState,
+                        // 日间白 45% / 夜间深底 55% tint（比 HazeMaterials.thin 的 60% 更透一档，用户确认）：
+                        // 面板顶边透出模糊的海滩图带，玻璃质感由它提供；噪点保持 0
+                        style = HazeStyle(
+                            backgroundColor = drawerGlassBg,
+                            tint = HazeTint(drawerGlassTint),
+                            blurRadius = 24.dp,
+                            noiseFactor = 0f,
+                        ),
+                    ) {
+                        // 模糊输入按 0.5× 采样：模糊前的像素量降到 1/4，Haze 会把模糊半径
+                        // 按同一比例换算，观感基本不变。抽屉是静态毛玻璃，不值得为它全分辨率采样。
+                        inputScale = HazeInputScale.Fixed(0.5f)
+                        // 模糊层的边缘默认是矩形：不指定形状的话，磨砂会从抽屉圆角
+                        // 外面露出方形的一块（用户反馈的「矩形渲染」）。与抽屉同圆角。
+                        blurredEdgeTreatment = BlurredEdgeTreatment(AppShape.sheet)
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        // 取抽屉上沿的绝对位置交给背景图收边；只在变化时写回，避免无谓重组
+                        val top = coordinates.positionInRoot().y.roundToInt()
+                        if (top != drawerTopPx) drawerTopPx = top
+                    },
+                // 不给任何 elevation（Card 默认还有 1dp，必须显式归零）：
+                // 用户要求去掉描边、高光、落影，面板与背景的边界只由毛玻璃 tint 区分
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                // 顶缘不画白色「唇线」高光，也不画深灰外描边与落影（用户要求去掉），
+                // 原先托住唇线的 4% 内阴影一并移除。
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        // 只观察、不消费：给半页兜底吸附提供“手指是否还在 pager 上”
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val pressed = awaitPointerEvent(PointerEventPass.Initial)
-                                        .changes.any { it.pressed }
-                                    if (pressed != pagerTouchDown) pagerTouchDown = pressed
-                                }
-                            }
-                        },
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    if (page == 0) {
-                        LibraryPane(
-                            dbHelper = dbHelper,
-                            scope = scope,
-                            categories = categories,
-                            reminders = reminders,
-                            isLoaded = isLibraryLoaded,
-                            selectedCategory = selectedCategory,
-                            editingReminder = editingReminderForContent,
-                            onEditReminderRequest = { editingReminderForContent = it },
-                            onCategorySelect = { selectedCategory = it },
-                            onCategoriesChanged = { cats ->
-                                categories = cats
-                                // 当前选中的分类被删除后保持 id 会让筛选条死掉：
-                                // 没有呈选中态的 chip、列表却筛出空集，与「金句全没了」无异。
-                                // 列表刷新处统一对账（新建/改名/排序也会走到这里，均无害）
-                                if (selectedCategory != null && cats.none { it.id == selectedCategory?.id }) {
-                                    selectedCategory = null
-                                }
-                            },
-                            onRemindersChanged = { reminders = it },
-                            onWidgetConfigsChanged = { widgetConfigs = it },
-                            selectedWidgetId = selectedWidgetId,
-                            selectedConfigId = selectedConfigId,
-                            currentStyle = currentStyle,
-                            onContentChanged = { textContentState = it },
-                            onStyleChange = onStyleChange,
-                            onOpenDoc = { showLegalDoc = it }
-                        )
-                    } else {
-                        AdjustTabContent(
-                            isActivated = isActivatedState,
-                            appWidgetIds = appWidgetIds,
-                            selectedWidgetId = selectedWidgetId,
-                            selectedReminderId = selectedReminder?.id ?: -1L,
-                            selectedStyle = currentStyle,
-                            selectedContent = textContentState,
-                            onStyleStateChange = { currentStyle = it },
-                            onContentStateChange = { textContentState = it },
-                            onSelectPreset = { wId, rId, newStyle ->
-                                currentStyle = newStyle
-                                onStyleChange(wId, rId, textContentState, newStyle)
-                            },
-                            onStyleChange = { wId, rId, text, newStyle ->
-                                onStyleChange(wId, rId, text, newStyle)
-                            },
-                            onApplyToDesktop = { wId, rId, text, newStyle ->
-                                onApplyToDesktop(wId, rId, text, newStyle)
-                            },
-                            onOpenDoc = { showLegalDoc = it },
-                            // 页面级右滑返回：内容区与抽屉顶栏共用同一入口
-                            onSwipeBack = {
+                        .fillMaxSize()
+                        .padding(top = 7.dp)
+                ) {
+                    // 抽屉顶栏（把手 + 分段页签）不在 pager 内：右滑返回单独接一层观察者。
+                    // 只包住顶栏，不包 pager，避免和内容层的观察者重复触发。
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .swipeBackChrome {
                                 scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
-                            },
-                            pagerState = subTabPagerState,
-                            initiallyTutorialExpanded = startTutorialExpanded
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .width(40.dp)
+                                .height(4.dp)
+                                .clip(AppShape.handle)
+                                .background(sheetHandle)
                         )
+
+                        Spacer(modifier = Modifier.height(AppSpacing.controlGap))
+
+                        // 苹果风分段控制器 Segmented Control (全动态测量)
+                        SubTabSwitcher(
+                            pagerState = subTabPagerState,
+                            onSelectTab = { scope.launch { subTabPagerState.animateToPageOnUserInput(it) } }
+                        )
+
+                        Spacer(modifier = Modifier.height(AppSpacing.sectionGap))
+                    }
+
+                    // 内容区：左右滑动即可切换「跃然纸上 / 个性定制」。
+                    // beyondViewportPageCount=1 让两页常驻组合，保住各自的滚动位置与内部状态
+                    HorizontalPager(
+                        state = subTabPagerState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            // 只观察、不消费：给半页兜底吸附提供“手指是否还在 pager 上”
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val pressed = awaitPointerEvent(PointerEventPass.Initial)
+                                            .changes.any { it.pressed }
+                                        if (pressed != pagerTouchDown) pagerTouchDown = pressed
+                                    }
+                                }
+                            },
+                        beyondViewportPageCount = 1
+                    ) { page ->
+                        if (page == 0) {
+                            LibraryPane(
+                                dbHelper = dbHelper,
+                                scope = scope,
+                                categories = categories,
+                                reminders = reminders,
+                                isLoaded = isLibraryLoaded,
+                                selectedCategory = selectedCategory,
+                                editingReminder = editingReminderForContent,
+                                onEditReminderRequest = { editingReminderForContent = it },
+                                onCategorySelect = { selectedCategory = it },
+                                onCategoriesChanged = { cats ->
+                                    categories = cats
+                                    // 当前选中的分类被删除后保持 id 会让筛选条死掉：
+                                    // 没有呈选中态的 chip、列表却筛出空集，与「金句全没了」无异。
+                                    // 列表刷新处统一对账（新建/改名/排序也会走到这里，均无害）
+                                    if (selectedCategory != null && cats.none { it.id == selectedCategory?.id }) {
+                                        selectedCategory = null
+                                    }
+                                },
+                                onRemindersChanged = { reminders = it },
+                                onWidgetConfigsChanged = { widgetConfigs = it },
+                                selectedWidgetId = selectedWidgetId,
+                                selectedConfigId = selectedConfigId,
+                                currentStyle = currentStyle,
+                                onContentChanged = { textContentState = it },
+                                onStyleChange = onStyleChange,
+                                onOpenDoc = { showLegalDoc = it }
+                            )
+                        } else {
+                            AdjustTabContent(
+                                isActivated = isActivatedState,
+                                appWidgetIds = appWidgetIds,
+                                selectedWidgetId = selectedWidgetId,
+                                selectedReminderId = selectedReminder?.id ?: -1L,
+                                selectedStyle = currentStyle,
+                                selectedContent = textContentState,
+                                onStyleStateChange = { currentStyle = it },
+                                onContentStateChange = { textContentState = it },
+                                onSelectPreset = { wId, rId, newStyle ->
+                                    currentStyle = newStyle
+                                    onStyleChange(wId, rId, textContentState, newStyle)
+                                },
+                                onStyleChange = { wId, rId, text, newStyle ->
+                                    onStyleChange(wId, rId, text, newStyle)
+                                },
+                                onApplyToDesktop = { wId, rId, text, newStyle ->
+                                    onApplyToDesktop(wId, rId, text, newStyle)
+                                },
+                                onOpenDoc = { showLegalDoc = it },
+                                // 页面级右滑返回：内容区与抽屉顶栏共用同一入口
+                                onSwipeBack = {
+                                    scope.launch { subTabPagerState.animateToPageOnUserInput(0) }
+                                },
+                                pagerState = subTabPagerState,
+                                initiallyTutorialExpanded = startTutorialExpanded
+                            )
+                        }
                     }
                 }
             }
         }
+
+        MinePage(
+            show = showMinePage,
+            isActivated = isActivatedState,
+            account = accountSnapshot,
+            trialManager = trialManager,
+            onOpenLogin = { showAccountDialog = true },
+            onOpenPro = { showProDialog = true },
+            onSessionChanged = { accountSnapshot = AccountStore.snapshot(context) },
+            onDismiss = { showMinePage = false }
+        )
     }
 }
