@@ -241,22 +241,27 @@ private fun HeroBackdrop(
                 modifier = Modifier.fillMaxSize(),
             )
             // 夜间模式同一张海滩图整体加深压暗：顶栏白字本就带阴影，压暗后依然可读；
-            // 画面变夜色海滩，同时与深色抽屉玻璃的接缝落差也保持住
+            // 画面变夜色海滩，同时与深色抽屉玻璃的接缝落差也保持住。
+            //
+            // 压暗色取当前的页面底色（夜间 #1A1A1A）而不是纯黑：纯黑会把照片压成没有层次的黑块，
+            // 和上移后的中性色阶放在一起显得更沉；用页面底做veil，压暗后的天空与抽屉、
+            // 圆钮落在同一套中性灰里。日间仍用纯黑——那是亮天空上的中性投影，不涉及「底色」。
+            val dimInk = if (LocalAppDarkTheme.current) darkBg else Color.Black
             val heroDimStops = if (LocalAppDarkTheme.current) {
                 listOf(
-                    0.00f to Color.Black.copy(alpha = 0.64f),
-                    0.16f to Color.Black.copy(alpha = 0.52f),
-                    0.32f to Color.Black.copy(alpha = 0.40f),
-                    0.90f to Color.Black.copy(alpha = 0.40f),
-                    1.00f to Color.Black.copy(alpha = 0.48f),
+                    0.00f to dimInk.copy(alpha = 0.64f),
+                    0.16f to dimInk.copy(alpha = 0.52f),
+                    0.32f to dimInk.copy(alpha = 0.40f),
+                    0.90f to dimInk.copy(alpha = 0.40f),
+                    1.00f to dimInk.copy(alpha = 0.48f),
                 )
             } else {
                 listOf(
-                    0.00f to Color.Black.copy(alpha = 0.38f),
-                    0.16f to Color.Black.copy(alpha = 0.20f),
+                    0.00f to dimInk.copy(alpha = 0.38f),
+                    0.16f to dimInk.copy(alpha = 0.20f),
                     0.32f to Color.Transparent,
                     0.90f to Color.Transparent,
-                    1.00f to Color.Black.copy(alpha = 0.20f),
+                    1.00f to dimInk.copy(alpha = 0.20f),
                 )
             }
             Box(

@@ -81,13 +81,17 @@ class AppColorContrastTest {
     /**
      * selectBlue 是用户指定保留的明亮浅蓝底白字搭配。
      * 对比度低于 AA 标准，作为产品偏好明确记录，不纳入常规 AA 断言。
-     * 它是品牌填充色，日/夜同值。
+     *
+     * 2026-10 二次反馈：夜间不允许沿用同一块亮蓝天（夜里仍是全屏最扎眼的面），
+     * 夜间值压暗到日间的 80%（#42B8EC → #3593BD），白字对比度从 2.26:1 提到约 3.5:1。
+     * 这里同时锁住「日间原值」和「夜间 = 日间 × 0.8」的换算，避免两边各改各的。
      */
     @Test
     fun `选中态浅蓝保持用户指定色值`() {
         assertEquals(Color(0xFF42B8EC), AppPalette.Light.selectBlue)
-        assertEquals(AppPalette.Light.selectBlue, AppPalette.Dark.selectBlue)
+        assertEquals(Color(0xFF3593BD), AppPalette.Dark.selectBlue)
         assertEquals(2.26, contrast(Color.White, AppPalette.Light.selectBlue), 0.03)
+        assertEquals(3.46, contrast(Color.White, AppPalette.Dark.selectBlue), 0.03)
     }
 
     /** 夜间色板锁底色：页面底与卡片底的明度关系（卡片必须比页面亮一档）是深色分层的根基 */
@@ -101,7 +105,9 @@ class AppColorContrastTest {
 
     /**
      * 暗色模式改版（2026-10）：用户明确要求「不再使用紫色背景，而是真的暗黑背景」。
-     * 底色/卡片/极光全部锁成中性黑：三通道近似相等（通道差 ≤ 4%），页面底接近纯黑。
+     * 底色/卡片/极光全部锁成中性色：三通道近似相等（通道差 ≤ 4%）。
+     * 二次反馈后页面底从 #0A0A0A 上移到 #1A1A1A（不做接近纯黑的底），
+     * 但仍必须够深（亮度 < 0.02），不能一路提亮成浅灰主题。
      * 一旦有人把蓝紫夜空色改回来，这里会先失败。
      */
     @Test
@@ -127,7 +133,7 @@ class AppColorContrastTest {
             )
         }
         assertTrue(
-            "夜间页面底应接近纯黑（当前亮度 ${luminance(dark.darkBg)}）",
+            "夜间页面底应保持深色（当前亮度 ${luminance(dark.darkBg)}，不得 ≥ 0.02）",
             luminance(dark.darkBg) < 0.02
         )
     }

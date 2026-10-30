@@ -144,28 +144,36 @@ internal data class AppPalette(
         )
 
         /**
-         * 夜间调色板：**中性纯黑**阶梯（用户明确要求「真正的暗黑背景」，不再用蓝紫夜空）。
+         * 夜间调色板：**中性深灰**阶梯（用户明确要求「真正的暗黑背景」，不再用蓝紫夜空；
+         * 2026-10 二次反馈：底色不要接近纯黑、整体上移一档，页面 #1A1A1A / 卡片 #252525）。
          * 页面 → 卡片 → 控件逐级提亮，层次只靠明度差表达；任何令牌都不带蓝/紫偏色。
-         * 品牌填充（selectBlue / 金 / 薄荷）保持不变。
+         * 金色/薄荷等品牌填充保持不变；**selectBlue 夜间比日间压暗 20%**（亮蓝天做底色时
+         * 夜间太扎眼，白字对比度也只有 2.26:1）。
          */
         val Dark = AppPalette(
-            darkBg = Color(0xFF0A0A0A), // 页面底：接近纯黑的中性黑
-            panelTrack = Color(0xFF141414), // 凹槽轨道：比页面提一档
-            cardBg = Color(0xFF191919), // 卡片：比页面亮一档
-            surfaceRaised = Color(0xFF262626), // 卡片上的浮起控件（夜间要比卡片再亮一档才看得见）
+            // 2026-10 二次调色（用户反馈「夜间还是黑了一些」+「别用纯黑做底色」）：
+            // 中性色阶整体上移一档——页面底不再是接近纯黑的 #0A0A0A，而是 #1A1A1A。
+            // 上移幅度受对比度硬门槛约束：卡片底再亮下去，辅助灰 textTertiary 在卡片上
+            // 就掉出 4.5:1（#252525 时约 4.55:1，已是上限）。要更亮必须同时提亮文字灰阶。
+            darkBg = Color(0xFF1A1A1A), // 页面底：中性深灰，不再是接近纯黑
+            panelTrack = Color(0xFF232323), // 凹槽轨道：比页面提一档
+            cardBg = Color(0xFF252525), // 卡片：比页面亮一档
+            surfaceRaised = Color(0xFF313131), // 卡片上的浮起控件（夜间要比卡片再亮一档才看得见）
             accentBlue = Color(0xFF7DD3FC), // 月光天蓝：夜底约 11:1（唯一的「彩色」强调）
             accentFillStrong = Color(0xFF38BDF8), // 非文字填充档，夜底 3:1 以上
-            borderBlue = Color(0xFF2A2A2A), // 中性描边（仅保留给必须勾边的功能性场景）
+            borderBlue = Color(0xFF383838), // 中性描边（仅保留给必须勾边的功能性场景）
             sheetHandle = Color(0xFF6B6B6B),
             textWhite = Color(0xFFEDEDED), // 霜白主文字
             textGray = Color(0xFFA6A6A6), // 月灰：卡片底约 7.2:1
             mintInk = Color(0xFF134E4A),
-            selectBlue = Color(0xFF42B8EC),
+            // 夜间蓝比日间压暗 20%：日间 #42B8EC 是亮蓝天，夜里同一块蓝仍是全屏最扎眼的面，
+            // 白字对比度也只有 2.26:1；压到 80% 后白字约 3.5:1，更沉也更可读。
+            selectBlue = Color(0xFF3593BD),
             textTertiary = Color(0xFF8C8C8C), // 卡片底约 5.1:1
-            surfaceSubtle = Color(0xFF242424), // 卡片上的控件面（比卡片亮）
-            surfaceMuted = Color(0xFF111111), // 下沉面（比卡片暗）
-            fieldBg = Color(0xFF111111),
-            fieldBgFocused = Color(0xFF232323),
+            surfaceSubtle = Color(0xFF303030), // 卡片上的控件面（比卡片亮）
+            surfaceMuted = Color(0xFF202020), // 下沉面（比卡片暗）
+            fieldBg = Color(0xFF202020),
+            fieldBgFocused = Color(0xFF2F2F2F),
             dangerRed = Color(0xFFF87171),
             disabledGray = Color(0xFF4D4D4D),
             warningInk = Color(0xFFFCD34D), // 夜间警示字提亮为琥珀亮档：警示底约 11:1
@@ -180,13 +188,13 @@ internal data class AppPalette(
             brandInkSoft = Color(0xFF065F46),
             trackGray = Color(0xFF333333),
             chipTextInk = Color(0xFFC9C9C9),
-            // 夜间极光：中性炭黑微光，不带蓝紫（用户明确不要紫色背景）
-            auroraMint = Color(0xFF101010),
-            auroraSky = Color(0xFF171717),
-            auroraMist = Color(0xFF0A0A0A),
-            overlayCard = Color(0xFF191919),
-            drawerGlassBg = Color(0xFF0A0A0A),
-            drawerGlassTint = Color(0x8C0A0A0A), // 深底 55%：与日间同等的透出度
+            // 夜间极光：中性深灰微光，不带蓝紫（用户明确不要紫色背景）
+            auroraMint = Color(0xFF1E1E1E),
+            auroraSky = Color(0xFF222222),
+            auroraMist = Color(0xFF1A1A1A),
+            overlayCard = Color(0xFF252525),
+            drawerGlassBg = Color(0xFF1A1A1A),
+            drawerGlassTint = Color(0x8C1A1A1A), // 深底 55%：与日间同等的透出度
         )
     }
 }
