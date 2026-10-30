@@ -20,7 +20,7 @@
 60,125,280,167 | Text='[DeskQuotes]'
 60,18,205,125 | Text='[句阁]'
 616,1120,1152,1264 | Role='Tab' | Text='[个性定制]'
-640,21,1043,165 | Role='Button' | Text='[激活PRO ￥1.99]'
+640,21,1043,165 | Role='Button' | Text='[激活PRO ￥3.99]'
 684,1238,1224,1526 | ContentDescription='[Preset Style 2]'
 684,1734,1224,2022 | ContentDescription='[蓝色画报]'
 684,742,1224,1030 | ContentDescription='[Preset Style 2]'

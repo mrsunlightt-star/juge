@@ -17,8 +17,8 @@ object ProPurchase {
     /** 商品 ID，真实金额由服务端商品目录决定，App 不参与定价。 */
     const val PRODUCT_ID = "pro_permanent"
 
-    /** 仅用于界面展示，必须与服务端商品目录中的价格保持一致 */
-    const val PRICE_TEXT = "￥1.99"
+    /** 仅用于界面展示，必须与服务端商品目录中的价格保持一致（服务端 amount-fen: 399） */
+    const val PRICE_TEXT = "￥3.99"
 
     private const val PREFS = "pro_purchase_prefs"
     private const val KEY_PENDING_ORDER = "pending_order_no"

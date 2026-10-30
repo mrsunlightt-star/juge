@@ -23,7 +23,7 @@ pay:
   products:
     pro_permanent:
       subject: "句阁 PRO 会员"
-      amount-fen: 199
+      amount-fen: 399
 
 # ── 账号体系 ──
 # 可选登录：不登录也能完整使用，登录的唯一收益是换机/重装后找回已购 PRO

@@ -26,7 +26,7 @@
 615,2390,759,2534 | ContentDescription='[减小行距]' | Role='Button'
 616,1120,1152,1264 | Role='Tab' | Text='[个性定制]'
 636,2016,876,2174 | Text='[思源宋体]'
-640,21,1043,165 | Role='Button' | Text='[激活PRO ￥1.99]'
+640,21,1043,165 | Role='Button' | Text='[激活PRO ￥3.99]'
 684,469,1224,757 | ContentDescription='[Preset Style 2]'
 684,965,1224,1253 | ContentDescription='[蓝色画报]'
 765,2258,975,2307 | Text='[19 sp]'
