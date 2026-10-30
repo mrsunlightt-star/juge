@@ -70,7 +70,12 @@ class AdjustSwipeBackTest {
         assertOnLibrary()
     }
 
-    /** 色板横滑行（行已滚到最左端）右滑：必须翻回「跃然纸上」 */
+    /**
+     * 色板区域右滑：必须翻回「跃然纸上」。
+     *
+     * 色板行已改为流式换行（不再横向滚动，见 ColorPresetFlow），这一层仍保留：
+     * 色板是页面里最密集的点击区域，右滑起手落在色块上也要能翻页。
+     */
     @Test
     fun `色板行右滑返回跃然纸上`() {
         openAdjust()

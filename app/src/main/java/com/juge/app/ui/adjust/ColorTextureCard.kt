@@ -5,18 +5,15 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,13 +28,11 @@ import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.surfaceSubtle
 
 /**
@@ -66,36 +61,18 @@ internal fun ColorTextureCard(
 
         // 4.1. 字体颜色设置
         AppSectionLabel("字体颜色")
-        val fontColorRowScroll = rememberScrollState()
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    // 行滚动了就上报“用掉了这次横向位移”，页面手势层据此让位
-                    .horizontalControlUsage(fontColorRowScroll)
-                    .horizontalScroll(fontColorRowScroll),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                fontColorPresets.forEach { parsedColor ->
-                    ColorSwatch(
-                        color = parsedColor,
-                        selected = selectedStyle.fontColor == parsedColor,
-                        onClick = {
-                            val newStyle = selectedStyle.copy(fontColor = parsedColor)
-                            onStyleStateChange(newStyle)
-                            onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                        },
-                        onLongClick = { onRequestDeleteFontColor(parsedColor) }
-                    )
-                }
-            }
-            AddColorPresetButtonFlushEnd(onClick = { onRequestAddFontColor() })
-        }
+        // 色板按行自动排列：一行放不下就换到下一行，新添加的颜色不会被裁在可视区外
+        ColorPresetFlow(
+            presets = fontColorPresets,
+            selectedColor = selectedStyle.fontColor,
+            onPick = { parsedColor ->
+                val newStyle = selectedStyle.copy(fontColor = parsedColor)
+                onStyleStateChange(newStyle)
+                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+            },
+            onLongClick = onRequestDeleteFontColor,
+            onAdd = onRequestAddFontColor
+        )
 
         // 4.2. 卡片背景颜色设置
         // 主体四周透明的形状不支持背景色：控件常驻置灰，点击弹窗说明原因
@@ -114,36 +91,18 @@ internal fun ColorTextureCard(
                     }
                 )
 
-                // 预设背景色彩
-                val backgroundColorRowScroll = rememberScrollState()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalControlUsage(backgroundColorRowScroll)
-                            .horizontalScroll(backgroundColorRowScroll),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        backgroundColorPresets.forEach { colorInt ->
-                            ColorSwatch(
-                                color = colorInt,
-                                selected = selectedStyle.backgroundColor == colorInt,
-                                onClick = {
-                                    val newStyle = selectedStyle.copy(backgroundColor = colorInt)
-                                    onStyleStateChange(newStyle)
-                                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                                },
-                                onLongClick = { onRequestDeleteBackgroundColor(colorInt) }
-                            )
-                        }
-                    }
-                    AddColorPresetButtonFlushEnd(onClick = { onRequestAddBackgroundColor() })
-                }
+                // 预设背景色彩：与字体颜色同一套流式布局，颜色多了自动换行
+                ColorPresetFlow(
+                    presets = backgroundColorPresets,
+                    selectedColor = selectedStyle.backgroundColor,
+                    onPick = { colorInt ->
+                        val newStyle = selectedStyle.copy(backgroundColor = colorInt)
+                        onStyleStateChange(newStyle)
+                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                    },
+                    onLongClick = onRequestDeleteBackgroundColor,
+                    onAdd = onRequestAddBackgroundColor
+                )
             }
             if (!canSetBackgroundColor) {
                 Box(
@@ -153,6 +112,50 @@ internal fun ColorTextureCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * 色板流式布局：色块自左向右排列，**一行放不下就换到下一行**（不横向滚动、不裁剪）。
+ *
+ * 这是色彩与质感模块的既定排布：内置 5 个色 + 用户自添加色，颜色多于一行时依次向下排，
+ * 新添加的颜色永远可见。改动前这里是「单行 + horizontalScroll」，颜色一多就被裁在
+ * 可视区外（既看不到、也很难滑到），用户反馈「添加的颜色不显示」即由此而来。
+ *
+ * 「+」不参与换行：它常驻卡片右缘、与第一行色块顶对齐（见 [AddColorPresetButtonFlushEnd]），
+ * 因此字体颜色 / 背景颜色两行的「+」始终落在同一竖列，色块只占用左侧可用宽度。
+ */
+@Composable
+private fun ColorPresetFlow(
+    presets: List<Int>,
+    selectedColor: Int,
+    onPick: (Int) -> Unit,
+    onLongClick: (Int) -> Unit,
+    onAdd: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        // 与「+」之间留出 itemGap：色块热区（48dp）与「+」热区不贴边
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
+        // 色板可能换行成多排：右缘的「+」钉在第一行，而不是整块垂直居中
+        verticalAlignment = Alignment.Top
+    ) {
+        FlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.Start
+            // verticalArrangement 用默认的 Top + 0 间距：每格 48dp 热区自带 14dp 视觉留白，
+            // 换行后的行距与行内色块间距一致
+        ) {
+            presets.forEach { color ->
+                ColorSwatch(
+                    color = color,
+                    selected = selectedColor == color,
+                    onClick = { onPick(color) },
+                    onLongClick = { onLongClick(color) }
+                )
+            }
+        }
+        AddColorPresetButtonFlushEnd(onClick = onAdd)
     }
 }
 
