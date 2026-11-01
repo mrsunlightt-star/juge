@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  4×2 入口在「组件选择器」里的预览。与 widget_preview_big.xml 同理：
+  previewLayout 只做静态 inflate，必须自带图源，否则 12+ 的选择器显示空白。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:padding="0dp">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:src="@drawable/widget_preview_compact"
+        android:contentDescription="@string/app_name" />
+</FrameLayout>

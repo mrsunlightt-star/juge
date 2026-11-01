@@ -141,6 +141,21 @@
 - 新增风格时**必须一起想清楚**：这款是 4×2 还是 4×4？取值依据见上；写完跑
   `PresetDisplaySizeTest`（钉住有外部依据的那几条）。
 
+### 0.1.3 组件选择器预览图（`widget_preview_big.webp` / `widget_preview_compact.webp`）
+
+这两张图同时供 Android 12+ 的选择器（`previewLayout`）和 12 以下的 `previewImage` 使用；
+用户在选择器里看到的就是它们，所以按组件真实渲染出图。
+
+历史包袱（2026-11-01 已清）：旧的两张是手工出图——比例 4:3 / 2:1、暖白底 + 2px 灰边、
+右下角一颗品牌蓝点 `#42B8EC`，和真实组件完全对不上。
+
+出图流程（改动预设配色/字号后同步重出）：
+
+1. 用 `WidgetCanvasRenderer.render` 按 250×250dp / 250×110dp、xxhdpi 渲染（产出 1125px 宽）；
+2. 缩到 432 宽：`sips --resampleWidth 432 in.png`；
+3. 编码并覆盖资源：`cwebp -q 90 -alpha_q 100 in.png -o app/src/main/res/drawable-nodpi/widget_preview_big.webp`；
+4. 跑 `WidgetPreviewLayoutTest`（预览布局声明与静态图源）确认没把选择器弄成空白。
+
 ### 0.2 透明底：必须是真 alpha
 
 **主体之外必须是真正的透明通道**（导出 PNG-32 或带 alpha 的 WebP）。
