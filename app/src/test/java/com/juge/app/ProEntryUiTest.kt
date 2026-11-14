@@ -10,6 +10,8 @@ import com.juge.app.data.TrialManager
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.main.MainTopBar
 import com.juge.app.ui.main.ProActivationDialog
+import com.juge.app.ui.main.ProStatusDialog
+import com.juge.app.ui.main.formatActivationTime
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +45,11 @@ class ProEntryUiTest {
 
     private val context get() = RuntimeEnvironment.getApplication()
 
-    private fun setTopBar(isActivated: Boolean, onOpenPro: () -> Unit) {
+    private fun setTopBar(
+        isActivated: Boolean,
+        onOpenPro: () -> Unit,
+        onOpenStatus: () -> Unit = {},
+    ) {
         compose.setContent {
             MyApplicationTheme {
                 MainTopBar(
@@ -54,6 +60,7 @@ class ProEntryUiTest {
                     onReloaded = { _, _, _ -> },
                     onActivatedChange = {},
                     onOpenPro = onOpenPro,
+                    onOpenStatus = onOpenStatus,
                     isDarkTheme = false,
                     onToggleDarkTheme = {},
                 )
@@ -95,11 +102,15 @@ class ProEntryUiTest {
     }
 
     @Test
-    fun `已激活时顶栏换成静态PRO徽章且没有待激活胶囊`() {
-        setTopBar(isActivated = true, onOpenPro = {})
+    fun `已激活时顶栏换成PRO徽章且可点开会员状态`() {
+        var openedStatus = false
+        setTopBar(isActivated = true, onOpenPro = {}, onOpenStatus = { openedStatus = true })
 
         compose.onNodeWithText("PRO").assertIsDisplayed()
         compose.onNodeWithText("激活PRO ${ProPurchase.PRICE_TEXT}").assertDoesNotExist()
+
+        compose.onNodeWithText("PRO").performClick()
+        assertTrue("点徽章应该打开会员状态卡", openedStatus)
     }
 
     @Test
@@ -133,5 +144,43 @@ class ProEntryUiTest {
         compose.onNodeWithText("正在核验…").assertIsDisplayed()
         compose.onNodeWithText("正在核验…").performClick()
         assertFalse(recovered)
+    }
+
+    // ==================== 会员状态卡 ====================
+
+    private fun setStatusDialog(
+        record: TrialManager.ActivationRecord?,
+        isActivated: Boolean = true,
+    ) {
+        compose.setContent {
+            MyApplicationTheme {
+                ProStatusDialog(
+                    show = true,
+                    isActivated = isActivated,
+                    record = record,
+                    onOpenPro = {},
+                    onDismiss = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `会员状态卡展示激活时间购买方式与永久有效`() {
+        val activatedAt = 1_767_000_000_000L
+        setStatusDialog(TrialManager.ActivationRecord(activatedAt = activatedAt, payMethod = "支付宝"))
+
+        compose.onNodeWithText("已激活 · 永久有效").assertIsDisplayed()
+        compose.onNodeWithText("永久，无订阅费用").assertIsDisplayed()
+        compose.onNodeWithText("支付宝").assertIsDisplayed()
+        compose.onNodeWithText(formatActivationTime(activatedAt)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `更早版本激活没有记录时给出说明而不是空白`() {
+        setStatusDialog(record = null)
+
+        compose.onNodeWithText("已激活 · 永久有效").assertIsDisplayed()
+        compose.onNodeWithText("更早版本激活，未记录").assertIsDisplayed()
     }
 }

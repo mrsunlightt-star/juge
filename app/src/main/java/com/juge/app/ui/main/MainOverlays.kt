@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.juge.app.ReminderWidgetProvider
 import com.juge.app.data.LegalDocs
+import com.juge.app.data.TrialManager
 import com.juge.app.pay.AlipayRecovery
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.legal.LegalDocDialog
@@ -32,6 +33,10 @@ fun MainOverlays(
     onPayingChange: (Boolean) -> Unit,
     onRecoveringChange: (Boolean) -> Unit,
     onProDialogDismiss: () -> Unit,
+    onRequestOpenPro: () -> Unit,
+    showStatusDialog: Boolean,
+    activationRecord: TrialManager.ActivationRecord?,
+    onStatusDismiss: () -> Unit,
     legalDoc: String?,
     onLegalDismiss: () -> Unit,
 ) {
@@ -98,6 +103,18 @@ fun MainOverlays(
             }
         },
         onDismiss = { if (!isPaying && !isRecovering) onProDialogDismiss() }
+    )
+
+    // 会员状态卡：只在用户点顶栏 PRO 徽章时出现，纯本地读取，不触网。
+    ProStatusDialog(
+        show = showStatusDialog,
+        isActivated = isActivated,
+        record = activationRecord,
+        onOpenPro = {
+            onStatusDismiss()
+            onRequestOpenPro()
+        },
+        onDismiss = onStatusDismiss,
     )
 
     val doc = legalDoc

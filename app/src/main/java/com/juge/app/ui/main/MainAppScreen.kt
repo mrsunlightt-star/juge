@@ -127,6 +127,11 @@ fun MainAppScreen(
     var isPaying by remember { mutableStateOf(false) }
     // 找回进行中：支付宝授权页关闭前不重复拉起
     var isRecovering by remember { mutableStateOf(false) }
+    // 会员状态卡：点顶栏 PRO 徽章打开。激活记录只在打开时读一次 prefs，不在组合期反复读
+    var showStatusDialog by remember { mutableStateOf(false) }
+    val activationRecord = remember(showStatusDialog, isActivatedState) {
+        if (showStatusDialog && isActivatedState) trialManager.activationRecord() else null
+    }
     // 协议行打开的协议全文：null / "user" / "privacy" / "license"
     var showLegalDoc by remember { mutableStateOf<String?>(null) }
 
@@ -457,6 +462,10 @@ fun MainAppScreen(
         onPayingChange = { isPaying = it },
         onRecoveringChange = { isRecovering = it },
         onProDialogDismiss = { showProDialog = false },
+        onRequestOpenPro = { showProDialog = true },
+        showStatusDialog = showStatusDialog,
+        activationRecord = activationRecord,
+        onStatusDismiss = { showStatusDialog = false },
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
     )
@@ -503,6 +512,7 @@ fun MainAppScreen(
                     },
                     onActivatedChange = { isActivatedState = it },
                     onOpenPro = { showProDialog = true },
+                    onOpenStatus = { showStatusDialog = true },
                     isDarkTheme = isDarkTheme,
                     onToggleDarkTheme = onToggleDarkTheme
                 )

@@ -95,6 +95,7 @@ fun MainTopBar(
     onReloaded: (List<Reminder>, List<Category>, List<WidgetConfig>) -> Unit,
     onActivatedChange: (Boolean) -> Unit,
     onOpenPro: () -> Unit,
+    onOpenStatus: () -> Unit,
     isDarkTheme: Boolean,
     onToggleDarkTheme: () -> Unit
 ) {
@@ -230,28 +231,45 @@ fun MainTopBar(
             }
 
             if (isActivated) {
-                // 已激活：只留一枚静态 PRO 徽章。
-                // 权益绑的是付款时的支付宝账号，本机没有账号可看、可退、可注销，
-                // 因此不再提供「我的」页——把入口去掉，比留一个空页面更诚实。
-                Row(
+                // 已激活：金色 PRO 徽章，点开会员状态卡（买过的东西在哪儿看，得有个落点）。
+                // 本机没有账号可看、可退、可注销，所以这里不提供「我的」页。
+                // 徽章视觉高约 28dp，外层 48dp 补足触控热区（与待激活胶囊同规格）。
+                Box(
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .clip(AppShape.pill)
-                        .background(Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd)), AppShape.pill)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .clickable(
+                            onClickLabel = "查看会员状态",
+                            role = Role.Button,
+                        ) {
+                            haptics.click()
+                            onOpenStatus()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.WorkspacePremium,
-                        contentDescription = null,
-                        tint = premiumGoldInk,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "PRO",
-                        style = AppType.label,
-                        color = premiumGoldInk
-                    )
+                    Row(
+                        modifier = Modifier
+                            .clip(AppShape.pill)
+                            .background(
+                                Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd)),
+                                AppShape.pill,
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.WorkspacePremium,
+                            contentDescription = null,
+                            tint = premiumGoldInk,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "PRO",
+                            style = AppType.label,
+                            color = premiumGoldInk
+                        )
+                    }
                 }
             } else {
                 // 未激活：保持原来的金色待激活胶囊（文案/配色/热区都不变，只有价格跟着定价走）
