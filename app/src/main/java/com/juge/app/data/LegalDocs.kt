@@ -167,7 +167,7 @@ object LegalDocs {
      * 各字体的版权与授权声明如下，与 tools/fonts/README.md 保持一致。
      */
     val OPEN_SOURCE_LICENSES: String = """
-本应用内置的字体均为第三方开源字体。为减小安装包体积，这些字体已按《通用规范汉字表》（8105 字）及常用符号做了子集化裁剪（属于对字体的修改），裁剪仅删除冷僻字形，不改动保留字形的轮廓。
+本应用内置的字体均为第三方开源字体。为减小安装包体积，这些字体已按《通用规范汉字表》（8105 字）及常用符号、英文与西欧字母做了子集化裁剪（属于对字体的修改），裁剪仅删除冷僻字形，不改动保留字形的轮廓。
 
 各字体的版权与授权声明如下，授权条款全文附于其后。
 
@@ -195,13 +195,23 @@ object LegalDocs {
 版权：Copyright 2020-2024 justfont Co., LTD. (https://github.com/justfont/open-huninn-font)，保留字体名 'open huninn'、'huninn'；汉字部分改作自 Kosugi Maru (Copyright 2010 MOTOYA CO.,LTD.)，拉丁部分改作自 Varela Round (Copyright 2011-2016 The Varela Round Project Authors)
 授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
+6. 英文衬线 EB Garamond
+版权：Copyright 2017 The EB Garamond Project Authors (https://github.com/octaviopardo/EBGaramond12)
+授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
+说明：纯英文字体，仅包含拉丁字母与常用符号，不包含汉字；选中它时中文金句由系统字体渲染。
+
+7. 英文手写 Caveat
+版权：Copyright 2014 The Caveat Project Authors (https://github.com/googlefonts/caveat)
+授权：SIL Open Font License 1.1 — https://scripts.sil.org/OFL
+说明：纯英文字体，仅包含拉丁字母与常用符号，不包含汉字；选中它时中文金句由系统字体渲染。
+
 （二）IPA Font License 1.0 授权
 
-6. 霞鹜新致宋 LXGW Neo ZhiSong
+8. 霞鹜新致宋 LXGW Neo ZhiSong
 版权：Copyright(c) 2023-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
 
-7. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
+9. 霞鹜新晰黑 Screen LXGW Neo XiHei Screen
 版权：Copyright(c) 2021-2026 LXGW；Information-technology Promotion Agency, Japan (IPA), 2003-2019
 授权：IPA Font License 1.0 — https://opensource.org/licenses/IPA/
 

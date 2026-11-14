@@ -4,7 +4,7 @@
 
 ## 为什么需要
 
-7 款内置字体原始合计约 71MB，体积几乎全部来自字形轮廓：`--no-hinting`
+9 款内置字体原始合计约 72MB，体积几乎全部来自字形轮廓：`--no-hinting`
 对毛笔类字体几乎无效（MaShanZheng 仅 -1.2%），因此**按字符集裁剪是唯一有效的杠杆**。
 
 ## 用法
@@ -21,11 +21,13 @@ python3 tools/fonts/subset_fonts.py --dir <目录>  # 处理指定目录（默�
 
 ## 字符覆盖
 
-目标字符集共 8968 个字符，由三部分组成：
+目标字符集共 9224 个字符，由四部分组成：
 
 1. `charset_common.txt` ——《通用规范汉字表》8105 字（一级 3500 + 二级 3000 + 三级 1605）；
 2. ASCII 可打印字符；
-3. 中文标点、全角字符、常用标点/字母符号/箭头/带圈序号。
+3. 拉丁字母扩展（Latin-1 + Latin Extended-A）：`é / ñ / ü`、`© ® °`、`€ £` 等，
+   英文金句常带重音字母和符号，不保留会显示成方块；
+4. 中文标点、全角字符、常用标点/字母符号/箭头/带圈序号。
 
 裁剪只删除**目标集之外**的冷僻字形：目标集内字符，字体原本能渲染的仍能渲染。
 目标集之外的字符会显示为方块。
@@ -47,26 +49,31 @@ python3 tools/fonts/subset_fonts.py --dir <目录>  # 处理指定目录（默�
 | 霞鹜文楷 | `LXGWWenKai-Regular.ttf` | [lxgw/LxgwWenKaiGB](https://github.com/lxgw/LxgwWenkaiGB)（GB 大陆字形，PostScript 名 `LXGWWenKaiGB-Regular`） |
 | 毛笔楷书 | `MaShanZheng-Regular.ttf` | [googlefonts/mashanzheng](https://github.com/googlefonts/mashanzheng) |
 | jf open 粉圆 JF Open Huninn | `JFOpenHuninn-Regular.ttf` | [justfont/open-huninn-font](https://github.com/justfont/open-huninn-font) v2.1 |
+| 英文衬线 EB Garamond | `EBGaramond-Regular.ttf` | [google/fonts](https://github.com/google/fonts/tree/main/ofl/ebgaramond) `EBGaramond[wght].ttf` v1.003，用 `fontTools.varLib.instancer` 取 wght=400 实例 |
+| 英文手写 Caveat | `Caveat-Regular.ttf` | [google/fonts](https://github.com/google/fonts/tree/main/ofl/caveat) `Caveat[wght].ttf` v2.000，用 `fontTools.varLib.instancer` 取 wght=400 实例 |
 
 ## 效果
 
 | 字体 | 原始 | 子集后 | 覆盖 |
 |---|---|---|---|
-| SourceHanSansCN-Regular.otf | 8.0M | 1.9M | 8723/8968 |
-| SourceHanSerifCN-Regular.otf | 11.1M | 2.5M | 8723/8968 |
-| LXGWNeoZhiSong.ttf | 10.0M | 2.9M | 8696/8968 |
-| LXGWNeoXiHeiScreen.ttf | 7.3M | 2.1M | 8696/8968 |
-| LXGWWenKai-Regular.ttf | 24.6M | 4.2M | 8765/8968 |
-| MaShanZheng-Regular.ttf | 5.4M | 5.4M | 6863/8968 |
-| JFOpenHuninn-Regular.ttf | 4.7M | 2.0M | 5528/8968 |
-| **合计** | **71.1M** | **21.0M** | |
+| SourceHanSansCN-Regular.otf | 8.0M | 1.9M | 8723/9224 |
+| SourceHanSerifCN-Regular.otf | 11.1M | 2.5M | 8723/9224 |
+| LXGWNeoZhiSong.ttf | 10.0M | 2.9M | 8696/9224 |
+| LXGWNeoXiHeiScreen.ttf | 7.3M | 2.1M | 8696/9224 |
+| LXGWWenKai-Regular.ttf | 24.6M | 4.2M | 8765/9224 |
+| MaShanZheng-Regular.ttf | 5.4M | 5.4M | 6863/9224 |
+| JFOpenHuninn-Regular.ttf | 4.7M | 2.0M | 5528/9224 |
+| EBGaramond-Regular.ttf | 0.5M | 0.1M | 514/9224（纯拉丁，见下） |
+| Caveat-Regular.ttf | 0.3M | 0.1M | 353/9224（纯拉丁，见下） |
+| **合计** | **71.9M** | **21.1M** | |
 
 ## 授权与注意事项
 
 - **子集化属于「修改字体」**，脚本用 `--name-IDs=* --name-languages=* --name-legacy`
   完整保留 name 表（版权、授权、商标记录，含非英文与 Macintosh 平台），避免丢失授权声明。
 - 授权分两档：
-  - **OFL 1.1**：思源黑体、思源宋体、霞鹜文楷、毛笔楷书、jf open 粉圆。
+  - **OFL 1.1**：思源黑体、思源宋体、霞鹜文楷、毛笔楷书、jf open 粉圆、
+    EB Garamond、Caveat。
     OFL 要求：再分发时保留版权与授权声明（本脚本已保留）；不得使用保留字体名
     （Source Han Sans / Source Han Serif 保留名 `Source`）另行命名衍生字体。
   - **IPA Font License 1.0**：霞鹜新致宋、霞鹜新晰黑 Screen（字体内 nameID 13/14 指向
@@ -81,5 +88,11 @@ python3 tools/fonts/subset_fonts.py --dir <目录>  # 处理指定目录（默�
   jf open 粉圆为台湾繁体圆体，字库以繁体为主，对简体目标集仅覆盖 5528/8968
   （缺 2793 个常用简体字，如「阁、跃、纸、记、录、灵」），缺失字形由系统字体回退渲染，
   这是字体本身的覆盖范围限制，与裁剪无关。
+- **纯拉丁字体**：EB Garamond、Caveat 只含拉丁字母与符号，没有汉字字形，
+  因此覆盖数只有 514/9224、353/9224——这是设计如此，不是裁剪失误。
+  用户用它们排中文金句时，汉字由系统字体回退渲染（`WidgetFont.latinOnly` 标记，
+  选项名带「英文」前缀提示用户）。它们带来的体积成本约 200KB，可以忽略。
 - `WidgetFontRenderTest` 会逐个渲染内置字体并与系统默认字体比对，
   防止子集化损坏或资源名失配导致 Android 静默回退到系统字体。
+  纯拉丁字体用英文样本、并以「同一段英文」的系统默认渲染作基线比对——
+  换成不同文字会让比对必然通过，测不出字体会不会其实没生效。

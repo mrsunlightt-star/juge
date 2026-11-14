@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import com.juge.app.data.DbHelper
 import com.juge.app.data.WidgetConfig
+import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -109,18 +110,25 @@ class DbHelperTest {
     }
 
     @Test
-    fun `全新安装不导入种子金句，只放一张默认卡片`() {
+    fun `全新安装不导入种子金句，只放默认卡片与英文示例卡`() {
         // 全新安装没有老 app_settings 数据：库里的 3 条种子不应该被包装成「导入卡片」
         markLegacyInstall(legacy = false)
         db.migrateLegacyDataIfNeeded()
 
         val configs = db.getAllWidgetConfigs()
-        assertEquals(1, configs.size)
-        assertEquals("默认卡片1", configs.single().name)
+        assertEquals(2, configs.size)
         assertFalse(configs.any { it.name.startsWith("导入卡片") })
-        assertFalse(configs.single().autoCreated)
+
+        val first = configs.first { it.name == "默认卡片1" }
+        assertFalse(first.autoCreated)
         // 全新安装的第一张卡片就是「纯色圆角」：不能落成构造函数默认的 #F5F5F5 无描边样式
-        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString(configs.single().styleJson))
+        assertEquals(WidgetStyle.DEFAULT, WidgetStyle.fromJsonString(first.styleJson))
+
+        // 第二张是英文示例卡：用来试玩纯拉丁字体，所以默认就挂着 EB Garamond
+        val sample = configs.first { it.name == "英文金句示例" }
+        assertFalse(sample.autoCreated)
+        assertTrue(sample.content.any { it in 'A'..'z' })
+        assertEquals(WidgetFont.EB_GARAMOND, WidgetStyle.fromJsonString(sample.styleJson).font)
     }
 
     @Test

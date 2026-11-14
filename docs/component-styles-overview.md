@@ -52,7 +52,7 @@
 | `presetImageResName` | 内置素材名（= drawable 名，不带扩展名） | 空则无素材 |
 | `presetImageResNameSquare` | **方版素材**（4×4 用） | 组件比例 < 1.4 时优先用它；为空则一律用横版。见 style-guide §0.1 |
 | `bestDisplaySize` | **最佳显示尺寸**（App 预览按它出图） | `WIDE_4X2`（250×110）/ `SQUARE_4X4`（250×250）；按素材原生画布定，见 style-guide §0.1.2。**不落 JSON**：读档时按 `presetId` 解析当前预设定义 |
-| `font` / `fontSizeSp` / `fontBold` / `fontItalic` / `fontColor` / `textAlign` | 文字排版 | `WidgetFont` 有 8 种（系统默认 + 7 款中文字体） |
+| `font` / `fontSizeSp` / `fontBold` / `fontItalic` / `fontColor` / `textAlign` | 文字排版 | `WidgetFont` 有 10 种（系统默认 + 7 款中文字体 + 2 款英文字体；英文款 `latinOnly`，中文仍回退系统字体） |
 | `shadow` | 文字阴影 | 小霸王游戏机用它做**荧光晕**；巨剑用它做暗描边保可读性 |
 | `gradientColors` / `gradientAngle` | 背景渐变 | **已停用**（2026-10-24 按产品要求全部组件停用：读档清零、预设不再声明、界面无入口；渲染通路保留仅作 JSON 兼容） |
 | `bgBlurRadius` / `bgScrimAlpha` | 背景模糊 / 压暗 | **已停用**（同上：读档清零、预设不声明、界面无入口） |

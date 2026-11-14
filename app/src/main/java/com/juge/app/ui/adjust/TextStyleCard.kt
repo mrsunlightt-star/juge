@@ -99,6 +99,15 @@ internal fun TextStyleCard(
                 )
             }
         }
+        // 纯拉丁字体没有汉字字形：选它时中文金句仍由系统字体渲染。
+        // 不写这句中文用户会以为「点了这个字体完全没反应」，是 bug 而不是字体选择。
+        if (selectedStyle.font.latinOnly) {
+            AppText(
+                text = "该字体只作用于英文与数字，中文仍使用系统字体",
+                role = AppTextRole.captionAccent,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         // 字号 / 行距 / 字间距：数值行 + 步进器（长按连发）。
         // 不再用横向滑条——滑条会和页面级右滑返回抢手势（见 AppNumberStepperRow 注释）。

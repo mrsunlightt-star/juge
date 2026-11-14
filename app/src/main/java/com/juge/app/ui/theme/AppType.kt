@@ -50,7 +50,7 @@ internal fun appFontWeight(weight: FontWeight): FontWeight =
  * 调用点写法不变。需要覆写字重的地方，请套 [appFontWeight] 换算，不要直接写死 FontWeight，
  * 否则会在暗色模式里把「整体 -40%」这条规则漏掉。
  *
- * App UI 统一使用系统中文无衬线字体；`assets/fonts` 下的 7 款字体只服务于桌面上
+ * App UI 统一使用系统中文无衬线字体；`assets/fonts` 下的 9 款字体只服务于桌面上
  * 用户可选的组件正文，不参与应用界面排版。
  */
 object AppType {

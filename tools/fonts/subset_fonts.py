@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """字体子集化：把 assets/fonts 下的字体裁剪到常用字集，显著减小 APK 体积。
 
-背景：7 款字体原始合计约 45MB，占 release APK 的绝大部分。体积几乎全在字形轮廓上，
+背景：9 款字体原始合计约 72MB，占 release APK 的绝大部分。体积几乎全在字形轮廓上，
 去 hinting 对毛笔类字体几乎无效，唯一有效的手段是按字符集裁剪。
 
 字符覆盖 = 《通用规范汉字表》8105 字（charset_common.txt）
          + ASCII 可打印
+         + 拉丁字母扩展（Latin-1 / Latin Extended-A）
          + 中文标点 / 全角字符 / 常用符号
+
+纯拉丁字体（EB Garamond、Caveat）只命中后三组，裁剪后各约 0.1MB。
 
 裁剪只删除「目标字符集之外」的冷僻字形：目标集内的字符，字体原本能渲染的仍然能渲染，
 因此常用字不会因裁剪而缺字。目标集之外的字符会显示为方块。
@@ -33,9 +36,14 @@ CHARSET_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "charset
 # 这些表是旧式 Windows 设备度量/签名表，Skia 渲染用不到，去掉可再省一点体积
 DROP_TABLES = "gasp,DSIG,FFTM,mort,hdmx,LTSH,VDMX,PCLT"
 
-# ASCII 可打印 + 中文标点 + 全角 + 常用标点/字母符号
+# ASCII 可打印 + 西欧字母 + 中文标点 + 全角 + 常用标点/字母符号
 SYMBOL_RANGES = [
     (0x0020, 0x007E),
+    # 拉丁字母扩展：英文金句里常见的 é / ñ / ü、© ® °、€ £；只对拉丁字体有字形，
+    # 中文字体命中数极少，多留几十个字形对体积影响在 10KB 量级
+    (0x00A0, 0x00FF),
+    (0x0100, 0x017F),
+    (0x20A0, 0x20BF),
     (0x2000, 0x206F),
     (0x2100, 0x214F),
     (0x2190, 0x21FF),

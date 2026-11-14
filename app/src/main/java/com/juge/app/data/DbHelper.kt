@@ -518,7 +518,7 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
      * 把全部金句各导入一遍，产生成对的重复配置行。
      *
      * 配置为空时的三条分支：老用户（升级前装过老版本 → 有历史 app_settings 数据）导入 readings；
-     * 全新安装没有老数据，只放一张「默认卡片1」当起点；
+     * 全新安装没有老数据，放「默认卡片1」+「英文金句示例」两张当起点；
      * 迁移标记完成写入在最后，同样受锁保护。
      */
     @Synchronized
@@ -569,13 +569,26 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
                 }
             } else {
                 // 全新安装：库里只有种子金句，不值得包装成「导入卡片」；
-                // 放一张默认卡片当起点，语义上也没了"从老版本带来"的误导
+                // 放两张默认卡片当起点，语义上也没了"从老版本带来"的误导。
+                // 第二张是英文示例卡，顺带演示新增的纯拉丁字体（EB Garamond）——
+                // 否则用户不输英文根本看不出选项里多出两款英文字体。
                 insertWidgetConfig(
                     WidgetConfig(
                         name = "默认卡片1",
                         content = "弱小和无知不是生存的障碍，傲慢才是。————刘慈欣《三体》",
                         sizeType = "4x2",
                         styleJson = WidgetStyle.DEFAULT.toJsonString()
+                    )
+                )
+                insertWidgetConfig(
+                    WidgetConfig(
+                        name = "英文金句示例",
+                        // 狄金森 1886 年去世，诗句已进入公有领域，可安全内置
+                        content = "Hope is the thing with feathers. —— Emily Dickinson",
+                        sizeType = "4x2",
+                        styleJson = WidgetStyle.DEFAULT
+                            .copy(font = WidgetFont.EB_GARAMOND)
+                            .toJsonString()
                     )
                 )
             }

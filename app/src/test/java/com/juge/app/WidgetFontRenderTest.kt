@@ -20,26 +20,35 @@ import org.robolectric.annotation.GraphicsMode
  * 但一旦裁剪损坏或资源名对不上，Android 会静默回退到系统字体——
  * 用户只会看到「风格变了」，不会报错。这里逐个渲染并比对，把这种静默失败钉死。
  *
- * 判据：同一段文字用内置字体渲染，结果必须与系统默认字体不同；
+ * 判据：同一段文字、同一尺寸下，内置字体的渲染结果必须与系统默认字体不同；
  * 完全相同说明该字体实际未被应用（加载失败或走了回退）。
+ *
+ * 纯拉丁字体（[WidgetFont.latinOnly]）没有汉字字形，用中文样本会整段回退系统字体、
+ * 与基线一致而误报失败；它们改用英文样本，且基线也必须用**同一段英文**渲染——
+ * 否则「文字不同」本身就会让比对通过，测不出字体是否真的生效。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WidgetFontRenderTest {
 
-    private val sample = "永和九年岁在癸丑，暮春之初"
+    private val cjkSample = "永和九年岁在癸丑，暮春之初"
+
+    // 含大小写、连字符、弯引号与西欧重音字母，兼顾字重观感和子集覆盖
+    private val latinSample = "The quick brown fox — “isn’t it?” café"
 
     @Test
     fun `每款内置字体都能加载并真实生效`() {
         val context = RuntimeEnvironment.getApplication()
-        val baseline = render(context, WidgetFont.DEFAULT)
+        val cjkBaseline = render(context, WidgetFont.DEFAULT, cjkSample)
+        val latinBaseline = render(context, WidgetFont.DEFAULT, latinSample)
 
         val bundled = WidgetFont.entries.filter { it.fontPath != null }
         assertTrue("应有内置字体可供校验", bundled.isNotEmpty())
 
         for (font in bundled) {
-            val bitmap = render(context, font)
+            val baseline = if (font.latinOnly) latinBaseline else cjkBaseline
+            val bitmap = render(context, font, if (font.latinOnly) latinSample else cjkSample)
             try {
                 assertTrue("${font.displayName} 渲染结果全透明", hasOpaquePixel(bitmap))
                 assertTrue(
@@ -50,15 +59,20 @@ class WidgetFontRenderTest {
                 bitmap.recycle()
             }
         }
-        baseline.recycle()
+        cjkBaseline.recycle()
+        latinBaseline.recycle()
     }
 
-    private fun render(context: android.content.Context, font: WidgetFont): Bitmap =
+    private fun render(
+        context: android.content.Context,
+        font: WidgetFont,
+        content: String,
+    ): Bitmap =
         WidgetCanvasRenderer.render(
             context = context,
             widthDp = 250,
             heightDp = 110,
-            content = sample,
+            content = content,
             style = WidgetStyle(
                 shape = WidgetShape.RECTANGLE,
                 font = font,

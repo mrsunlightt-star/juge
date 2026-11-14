@@ -8,7 +8,13 @@ import org.json.JSONObject
 import java.util.Locale
 
 // 预定义字体枚举
-enum class WidgetFont(val fontPath: String?, val displayName: String) {
+enum class WidgetFont(
+    val fontPath: String?,
+    val displayName: String,
+    // 纯拉丁字体：没有汉字字形，中文靠系统字体回退。选项名与界面提示据此区分，
+    // 避免用户选了「英文衬线」却发现中文金句毫无变化。
+    val latinOnly: Boolean = false,
+) {
     DEFAULT(null, "系统默认"),
     SOURCE_HAN_SANS("fonts/SourceHanSansCN-Regular.otf", "思源黑体"),
     SOURCE_HAN_SERIF("fonts/SourceHanSerifCN-Regular.otf", "思源宋体"),
@@ -18,7 +24,12 @@ enum class WidgetFont(val fontPath: String?, val displayName: String) {
     LXGW_WENKAI("fonts/LXGWWenKai-Regular.ttf", "霞鹜文楷"),
     MASHAN_ZHENG("fonts/MaShanZheng-Regular.ttf", "毛笔楷书"),
     // 台湾繁体圆体，简体字库覆盖有限（约 5528/8968），冷僻与部分常用简体字会回退系统字体
-    JF_OPEN_HUNINN("fonts/JFOpenHuninn-Regular.ttf", "jf open 粉圆");
+    JF_OPEN_HUNINN("fonts/JFOpenHuninn-Regular.ttf", "jf open 粉圆"),
+    // 以下两款是纯拉丁字体（OFL 1.1，子集后合计约 200KB）：只覆盖 ASCII 与西欧字母，
+    // 中文金句仍回退系统字体，所以显示名统一带「英文」前缀。
+    // 新增枚举一律追加在末尾——枚举顺序即字体选项顺序，插到中间会改变老用户看到的排布。
+    EB_GARAMOND("fonts/EBGaramond-Regular.ttf", "英文衬线 Garamond", latinOnly = true),
+    CAVEAT("fonts/Caveat-Regular.ttf", "英文手写 Caveat", latinOnly = true);
 
     fun getTypeface(context: Context): Typeface {
         if (fontPath != null) {
