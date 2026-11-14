@@ -41,12 +41,21 @@ object AlipayRecovery {
     /** 完整找回；授权是阻塞调用，内部切到 IO，可在主线程调用。 */
     suspend fun recover(activity: Activity): Outcome = recover(activity, Dependencies())
 
+    /**
+     * 服务端核验结论。
+     *
+     * [paidAt] 是**当初付款的时间**（服务端取该支付宝账号最早一笔已支付订单），
+     * 不是本次找回的时间。换机找回时要把它写进本地记录，
+     * 否则会员卡会显示成「今天刚开通」，用户会以为买的是新的。
+     */
+    internal data class PurchaseRecord(val found: Boolean, val paidAt: Long?)
+
     internal data class Dependencies(
         val fetchAuthInfo: suspend () -> Result<String> = ::fetchAuthInfo,
         val authorize: (Activity, String) -> String? = ::authorize,
-        val confirmPurchase: suspend (String) -> Result<Boolean> = ::confirmPurchase,
-        val activate: (Context) -> Boolean = {
-            TrialManager.getInstance(it).activate(TrialManager.PAY_METHOD_RECOVER)
+        val confirmPurchase: suspend (String) -> Result<PurchaseRecord> = ::confirmPurchase,
+        val activate: (Context, Long) -> Boolean = { context, paidAt ->
+            TrialManager.getInstance(context).activate(TrialManager.PAY_METHOD_RECOVER, paidAt)
         },
     )
 
@@ -65,17 +74,20 @@ object AlipayRecovery {
             return Outcome.Canceled
         }
 
-        val found = dependencies.confirmPurchase(authCode).getOrElse { e ->
+        val record = dependencies.confirmPurchase(authCode).getOrElse { e ->
             Timber.e(e, "AlipayRecovery: 核验购买记录失败")
             return Outcome.Failed(
                 (e as? AlipayPayApi.ApiException)?.message?.takeIf { it.isNotBlank() }
                     ?: "核验购买记录失败，请稍后重试"
             )
         }
-        if (!found) return Outcome.NotFound
+        if (!record.found) return Outcome.NotFound
 
+        // 服务端没给购买时间（老订单或字段缺失）时退回当前时间：
+        // 宁可显示"今天开通"，也不能把 1970 写进会员卡。
+        val paidAt = record.paidAt ?: System.currentTimeMillis()
         return withContext(Dispatchers.IO) {
-            if (dependencies.activate(activity)) Outcome.Restored
+            if (dependencies.activate(activity, paidAt)) Outcome.Restored
             else Outcome.Failed("权益已确认，但本地保存失败，请检查存储空间后重试")
         }
     }
@@ -95,7 +107,7 @@ object AlipayRecovery {
         }
     }
 
-    private suspend fun confirmPurchase(authCode: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    private suspend fun confirmPurchase(authCode: String): Result<PurchaseRecord> = withContext(Dispatchers.IO) {
         runCatching {
             val body = JSONObject().apply { put("authCode", authCode) }
             val resp = ServerClient.post("/api/alipay/recover", body)
@@ -105,7 +117,13 @@ object AlipayRecovery {
                     resp.optString("code"),
                 )
             }
-            resp.getJSONObject("data").optBoolean("found", false)
+            val data = resp.getJSONObject("data")
+            PurchaseRecord(
+                found = data.optBoolean("found", false),
+                // 服务端没给或给了 null 时保持 null，由 activate 用当前时间兜底
+                paidAt = if (data.isNull("paid_at")) null
+                else data.optLong("paid_at", 0L).takeIf { it > 0L },
+            )
         }
     }
 

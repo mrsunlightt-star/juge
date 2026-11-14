@@ -92,7 +92,9 @@ fun ProStatusDialog(
                 AppSectionCard {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         DetailRow(
-                            label = "激活时间",
+                            // 换机找回时这里记的是「当初付款的时间」（服务端返回 paid_at），
+                            // 不是本次找回的时间——用户问的是「我什么时候买的」。
+                            label = "购买时间",
                             value = record?.let { formatActivationTime(it.activatedAt) }
                                 ?: "更早版本激活，未记录",
                         )

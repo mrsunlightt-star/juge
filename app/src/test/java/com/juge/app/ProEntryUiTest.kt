@@ -173,6 +173,8 @@ class ProEntryUiTest {
         compose.onNodeWithText("已激活 · 永久有效").assertIsDisplayed()
         compose.onNodeWithText("永久，无订阅费用").assertIsDisplayed()
         compose.onNodeWithText("支付宝").assertIsDisplayed()
+        // 标签必须是「购买时间」：换机找回时它显示的是当初付款的时间，不是找回的时间
+        compose.onNodeWithText("购买时间").assertIsDisplayed()
         compose.onNodeWithText(formatActivationTime(activatedAt)).assertIsDisplayed()
     }
 
