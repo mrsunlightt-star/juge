@@ -14,8 +14,8 @@
 | 异步通知验签（rsaCheckV1 + app_id 校验） | ✅ 已实现，伪造通知被拒 |
 | HTTP 接口（下单/查单/回调） | ✅ 启动实测通过 |
 | 订单落库 + 状态机（幂等 + 金额核对） | ✅ 已实现，含单元测试 |
-| 账号注册 / 登录 / 登出 / 令牌校验 | ✅ 已实现，含单元测试 |
-| 支付成功后按订单归属给账号开 PRO | ✅ 已实现，含单元测试 |
+| 换机找回（authInfo + auth_code 换 user_id + 按买家查单） | ✅ 代码完成，含单元测试；**待真机联调** |
+| 账号体系 | ❌ 已移除（2026-11 回退到「权益绑支付宝账号」的原始设计） |
 
 ## 目录结构
 
@@ -37,47 +37,43 @@ lkl-pay-server/
 │   ├── repository/                     # Spring Data JPA
 │   ├── service/
 │   │   ├── AlipayPayService.kt         # 下单 / 查单 / 通知验签
-│   │   ├── PayOrderService.kt          # 订单状态机 + 开通 PRO
-│   │   ├── UserService.kt              # 注册 / 登录 / 登录态校验
-│   │   ├── PasswordHasher.kt           # PBKDF2-HMAC-SHA256
-│   │   └── LoginThrottle.kt            # 登录失败节流
+│   │   ├── PayOrderService.kt          # 订单状态机 + 按买家找回
+│   │   ├── AlipayIdentityService.kt    # 授权串生成 / auth_code 换 user_id
+│   │   └── PayApiThrottle.kt           # 下单/查单/找回的频率限制
 │   └── web/
-│       ├── AlipayController.kt         # /api/alipay/*
-│       └── AuthController.kt           # /api/auth/*
+│       └── AlipayController.kt         # /api/alipay/*
 ├── src/main/resources/application.yml
 └── data/paydb.mv.db                    # H2 文件库（备份 = 拷贝该文件）
 ```
 
 ## API
 
-### 账号
+### 找回已购（换手机）
 
-账号是**可选**能力：不登录也能完整使用 App，登录的唯一收益是换机/重装后找回已购 PRO。
+**没有账号体系**：不注册、不登录、不收集手机号。权益绑定的是**付款人的支付宝用户号**
+（支付结果里的 `buyer_user_id`，已随订单落库）。换设备后由 App 发起一次支付宝授权即可核验。
 
 | 接口 | 说明 |
 | --- | --- |
-| `POST /api/auth/register` | 入参 `{username, password, nickname?}`，返回 `{token, user}` |
-| `POST /api/auth/login` | 入参 `{username, password}`，返回 `{token, user}` |
-| `POST /api/auth/logout` | 需 `Authorization: Bearer <token>`，作废当前令牌 |
-| `GET /api/auth/me` | 需 `Authorization: Bearer <token>`，返回账号信息（含 `pro`） |
+| `POST /api/alipay/auth-info` | 返回签好名的 `auth_info`，交给 App 的 `AuthTask.authV2` 拉起授权页。未配置 `alipay.pid` 时返回 503 |
+| `POST /api/alipay/recover` | 入参 `{authCode}`；服务端换出 `user_id` 后反查已支付订单，返回 `{found, paid_at, count}` |
 
-- 用户名：3~32 位字母、数字或下划线，统一小写存储
-- 口令：6~64 位；PBKDF2-HMAC-SHA256（210k 次迭代 + 16 字节随机盐），存储串形如 `pbkdf2$迭代次数$盐$摘要`
-- 失败响应用 `code` 表达原因：`USERNAME_TAKEN`(409) / `BAD_CREDENTIALS`(401) / `RATE_LIMITED`(429) / `UNAUTHORIZED`(401) / `INVALID_ARGUMENT`(400)
-- 同一用户名连续失败 5 次即锁定 10 分钟（内存计数，重启清零）
-- 口令**无法自助找回**（无短信/邮件通道），需凭支付宝交易记录人工处理
+- **不签发任何令牌**：服务端不维护登录态，没有可注销的账号、没有可泄露的口令
+- 签名在服务端完成（`alipay.open.auth.sdk.code.get`），应用私钥永不出服务器
+- 只匹配 `PAID` 订单：`CREATED` / `CLOSED` 都不能用来恢复权益
+- 代付场景（家人朋友付款）无法自动找回，需人工凭交易记录处理
 
 ### 支付
 
 #### 下单 `POST /api/alipay/create`
 ```json
-{ "productId": "pro_permanent", "token": "可选，登录令牌" }
+{ "productId": "pro_permanent" }
 ```
 → `{ "success": true, "data": { "out_trade_no": "...", "order_str": "..." } }`
 
 **只传商品 ID、不传金额**：金额由服务端商品目录（`pay.products`）决定。若允许客户端传金额，任何人都能以 1 分钱下单并取得一笔真实「已支付」的订单。
 
-带上 `token` 时订单会归属到该账号，支付成功后 PRO 直接开到账号上；令牌无效按游客处理（过期登录不该拦住付款）。
+**也不传任何用户标识**：这笔钱算谁的，由支付宝回调里的买家 `user_id` 决定，与 App 侧状态无关。
 
 App 端拿到 `order_str` 后交给 `PayTask.payV2(orderStr, true)` 拉起支付宝。
 **`order_str` 只在服务端加签生成，不产生网络请求**；客户端同步返回码（如 9000）不代表到账。

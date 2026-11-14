@@ -62,7 +62,7 @@ class TrialManagerTest {
     @Test
     fun `重置后回到未激活`() {
         val tm = TrialManager.getInstance(context)
-        tm.activate(TrialManager.PAY_METHOD_ACCOUNT)
+        tm.activate(TrialManager.PAY_METHOD_RECOVER)
         assertTrue(tm.isActivated())
 
         tm.resetActivation()

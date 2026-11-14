@@ -2,11 +2,10 @@ package com.juge.lklpay.web
 
 import com.juge.lklpay.config.PayProperties
 import com.juge.lklpay.domain.PayOrder
+import com.juge.lklpay.service.AlipayIdentityService
 import com.juge.lklpay.service.AlipayPayService
-import com.juge.lklpay.service.AuthException
 import com.juge.lklpay.service.PayApiThrottle
 import com.juge.lklpay.service.PayOrderService
-import com.juge.lklpay.service.UserService
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -14,7 +13,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -25,7 +23,7 @@ class AlipayController(
     private val alipayPayService: AlipayPayService,
     private val payOrderService: PayOrderService,
     private val payProperties: PayProperties,
-    private val userService: UserService,
+    private val identityService: AlipayIdentityService,
     private val payApiThrottle: PayApiThrottle,
 ) {
 
@@ -36,23 +34,17 @@ class AlipayController(
      *
      * 刻意只接收商品 ID、不接收金额：金额由服务端商品目录决定。
      * 若允许客户端传金额，任何人都能以 1 分钱下单并取得一笔真实「已支付」的订单。
+     *
+     * 也不接收任何用户标识：权益归属走支付宝回调里的买家 user_id，
+     * 不依赖 App 侧登录态。
      */
     data class CreateOrderRequest(
         /** 商品 ID，取值见 application.yml 的 pay.products */
         val productId: String,
-        /**
-         * 可选的登录令牌。带着它下单，支付成功后 PRO 会开到对应账号上，
-         * 换机登录即可找回；不带则按游客处理，PRO 只落在本机。
-         * 令牌存在但已失效时不会静默按游客处理——见 [create] 的说明。
-         */
-        val token: String? = null,
     )
 
     /**
      * 下单：返回 orderStr，App 端调用 `PayTask.payV2(orderStr)` 拉起支付宝。
-     *
-     * 令牌失效（过期/已登出）时返回 401，而不是当作游客下单：
-     * 静默降级会让用户以为买到了账号上，实际只落在本机，换机后找不回。
      */
     @PostMapping("/create")
     fun create(@RequestBody req: CreateOrderRequest, request: HttpServletRequest): ResponseEntity<*> {
@@ -65,14 +57,6 @@ class AlipayController(
             ?: return ResponseEntity.badRequest()
                 .body(mapOf("success" to false, "message" to "未知商品：${req.productId}"))
 
-        val userId = try {
-            userService.resolvePurchaseUserId(req.token)
-        } catch (e: AuthException) {
-            log.warn("下单令牌失效，要求重新登录：{}", e.message)
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(mapOf("success" to false, "code" to e.code, "message" to e.message))
-        }
-
         return try {
             val result = alipayPayService.createAppOrder(product.amountFen, product.subject)
             payOrderService.recordCreated(
@@ -80,7 +64,6 @@ class AlipayController(
                 productId = req.productId,
                 subject = product.subject,
                 amountFen = product.amountFen,
-                userId = userId,
             )
             ResponseEntity.ok(mapOf("success" to true, "data" to result))
         } catch (e: IllegalArgumentException) {
@@ -98,14 +81,12 @@ class AlipayController(
      *
      * 查单结果是权威结论，顺带补齐本地订单状态——异步通知可能延迟甚至丢失。
      *
-     * 两道收紧：
-     *  1. 订单归属账号时，必须由该账号本人（携带有效令牌）查询，避免任何人凭订单号读取他人交易；
-     *  2. 响应只回传客户端确认支付所需的最小字段，买家标识等交易细节不外泄。
+     * 订单号由服务端生成（时间戳 + UUID 片段，不可枚举），且响应只回传
+     * 客户端确认支付所需的最小字段，买家标识等交易细节不外泄。
      */
     @GetMapping("/query")
     fun query(
         @RequestParam outTradeNo: String,
-        @RequestHeader(value = "Authorization", required = false) authorization: String?,
         request: HttpServletRequest,
     ): ResponseEntity<*> {
         if (!payApiThrottle.tryConsume("query", clientIp(request), PayApiThrottle.QUERY_LIMIT_PER_MINUTE)) {
@@ -113,17 +94,8 @@ class AlipayController(
                 .body(mapOf("success" to false, "code" to "RATE_LIMITED", "message" to "操作过于频繁，请稍后再试"))
         }
 
-        val localOrder = payOrderService.find(outTradeNo)
+        payOrderService.find(outTradeNo)
             ?: return queryError(HttpStatus.NOT_FOUND, "ORDER_MISSING", "订单不存在")
-        val ownerId = localOrder.userId
-        if (ownerId != null) {
-            val requester = runCatching { userService.authenticate(bearerToken(authorization)) }.getOrNull()
-            if (requester == null || requester.id != ownerId) {
-                log.warn("查单被拒：订单归属账号 {}，请求方未通过校验 outTradeNo={}", ownerId, outTradeNo)
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(mapOf("success" to false, "message" to "无权查询该订单"))
-            }
-        }
 
         return try {
             val result = alipayPayService.queryOrder(outTradeNo)
@@ -144,15 +116,8 @@ class AlipayController(
         "sub_code" to result["sub_code"],
     )
 
-    /** 兼容 `Bearer xxx` 与裸令牌两种写法 */
-    private fun bearerToken(authorization: String?): String? {
-        val raw = authorization?.trim().orEmpty()
-        if (raw.isEmpty()) return null
-        return raw.removePrefix("Bearer ").removePrefix("bearer ").trim().ifEmpty { null }
-    }
-
     /**
-     * 取来源 IP，逻辑与 AuthController 一致：优先 X-Forwarded-For 最左值，再 X-Real-IP。
+     * 取来源 IP：优先 X-Forwarded-For 最左值，再 X-Real-IP。
      * 前提：Nginx 必须覆写（而非透传）X-Forwarded-For，否则客户端可伪造该头绕过限流。
      */
     private fun clientIp(request: HttpServletRequest): String? {
@@ -292,6 +257,79 @@ class AlipayController(
             return queryError(HttpStatus.CONFLICT, "ORDER_NOT_PAID", "本地订单未确认支付，请联系客服核查")
         }
         return null
+    }
+
+    /**
+     * 换手机第一步：取一段签好名的 authInfo，交给 App 的 `AuthTask.authV2` 拉起支付宝授权。
+     *
+     * 签名在服务端完成，App 只拿到一串能直接交给 SDK 的字符串——应用私钥永不出服务器。
+     * 未配置 `alipay.pid` 时返回 503，而不是给 App 一段必然被支付宝拒绝的授权串。
+     */
+    @PostMapping("/auth-info")
+    fun authInfo(): ResponseEntity<*> =
+        if (!identityService.isConfigured()) {
+            ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                mapOf(
+                    "success" to false,
+                    "code" to "RECOVERY_UNAVAILABLE",
+                    "message" to "找回功能暂不可用，请联系客服",
+                ),
+            )
+        } else {
+            runCatching { identityService.buildAuthInfo() }.fold(
+                onSuccess = { ResponseEntity.ok(mapOf("success" to true, "data" to mapOf("auth_info" to it))) },
+                onFailure = {
+                    log.error("生成 authInfo 失败", it)
+                    ResponseEntity.internalServerError()
+                        .body(mapOf("success" to false, "message" to "服务暂时不可用，请稍后重试"))
+                },
+            )
+        }
+
+    /** 找回请求：App 授权拿到的 auth_code（一次性，短时有效） */
+    data class RecoverRequest(val authCode: String = "")
+
+    /**
+     * 换手机第二步：用 auth_code 换出支付宝用户号，反查是否买过。
+     *
+     * 只返回「找到 / 没找到」与最早购买时间，**不签发任何令牌**——
+     * 权益验证的结论由 App 自己写进本地激活记录，服务端不维护登录态，
+     * 也就没有账号可以注销、没有密码可以泄露。
+     */
+    @PostMapping("/recover")
+    fun recover(@RequestBody req: RecoverRequest, request: HttpServletRequest): ResponseEntity<*> {
+        if (!payApiThrottle.tryConsume("recover", clientIp(request), PayApiThrottle.RECOVER_LIMIT_PER_MINUTE)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(mapOf("success" to false, "code" to "RATE_LIMITED", "message" to "操作过于频繁，请稍后再试"))
+        }
+        if (req.authCode.isBlank()) {
+            return ResponseEntity.badRequest()
+                .body(mapOf("success" to false, "code" to "INVALID_ARGUMENT", "message" to "授权信息为空"))
+        }
+
+        val buyerUserId = identityService.exchangeUserId(req.authCode)
+            ?: return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                mapOf(
+                    "success" to false,
+                    "code" to "AUTH_FAILED",
+                    "message" to "支付宝授权校验失败，请重试或联系客服",
+                ),
+            )
+
+        val paid = payOrderService.findPaidByBuyer(buyerUserId)
+        val earliestPaidAt = paid.mapNotNull { it.paidAt }.minOrNull()
+        log.info("找回查询 buyerUserId={} 命中已支付订单 {} 笔", buyerUserId, paid.size)
+
+        return ResponseEntity.ok(
+            mapOf(
+                "success" to true,
+                "data" to mapOf(
+                    "found" to paid.isNotEmpty(),
+                    "paid_at" to earliestPaidAt,
+                    "count" to paid.size,
+                ),
+            ),
+        )
     }
 
     private fun queryError(status: HttpStatus, code: String, message: String): ResponseEntity<*> =

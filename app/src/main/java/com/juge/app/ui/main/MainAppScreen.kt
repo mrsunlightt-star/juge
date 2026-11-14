@@ -30,8 +30,6 @@ import androidx.lifecycle.lifecycleScope
 import com.juge.app.CropImageHelper
 import com.juge.app.JugeApplication
 import com.juge.app.ReminderWidgetProvider
-import com.juge.app.account.AccountStore
-import com.juge.app.account.AccountSync
 import com.juge.app.data.Category
 import com.juge.app.data.DbHelper
 import com.juge.app.data.Reminder
@@ -127,20 +125,10 @@ fun MainAppScreen(
     var isActivatedState by remember { mutableStateOf(trialManager.isActivated()) }
     // 支付进行中：用于按钮置忙，避免重复拉起收银台
     var isPaying by remember { mutableStateOf(false) }
-    var showAccountDialog by remember { mutableStateOf(false) }
-    // 激活后顶栏的「我的」入口：账号与会员状态都在这个子页面里
-    var showMinePage by remember { mutableStateOf(false) }
-    // 「我的」页/协议行打开的协议全文：null / "user" / "privacy" / "license"
+    // 找回进行中：支付宝授权页关闭前不重复拉起
+    var isRecovering by remember { mutableStateOf(false) }
+    // 协议行打开的协议全文：null / "user" / "privacy" / "license"
     var showLegalDoc by remember { mutableStateOf<String?>(null) }
-    // 账号快照（含昵称/服务端 PRO 缓存）是唯一状态源：登录、退出、注销后都重新读一次，
-    // 顶栏「我的」页与付费墙里的账号名一起跟着变
-    var accountSnapshot by remember { mutableStateOf(AccountStore.snapshot(context)) }
-
-    // PRO 一旦被撤销（账号同步判定失效），「我的」页就没有入口了：顶栏已回到待激活胶囊，
-    // 页面若还开着就成了孤岛，直接收掉
-    LaunchedEffect(isActivatedState) {
-        if (!isActivatedState) showMinePage = false
-    }
 
     // 上次支付被中断（App 被杀 / 切后台）时复查留存订单，兜底「已付款但没激活成功」
     LaunchedEffect(Unit) {
@@ -153,36 +141,8 @@ fun MainAppScreen(
         }
     }
 
-    // 已登录时用服务端结论回灌本地 PRO：换机、重装后这是唯一的找回入口。
-    // 未登录或网络不可用时静默跳过，不影响本地任何功能。
-    LaunchedEffect(Unit) {
-        accountSnapshot = AccountStore.snapshot(context)
-        when (val outcome = AccountSync.refresh(context)) {
-            is AccountSync.Outcome.ServerSays -> {
-                if (outcome.pro && !trialManager.isActivated()) {
-                    trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
-                    isActivatedState = true
-                    ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                    Toast.makeText(context, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
-                } else if (!outcome.pro && trialManager.isActivated()) {
-                    // 服务端明确说这个账号不是 PRO（盗号、共享账号、退款等），才撤销本地激活，
-                    // 否则激活标记会在本机永久残留。两个例外必须保留：
-                    //   1. 本机直接购买（payMethod=支付宝）——钱是这台机器付的，与账号状态无关；
-                    //   2. 开发开关——保留调试能力。
-                    val grantedByAccount =
-                        trialManager.activationRecord()?.payMethod == TrialManager.PAY_METHOD_ACCOUNT
-                    if (grantedByAccount) {
-                        trialManager.resetActivation()
-                        isActivatedState = false
-                        ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                        Toast.makeText(context, "该账号的 PRO 已失效，已切换回免费版", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            // 未登录 / 没问成：保持本地状态不变
-            AccountSync.Outcome.NotLoggedIn, AccountSync.Outcome.Unavailable -> Unit
-        }
-    }
+    // 换机找回走「付费墙 → 支付宝授权」那条路（见 AlipayRecovery），
+    // 启动时不再有任何账号对账动作：没有登录态，也就没有可对账的东西。
 
     var categories by remember { mutableStateOf(emptyList<Category>()) }
     var reminders by remember { mutableStateOf(emptyList<Reminder>()) }
@@ -491,19 +451,12 @@ fun MainAppScreen(
         showProDialog = showProDialog,
         isActivated = isActivatedState,
         isPaying = isPaying,
-        accountName = accountSnapshot?.displayName,
+        isRecovering = isRecovering,
         activity = activity,
-        trialManager = trialManager,
         onActivatedChange = { isActivatedState = it },
         onPayingChange = { isPaying = it },
-        onOpenAccount = { showAccountDialog = true },
+        onRecoveringChange = { isRecovering = it },
         onProDialogDismiss = { showProDialog = false },
-        showAccountDialog = showAccountDialog,
-        onAccountDismiss = {
-            showAccountDialog = false
-            // 登录/注册成功后账号名要立刻反映到付费墙与「我的」页
-            accountSnapshot = AccountStore.snapshot(context)
-        },
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
     )
@@ -550,7 +503,6 @@ fun MainAppScreen(
                     },
                     onActivatedChange = { isActivatedState = it },
                     onOpenPro = { showProDialog = true },
-                    onOpenMine = { showMinePage = true },
                     isDarkTheme = isDarkTheme,
                     onToggleDarkTheme = onToggleDarkTheme
                 )
@@ -743,16 +695,5 @@ fun MainAppScreen(
                 }
             }
         }
-
-        MinePage(
-            show = showMinePage,
-            isActivated = isActivatedState,
-            account = accountSnapshot,
-            trialManager = trialManager,
-            onOpenLogin = { showAccountDialog = true },
-            onOpenPro = { showProDialog = true },
-            onSessionChanged = { accountSnapshot = AccountStore.snapshot(context) },
-            onDismiss = { showMinePage = false }
-        )
     }
 }

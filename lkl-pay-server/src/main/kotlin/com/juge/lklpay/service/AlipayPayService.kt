@@ -11,8 +11,6 @@ import com.juge.lklpay.config.AlipayProperties
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
-import java.nio.file.Files
-import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -35,8 +33,8 @@ class AlipayPayService(private val props: AlipayProperties) {
 
     private val log = LoggerFactory.getLogger(AlipayPayService::class.java)
 
-    private val appPrivateKey: String by lazy { loadKey(props.privateKeyPath) }
-    private val alipayPublicKey: String by lazy { loadKey(props.alipayPublicKeyPath) }
+    private val appPrivateKey: String by lazy { AlipayKeyLoader.load(props.privateKeyPath) }
+    private val alipayPublicKey: String by lazy { AlipayKeyLoader.load(props.alipayPublicKeyPath) }
 
     private val client: AlipayClient by lazy {
         DefaultAlipayClient(
@@ -145,17 +143,6 @@ class AlipayPayService(private val props: AlipayProperties) {
             return false
         }
         return true
-    }
-
-    /** 应用私钥/支付宝公钥统一归一化为单行 Base64（剥离 PEM 头尾与换行） */
-    private fun loadKey(path: String): String {
-        val content = Files.readString(Path.of(path))
-        val single = content
-            .replace(Regex("-----BEGIN [A-Z ]+-----"), "")
-            .replace(Regex("-----END [A-Z ]+-----"), "")
-            .filter { !it.isWhitespace() }
-        check(single.isNotEmpty()) { "密钥文件为空：$path" }
-        return single
     }
 
     private fun fenToYuan(amountFen: Long): String =

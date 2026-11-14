@@ -2,7 +2,6 @@ package com.juge.app.pay
 
 import android.app.Activity
 import android.content.Context
-import com.juge.app.account.AccountStore
 import com.juge.app.data.TrialManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,8 +32,8 @@ object ProPurchase {
 
     /** 每次调用独立注入，正式路径始终使用默认实现，无全局可变测试钩子。 */
     internal data class Dependencies(
-        val createOrder: suspend (String, String?) -> Result<AlipayPayApi.OrderCreated> = AlipayPayApi::createOrder,
-        val queryOrder: suspend (String, String?) -> Result<AlipayPayApi.OrderStatus> = AlipayPayApi::queryOrder,
+        val createOrder: suspend (String) -> Result<AlipayPayApi.OrderCreated> = AlipayPayApi::createOrder,
+        val queryOrder: suspend (String) -> Result<AlipayPayApi.OrderStatus> = AlipayPayApi::queryOrder,
         val pay: (Activity, String) -> String = AlipayPay::pay,
         val activate: (Context) -> Boolean = {
             TrialManager.getInstance(it).activate(TrialManager.PAY_METHOD_ALIPAY)
@@ -56,9 +55,7 @@ object ProPurchase {
     suspend fun purchase(activity: Activity): Outcome = purchase(activity, Dependencies())
 
     internal suspend fun purchase(activity: Activity, dependencies: Dependencies): Outcome {
-        // 未登录也能买，只是激活状态只留在本机。
-        val token = AccountStore.token(activity)
-        val created = dependencies.createOrder(PRODUCT_ID, token).getOrElse { e ->
+        val created = dependencies.createOrder(PRODUCT_ID).getOrElse { e ->
             Timber.e(e, "ProPurchase: 下单失败")
             val serverMessage = (e as? AlipayPayApi.ApiException)?.message?.takeIf { it.isNotBlank() }
             return Outcome.Failed(serverMessage ?: "下单失败，请检查网络后重试")
@@ -72,14 +69,14 @@ object ProPurchase {
         }
         return when (resultStatus) {
             AlipayPay.STATUS_SUCCESS ->
-                if (confirmPaid(created.outTradeNo, token, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS, dependencies)) {
+                if (confirmPaid(created.outTradeNo, SUCCESS_ATTEMPTS, SUCCESS_INTERVAL_MS, dependencies)) {
                     finishPaid(activity, created.outTradeNo, dependencies)
                 } else {
                     Outcome.Unpaid("支付已提交，到账确认中，稍后重新打开应用会自动找回")
                 }
 
             AlipayPay.STATUS_PROCESSING, AlipayPay.STATUS_UNKNOWN ->
-                if (confirmPaid(created.outTradeNo, token, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS, dependencies)) {
+                if (confirmPaid(created.outTradeNo, UNKNOWN_ATTEMPTS, UNKNOWN_INTERVAL_MS, dependencies)) {
                     finishPaid(activity, created.outTradeNo, dependencies)
                 } else {
                     Outcome.Unpaid("支付处理中，稍后重新打开应用会自动找回")
@@ -99,10 +96,8 @@ object ProPurchase {
     internal suspend fun recoverPending(context: Context, dependencies: Dependencies): Outcome =
         recoveryMutex.withLock {
             val orders = withContext(Dispatchers.IO) { pendingOrders(context) }
-            // 使用当前令牌：历史队列未保存下单令牌，归属拒绝时保留原单。
-            val token = AccountStore.token(context)
             for (outTradeNo in orders) {
-                val result = dependencies.queryOrder(outTradeNo, token)
+                val result = dependencies.queryOrder(outTradeNo)
                 val status = result.getOrNull()
                 when {
                     status?.isPaid == true -> return@withLock finishPaid(context, outTradeNo, dependencies)
@@ -131,13 +126,12 @@ object ProPurchase {
     /** 抹平支付与服务端落库的时间差；限流和终态不继续轮询。 */
     private suspend fun confirmPaid(
         outTradeNo: String,
-        token: String?,
         attempts: Int,
         intervalMs: Long,
         dependencies: Dependencies,
     ): Boolean {
         repeat(attempts) { index ->
-            val result = dependencies.queryOrder(outTradeNo, token)
+            val result = dependencies.queryOrder(outTradeNo)
             val status = result.getOrNull()
             if (status?.isPaid == true) return true
             if (status?.isClosed == true || status?.isNotExist == true ||

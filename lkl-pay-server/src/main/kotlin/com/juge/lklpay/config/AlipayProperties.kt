@@ -14,6 +14,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class AlipayProperties(
     /** 开放平台应用 APPID */
     var appId: String = "",
+    /**
+     * 签约支付宝账号的 PID（2088 开头的用户号）。
+     *
+     * 只有「找回已购」用到：App 内授权（`alipay.open.auth.sdk.code.get`）的
+     * authInfo 必须带 pid，否则支付宝侧会拒绝授权。
+     * 关闭时留空即可——不配置只会让找回接口返回 503，不影响下单与查单。
+     */
+    var pid: String = "",
     /** 应用私钥文件路径（PKCS#8，PEM 头尾会被自动剥离） */
     var privateKeyPath: String = "",
     /** 支付宝公钥文件路径（Base64 单行） */

@@ -125,7 +125,7 @@ class ProPurchaseTest {
         pending.allowCommit = false
         val deps = dependencies().copy(
             pay = { _, _ -> error("订单未落盘不得唤支付") },
-            queryOrder = { _, _ -> error("订单未落盘不得查单") },
+            queryOrder = { _ -> error("订单未落盘不得查单") },
         )
 
         assertTrue(ProPurchase.purchase(activity, deps) is ProPurchase.Outcome.Failed)
@@ -148,7 +148,7 @@ class ProPurchaseTest {
     fun `关闭与不存在的订单清理 等待付款和网络失败订单保留`() = runBlocking {
         seed("closed", "missing", "waiting", "offline")
         val deps = dependencies().copy(
-            queryOrder = { order, _ ->
+            queryOrder = { order ->
                 when (order) {
                     "closed" -> Result.success(status(order, "TRADE_CLOSED"))
                     "missing" -> Result.success(status(order, "").copy(code = "40004", subCode = "ACQ.TRADE_NOT_EXIST"))
@@ -167,7 +167,7 @@ class ProPurchaseTest {
     fun `限流立即停止本轮并轮转 后面的已付单下轮优先恢复`() = runBlocking {
         seed("waiting", "limited", "paid")
         val queried = mutableListOf<String>()
-        val deps = dependencies().copy(queryOrder = { order, _ ->
+        val deps = dependencies().copy(queryOrder = { order ->
             queried.add(order)
             when (order) {
                 "waiting" -> Result.success(status(order, "WAIT_BUYER_PAY"))
@@ -191,7 +191,7 @@ class ProPurchaseTest {
         var queries = 0
         val deps = dependencies().copy(
             pay = { _, _ -> AlipayPay.STATUS_SUCCESS },
-            queryOrder = { _, _ ->
+            queryOrder = { _ ->
                 queries++
                 Result.failure(AlipayPayApi.ApiException("稍后重试", "RATE_LIMITED"))
             },
@@ -209,7 +209,7 @@ class ProPurchaseTest {
         val querying = CompletableDeferred<Unit>()
         val resume = CompletableDeferred<Unit>()
         val recovery = async {
-            ProPurchase.recoverPending(context, dependencies().copy(queryOrder = { order, _ ->
+            ProPurchase.recoverPending(context, dependencies().copy(queryOrder = { order ->
                 querying.complete(Unit)
                 resume.await()
                 Result.success(status(order))
@@ -228,7 +228,7 @@ class ProPurchaseTest {
     fun `并发追加订单不覆盖其他未支付订单`() = runBlocking {
         (1..24).map { index ->
             async(Dispatchers.Default) {
-                ProPurchase.purchase(activity, dependencies().copy(createOrder = { _, _ ->
+                ProPurchase.purchase(activity, dependencies().copy(createOrder = { _ ->
                     Result.success(AlipayPayApi.OrderCreated("order-$index", "test-order"))
                 }))
             }
@@ -280,8 +280,8 @@ class ProPurchaseTest {
     }
 
     private fun dependencies() = ProPurchase.Dependencies(
-        createOrder = { _, _ -> Result.success(AlipayPayApi.OrderCreated("paid", "test-order")) },
-        queryOrder = { order, _ -> Result.success(status(order)) },
+        createOrder = { _ -> Result.success(AlipayPayApi.OrderCreated("paid", "test-order")) },
+        queryOrder = { order -> Result.success(status(order)) },
         pay = { _, _ -> AlipayPay.STATUS_CANCELED },
         activate = { trial.activate(TrialManager.PAY_METHOD_ALIPAY) },
     )

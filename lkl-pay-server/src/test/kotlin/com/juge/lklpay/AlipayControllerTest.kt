@@ -2,11 +2,11 @@ package com.juge.lklpay
 
 import com.juge.lklpay.config.PayProperties
 import com.juge.lklpay.domain.PayOrder
+import com.juge.lklpay.service.AlipayIdentityService
 import com.juge.lklpay.service.AlipayPayService
 import com.juge.lklpay.service.PayApiThrottle
 import com.juge.lklpay.service.PayOrderService
 import com.juge.lklpay.service.PayOrderService.MarkPaidOutcome
-import com.juge.lklpay.service.UserService
 import com.juge.lklpay.web.AlipayController
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -23,13 +23,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders
 class AlipayControllerTest {
     private val alipay = mock(AlipayPayService::class.java)
     private val orders = mock(PayOrderService::class.java)
-    private val users = mock(UserService::class.java)
+    private val identity = mock(AlipayIdentityService::class.java)
     private lateinit var mvc: MockMvc
 
     @BeforeEach
     fun setUp() {
         mvc = MockMvcBuilders.standaloneSetup(
-            AlipayController(alipay, orders, PayProperties(), users, PayApiThrottle())
+            AlipayController(alipay, orders, PayProperties(), identity, PayApiThrottle())
         ).build()
         `when`(orders.find(NO)).thenReturn(order(PayOrder.STATUS_CREATED))
     }
@@ -149,15 +149,6 @@ class AlipayControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.trade_status").value("WAIT_BUYER_PAY"))
         verify(orders, never()).markPaid(anyString(), any(), any(), any(), any(), any())
-    }
-
-    @Test
-    fun `账号订单没有本人授权就不能查询网关`() {
-        `when`(orders.find(NO)).thenReturn(order(PayOrder.STATUS_CREATED).apply { userId = 42 })
-        mvc.perform(get("/api/alipay/query").param("outTradeNo", NO))
-            .andExpect(status().isForbidden)
-            .andExpect(jsonPath("$.success").value(false))
-        verifyNoInteractions(alipay)
     }
 
     private fun givenPaidResult(tradeStatus: String, amount: String?, outcome: MarkPaidOutcome) {

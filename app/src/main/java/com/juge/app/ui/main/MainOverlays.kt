@@ -6,38 +6,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.juge.app.ReminderWidgetProvider
-import com.juge.app.account.AccountDialog
 import com.juge.app.data.LegalDocs
-import com.juge.app.data.TrialManager
+import com.juge.app.pay.AlipayRecovery
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.legal.LegalDocDialog
 import kotlinx.coroutines.launch
 
 /**
- * 主界面之上的三个浮层：PRO 激活弹窗、账号弹窗、协议全文弹窗。
+ * 主界面之上的两个浮层：PRO 激活弹窗、协议全文弹窗。
  *
- * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity）：付费流程与激活回灌写在这里，
- * 但激活状态、弹窗开关、账号昵称仍由调用方持有，只通过回调写回。
+ * 权益既不绑设备也不绑账号，绑的是**付款人的支付宝账号**。
+ * 所以这里只有两个动作：买（支付宝收银台）、已买过（支付宝授权核验）。
+ * 没有任何登录态要维护，也就没有「换了手机登不上」这条失败路径。
  *
- * 「我的」页不在这里：它是整屏页面（同窗口上层页面），由 MainAppScreen 直接渲染；
- * 这里的三个 Dialog 是独立窗口，天然盖在它上面。
- *
- * 声明顺序 = 窗口层级：协议全文最后声明——从登录弹窗里点协议要能盖住当前这一层。
+ * 声明顺序 = 窗口层级：协议全文最后声明——从付费墙里点协议要能盖住当前这一层。
  */
 @Composable
 fun MainOverlays(
     showProDialog: Boolean,
     isActivated: Boolean,
     isPaying: Boolean,
-    accountName: String?,
+    isRecovering: Boolean,
     activity: ComponentActivity,
-    trialManager: TrialManager,
     onActivatedChange: (Boolean) -> Unit,
     onPayingChange: (Boolean) -> Unit,
-    onOpenAccount: () -> Unit,
+    onRecoveringChange: (Boolean) -> Unit,
     onProDialogDismiss: () -> Unit,
-    showAccountDialog: Boolean,
-    onAccountDismiss: () -> Unit,
     legalDoc: String?,
     onLegalDismiss: () -> Unit,
 ) {
@@ -46,57 +40,64 @@ fun MainOverlays(
     ProActivationDialog(
         show = showProDialog,
         isActivated = isActivated,
-            isPaying = isPaying,
-            accountName = accountName,
-            onActivate = {
-                if (!isPaying) {
-                    onPayingChange(true)
-                    activity.lifecycleScope.launch {
-                        when (val outcome = ProPurchase.purchase(activity)) {
-                            is ProPurchase.Outcome.Paid -> {
-                                // Paid 已保证激活落盘，这里只更新界面，不能重复覆盖激活记录。
-                                onActivatedChange(true)
-                                onProDialogDismiss()
-                                // 桌面组件上未激活时的提示位图需要重绘
-                                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                                Toast.makeText(context, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
-                            }
-
-                            is ProPurchase.Outcome.Unpaid -> if (outcome.message.isNotEmpty()) {
-                                Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                            }
-
-                            is ProPurchase.Outcome.Failed -> {
-                                Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                            }
+        isPaying = isPaying,
+        isRecovering = isRecovering,
+        onActivate = {
+            if (!isPaying && !isRecovering) {
+                onPayingChange(true)
+                activity.lifecycleScope.launch {
+                    when (val outcome = ProPurchase.purchase(activity)) {
+                        is ProPurchase.Outcome.Paid -> {
+                            // Paid 已保证激活落盘，这里只更新界面，不能重复覆盖激活记录。
+                            onActivatedChange(true)
+                            onProDialogDismiss()
+                            // 桌面组件上未激活时的提示位图需要重绘
+                            ReminderWidgetProvider.triggerUpdateAllWidgets(context)
+                            Toast.makeText(context, "🎉 PRO 已激活，全部风格已解锁！", Toast.LENGTH_SHORT).show()
                         }
-                        onPayingChange(false)
-                    }
-                }
-            },
-            onOpenAccount = onOpenAccount,
-        onDismiss = { if (!isPaying) onProDialogDismiss() }
-    )
 
-    AccountDialog(
-        show = showAccountDialog,
-        onProConfirmed = {
-                // 只在本机未激活时才写入「账号找回」记录。登录成功不代表本机没有 PRO：
-                // 已用支付宝在这台机器买过的用户，激活记录里留着真实付费时间/方式，
-                // 无条件覆盖会让「我的」页的数据失真；更糟的是日后该账号服务端失去 PRO
-                // 时会被误判为「账号找回的权益」遭整体撤销（见 MainAppScreen 的账号同步分支）
-                if (trialManager.isActivated()) {
-                    // 已激活就什么都不用做，权益不会更多也不会更少
-                    return@AccountDialog
+                        is ProPurchase.Outcome.Unpaid -> if (outcome.message.isNotEmpty()) {
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                        }
+
+                        is ProPurchase.Outcome.Failed -> {
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    onPayingChange(false)
                 }
-                trialManager.activate(TrialManager.PAY_METHOD_ACCOUNT)
-                onActivatedChange(true)
-                ReminderWidgetProvider.triggerUpdateAllWidgets(context)
-                Toast.makeText(context, "🎉 已通过账号找回 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
-            },
-        onDismiss = {
-            onAccountDismiss()
+            }
         },
+        onRecover = {
+            if (!isPaying && !isRecovering) {
+                onRecoveringChange(true)
+                activity.lifecycleScope.launch {
+                    when (val outcome = AlipayRecovery.recover(activity)) {
+                        AlipayRecovery.Outcome.Restored -> {
+                            onActivatedChange(true)
+                            onProDialogDismiss()
+                            ReminderWidgetProvider.triggerUpdateAllWidgets(context)
+                            Toast.makeText(context, "🎉 已找回你的 PRO，全部风格已解锁！", Toast.LENGTH_SHORT).show()
+                        }
+
+                        // 最常见的原因是「家人朋友代付」——那笔订单的 buyer_user_id 属于付款人。
+                        // 这里必须给出可执行的下一步，否则用户只会以为钱白花了。
+                        AlipayRecovery.Outcome.NotFound -> Toast.makeText(
+                            context,
+                            "没有查到该支付宝账号的购买记录。如果你是用家人或朋友的账号付款的，请发邮件到 ${LegalDocs.EMAIL} 帮你人工找回",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        AlipayRecovery.Outcome.Canceled -> Unit
+
+                        is AlipayRecovery.Outcome.Failed ->
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                    }
+                    onRecoveringChange(false)
+                }
+            }
+        },
+        onDismiss = { if (!isPaying && !isRecovering) onProDialogDismiss() }
     )
 
     val doc = legalDoc

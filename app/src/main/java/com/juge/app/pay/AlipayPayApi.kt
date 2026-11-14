@@ -26,16 +26,12 @@ object AlipayPayApi {
      * 只传商品 ID、不传金额——金额由服务端商品目录决定。
      * 若客户端可传金额，任何人都能以 1 分钱下单并取得一笔真实「已支付」的订单。
      *
-     * [token] 为已登录账号的令牌，带上它这笔订单的 PRO 会开到账号上；
-     * 不带则按游客处理，PRO 只落在本机。
+     * 也不传任何用户标识：这笔钱算谁的，由支付宝回调里的买家 user_id 决定。
      */
-    suspend fun createOrder(productId: String, token: String? = null): Result<OrderCreated> =
+    suspend fun createOrder(productId: String): Result<OrderCreated> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val body = JSONObject().apply {
-                    put("productId", productId)
-                    if (!token.isNullOrBlank()) put("token", token)
-                }
+                val body = JSONObject().apply { put("productId", productId) }
                 val resp = ServerClient.post("/api/alipay/create", body)
                 if (!resp.optBoolean("success")) {
                     throw ApiException(resp.optString("message").ifBlank { "下单失败" }, resp.optString("code"))
@@ -51,15 +47,13 @@ object AlipayPayApi {
     /**
      * 查单：trade_status 为 TRADE_SUCCESS / TRADE_FINISHED 才算真正支付成功。
      *
-     * [token] 为当前登录令牌：订单归属账号时服务端会校验查询者身份，
-     * 未登录（游客订单）传 null 即可。
+     * 订单号由服务端生成（不可枚举），查单接口不要求身份。
      */
-    suspend fun queryOrder(outTradeNo: String, token: String? = null): Result<OrderStatus> =
+    suspend fun queryOrder(outTradeNo: String): Result<OrderStatus> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val resp = ServerClient.get(
                     "/api/alipay/query",
-                    token = token,
                     params = mapOf("outTradeNo" to outTradeNo),
                 )
                 parseOrderStatus(outTradeNo, resp)

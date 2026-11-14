@@ -175,7 +175,10 @@ class TrialManager private constructor(context: Context) {
 
         /** 写入激活记录的支付方式标签 */
         const val PAY_METHOD_ALIPAY = "支付宝"
-        const val PAY_METHOD_ACCOUNT = "账号找回"
+
+        /** 换机后凭付款时的支付宝账号找回 */
+        const val PAY_METHOD_RECOVER = "支付宝找回"
+
         const val PAY_METHOD_DEV = "开发开关"
         const val PAY_METHOD_UNRECORDED = "未记录"
 

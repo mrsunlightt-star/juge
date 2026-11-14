@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,7 +95,6 @@ fun MainTopBar(
     onReloaded: (List<Reminder>, List<Category>, List<WidgetConfig>) -> Unit,
     onActivatedChange: (Boolean) -> Unit,
     onOpenPro: () -> Unit,
-    onOpenMine: () -> Unit,
     isDarkTheme: Boolean,
     onToggleDarkTheme: () -> Unit
 ) {
@@ -232,41 +230,28 @@ fun MainTopBar(
             }
 
             if (isActivated) {
-                // 已激活：入口收成「我的」图标（38dp 白圆 + 墨色人像，与左侧两颗圆钮同规格）。
-                // 不再常驻 PRO 徽章——买断之后它没有可点的动作，会员状态改在「我的」页展示。
-                Box(
+                // 已激活：只留一枚静态 PRO 徽章。
+                // 权益绑的是付款时的支付宝账号，本机没有账号可看、可退、可注销，
+                // 因此不再提供「我的」页——把入口去掉，比留一个空页面更诚实。
+                Row(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            onClickLabel = "打开我的",
-                            role = Role.Button,
-                        ) {
-                            haptics.click()
-                            onOpenMine()
-                        },
-                    contentAlignment = Alignment.Center
+                        .clip(AppShape.pill)
+                        .background(Brush.horizontalGradient(listOf(premiumGold, premiumGoldEnd)), AppShape.pill)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .shadow(
-                                elevation = AppShadows.control,
-                                shape = CircleShape,
-                                clip = false,
-                                ambientColor = AppShadows.ambientShadow,
-                                spotColor = AppShadows.spotShadow,
-                            )
-                            .background(circleSurface, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "我的",
-                            tint = circleTint,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.WorkspacePremium,
+                        contentDescription = null,
+                        tint = premiumGoldInk,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "PRO",
+                        style = AppType.label,
+                        color = premiumGoldInk
+                    )
                 }
             } else {
                 // 未激活：保持原来的金色待激活胶囊（文案/配色/热区都不变，只有价格跟着定价走）

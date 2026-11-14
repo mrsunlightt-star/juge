@@ -25,21 +25,12 @@ pay:
       subject: "句阁 PRO 会员"
       amount-fen: 399
 
-# ── 账号体系 ──
-# 可选登录：不登录也能完整使用，登录的唯一收益是换机/重装后找回已购 PRO
-auth:
-  # 登录态有效期，取长值避免用户隔一阵子打开就被登出
-  token-ttl-days: 365
-  # 同一用户名连续失败到该次数后锁定一个窗口期，防在线字典爆破
-  max-login-failures: 5
-  # 同一来源 IP 在窗口期内的失败/注册尝试上限。取较大值：NAT 下大量正常用户共用出口 IP
-  max-ip-failures: 40
-  login-window-minutes: 10
-
 # ── 支付宝 App 支付（alipay.trade.app.pay）──
 # 密钥体系为「公钥模式 + RSA2」：应用私钥本地保存，支付宝公钥从开放平台获取
 alipay:
   app-id: "2021007103686388"
+  # 签约支付宝账号的 PID（2088 开头）。只有「找回已购」用到，留空则该接口返回 503
+  pid: ""
   private-key-path: "certs/alipay_app_private_key.txt"
   alipay-public-key-path: "certs/alipay_public_key.txt"
   gateway-url: "https://openapi.alipay.com/gateway.do"

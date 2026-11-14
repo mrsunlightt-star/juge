@@ -33,9 +33,9 @@ fun ProActivationDialog(
     show: Boolean,
     isActivated: Boolean,
     isPaying: Boolean,
-    accountName: String?,
+    isRecovering: Boolean,
     onActivate: () -> Unit,
-    onOpenAccount: () -> Unit,
+    onRecover: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AppDialog(
@@ -109,19 +109,17 @@ fun ProActivationDialog(
                 )
             }
 
-            // 账号入口常驻两种状态：不登录是常态，所以只做引导，不做拦截。
-            // 2026-10 改版去掉这里的分割线：分组感由 AppDialogSurface 的 spacedBy 间距承担，
-            // 不再画线（`showDivider` 式的 AppDivider 属于结构性分割线，一律去掉）。
-            AppTextButton(
-                text = if (accountName.isNullOrBlank()) {
-                    "账号登录 · 换手机也能找回 PRO"
-                } else {
-                    "账号：$accountName"
-                },
-                onClick = onOpenAccount,
-                enabled = !isPaying,
-                color = accentBlue
-            )
+            // 换过手机的人不该再买一次。走支付宝授权核验「当初是不是这个账号付的钱」，
+            // 不需要注册、不需要密码，也不要求本机处于登录态（本来就没有登录态）。
+            // 已是会员时不再展示——此时点它只会换来一句「没查到购买记录」，纯属添堵。
+            if (!isActivated) {
+                AppTextButton(
+                    text = if (isRecovering) "正在核验…" else "已购买过？用支付宝找回",
+                    onClick = onRecover,
+                    enabled = !isPaying && !isRecovering,
+                    color = accentBlue
+                )
+            }
         }
     }
 }
