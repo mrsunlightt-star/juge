@@ -74,18 +74,25 @@ class WidgetProviderIsolationTest {
     }
 
     @Test
-    fun `全新安装两个入口分配独立配置并且重复更新不会继续克隆`() {
+    fun `全新安装两个入口不自动创建也不认领配置`() {
+        // 产品定档 2026-11-01：从选择器新加的组件一律回到默认态（纯色圆角 + 引导文案），
+        // 不再拿库里已有/自动生成的配置当模板——否则用户之前调过的样式和内容会被带过去。
         AppPrefs.setPrivacyAccepted(context)
         register(10)
         register(20, compact = true)
         ReminderWidgetProvider.updateAppWidget(context, manager, 10)
         ReminderWidgetProvider.updateAppWidget(context, manager, 20)
-        val first = db.getWidgetConfigById(ReminderWidgetProvider.getBoundConfigId(context, 10))!!
-        val second = db.getWidgetConfigById(ReminderWidgetProvider.getBoundConfigId(context, 20))!!
-        assertNotEquals(first.id, second.id)
-        assertEquals(first.content, second.content)
+
+        assertEquals(-1L, ReminderWidgetProvider.getBoundConfigId(context, 10))
+        assertEquals(-1L, ReminderWidgetProvider.getBoundConfigId(context, 20))
+        // 全新安装库里只有种子行（「默认卡片1」+「英文金句示例」），两个组件都不该认领，也不该多建行
+        val seeded = db.getAllWidgetConfigs()
+        assertEquals(2, seeded.size)
+        val first = seeded.first { it.name == "默认卡片1" }
         assertFalse(first.autoCreated)
-        assertTrue(second.autoCreated)
+        assertFalse(seeded.any { it.autoCreated })
+
+        // 重复更新也不该开始克隆
         ReminderWidgetProvider.updateAppWidget(context, manager, 10)
         ReminderWidgetProvider.updateAppWidget(context, manager, 20)
         assertEquals(2, db.getAllWidgetConfigs().size)
@@ -129,11 +136,16 @@ class WidgetProviderIsolationTest {
 
     @Test
     fun `并发确保绑定不会让两个组件抢到同一配置或生成多余副本`() {
-        config()
+        // 没有显式指定配置时新组件不再认领存量配置（见 NewWidgetConfigTest），
+        // 所以并发场景改成"App 内把同一条金句推到两个组件"的口径来验证隔离性。
+        val shared = config()
         val executor = Executors.newFixedThreadPool(4)
         try {
             val results = executor.invokeAll((0 until 20).map { index ->
-                Callable { ReminderWidgetProvider.ensureIndependentConfig(context, if (index % 2 == 0) 10 else 20)!!.id }
+                Callable {
+                    val widgetId = if (index % 2 == 0) 10 else 20
+                    ReminderWidgetProvider.ensureIndependentConfig(context, widgetId, shared)!!.id
+                }
             }).map { it.get(10, TimeUnit.SECONDS) }
             assertEquals(2, results.toSet().size)
             assertEquals(1, results.filterIndexed { index, _ -> index % 2 == 0 }.toSet().size)

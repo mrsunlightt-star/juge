@@ -289,11 +289,12 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val bindings = readBindings(prefs.all)
             val currentId = bindings[appWidgetId]?.configId
             val current = currentId?.let(db::getWidgetConfigById)
-            val source = current ?: db.getWidgetConfigById(preferredConfigId) ?: run {
-                val configs = db.getAllWidgetConfigs()
-                val boundIds = bindings.values.mapNotNull { it.configId }.toSet()
-                configs.firstOrNull { it.id !in boundIds } ?: configs.firstOrNull()
-            } ?: return@synchronized null
+            // 只有"已绑定"或"显式指定"的配置才拿来用；从选择器新加的组件不认领任何存量配置。
+            // 旧逻辑会在没有绑定时捡一条已有配置克隆（优先没人用的、再退到第一条），结果把用户
+            // 之前调过的样式和内容一起带过去——新组件一加上就是绿卡，而不是默认的纯色圆角。
+            // 现在返回 null，调用方按"还没配内容"处理：纯色圆角 + 引导文案，与首次添加一致；
+            // 用户进 App 保存时才会经 [ensureIndependentConfig] 的 preferredConfigId 分支落绑定。
+            val source = current ?: db.getWidgetConfigById(preferredConfigId) ?: return@synchronized null
             bindIndependentConfig(context, appWidgetId, source, bindings, current != null)
         }
 
@@ -437,6 +438,27 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * 组件点击意图：打开 App 主界面，并带上 config_id 让主界面定位到这个组件。
+         *
+         * 用 CLEAR_TASK 保证 MainActivity 一定重建：定位逻辑只在 onCreate 消费一次，
+         * 复用已存在的实例不会重新定位，会停在用户上次停留的组件上。
+         * configId 传 -1 表示这个组件还没有配置（兜底文案态），点开后由 App 负责绑定。
+         * 三个渲染分支（隐私未同意 / 无配置 / 正常）都必须挂同一个入口。
+         */
+        private fun widgetClickPendingIntent(context: Context, appWidgetId: Int, configId: Long): PendingIntent =
+            PendingIntent.getActivity(
+                context,
+                appWidgetId,
+                Intent(context, MainActivity::class.java).apply {
+                    putExtra("config_id", configId)
+                    // 确保每次 PendingIntent 都是独立的以带入正确参数
+                    data = Uri.parse("custom://$appWidgetId")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+        /**
          * 同步渲染并更新单个小组件。包含数据库与位图操作，必须在后台线程调用；
          * 主线程请使用 [updateAppWidgetAsync]。
          */
@@ -498,6 +520,12 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
                         style = WidgetStyle.DEFAULT
                     )
                     views.setImageViewBitmap(R.id.widget_image_view, fallback)
+                    // 兜底卡也要能点开 App：这里以前直接 return，没挂点击事件，
+                    // 结果是"还没配内容"的组件点了毫无反应（新加的组件都会走这条路径）。
+                    views.setOnClickPendingIntent(
+                        R.id.widget_image_view,
+                        widgetClickPendingIntent(context, appWidgetId, currentConfigId),
+                    )
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                     fallback.recycle()
                     return
@@ -519,23 +547,10 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
 
             views.setImageViewBitmap(R.id.widget_image_view, bitmap)
 
-            // 设置点击事件：直接打开 App 主界面，并带上 config_id 让主界面定位到这个组件。
-            // 用 CLEAR_TASK 保证 MainActivity 一定重建：定位逻辑只在 onCreate 消费一次，
-            // 复用已存在的实例不会重新定位，会停在用户上次停留的组件上。
-            val clickIntent = Intent(context, MainActivity::class.java).apply {
-                putExtra("config_id", currentConfigId)
-                // 确保每次 PendingIntent 都是独立的以带入正确参数
-                data = Uri.parse("custom://$appWidgetId")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                appWidgetId,
-                clickIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            views.setOnClickPendingIntent(
+                R.id.widget_image_view,
+                widgetClickPendingIntent(context, appWidgetId, currentConfigId),
             )
-            views.setOnClickPendingIntent(R.id.widget_image_view, pendingIntent)
 
             // 更新 Widget
             appWidgetManager.updateAppWidget(appWidgetId, views)
