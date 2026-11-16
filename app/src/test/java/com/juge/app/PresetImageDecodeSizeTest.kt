@@ -50,8 +50,8 @@ class PresetImageDecodeSizeTest {
     fun `尺寸相同再次取图命中缓存`() {
         WidgetRenderKernel.presetImageCache.evictAll()
         val context = RuntimeEnvironment.getApplication()
-        val first = WidgetRenderKernel.getPresetImage(context, "panda_bamboo_square", 1125, 1125)
-        val second = WidgetRenderKernel.getPresetImage(context, "panda_bamboo_square", 1125, 1125)
+        val first = WidgetRenderKernel.getPresetImage(context, "plush_forest_square", 1125, 1125)
+        val second = WidgetRenderKernel.getPresetImage(context, "plush_forest_square", 1125, 1125)
         assertSame("同尺寸应直接命中缓存，不应重新解码", first, second)
     }
 }

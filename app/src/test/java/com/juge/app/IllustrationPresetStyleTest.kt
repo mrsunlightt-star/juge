@@ -41,7 +41,7 @@ class IllustrationPresetStyleTest {
 
     @Test
     fun `套用明信片插图不继承上一个风格的底色`() {
-        for (resName in listOf("boji_julebu", "breaking_bad", "v_for_vendetta", "aile_zhi_cheng")) {
+        for (resName in listOf("boji_julebu", "breaking_bad")) {
             val style = applyIllustration(resName)
             assertEquals("$resName 的文字显示区应为预设声明的白色", Color.WHITE, style.backgroundColor)
             assertEquals(WidgetShape.SPLIT_CARD, style.shape)

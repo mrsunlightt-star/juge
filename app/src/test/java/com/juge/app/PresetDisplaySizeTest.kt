@@ -30,16 +30,12 @@ class PresetDisplaySizeTest {
             // 尺寸专属（style-guide §0.1 的「尺寸专属」表）
             "p_cute_four_kids" to WidgetDisplaySize.WIDE_4X2,
             "p_youth_sculpture" to WidgetDisplaySize.SQUARE_4X4,
-            // 4×2 原生 / 按 4×2 设计
-            "p_texture_landscape" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：蜡笔彩虹框的最佳显示尺寸是 4:2（4×2 原生，方版素材未交付）
             "p_crayon_frame" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：Keep Smiling 归类为 4:2（素材已按 2048×1024 重排，不出 4×4 版）
             "p_keep_smiling" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：课后时光归类为明信片风格，默认 4×4（素材按 2048×2048 方版出图）
             "p_after_school" to WidgetDisplaySize.SQUARE_4X4,
-            // 产品点名：男生房间归类为明信片风格，默认 4×4（设计稿 250×250）
-            "p_boy_room" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：跨栏小子归类为明信片风格，默认 4×4（素材原生 1536×1536）
             "p_hurdle_boy" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：可爱Doro归类为萌宠风格，默认 4×4（原生 2048×2048 方形构图）
@@ -54,7 +50,6 @@ class PresetDisplaySizeTest {
             "p_summer_lotus" to WidgetDisplaySize.SQUARE_4X4,
             // 方版素材已交付：4×4 上不再把 1.75 的横版纵向拉 76%
             "p_plush_forest" to WidgetDisplaySize.SQUARE_4X4,
-            "p_panda_bamboo" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：萌宠乐园的最佳显示尺寸是 4:4
             "p_pet_park" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：小霸王游戏机改为 4:4（方形下模型更大、屏幕放得下两行正文）
@@ -67,9 +62,9 @@ class PresetDisplaySizeTest {
 
     @Test
     fun `带方版素材的风格一律按 4×4 预览`() {
-        // 毛绒森林 / 竹林熊猫 / 萌宠乐园（青年雕塑的方版直接写在 presetImageResName 里）
+        // 毛绒森林 / 萌宠乐园（青年雕塑的方版直接写在 presetImageResName 里）
         val withSquareAsset = WidgetStyle.PRESETS.filter { it.presetImageResNameSquare != null }
-        assertEquals("带方版素材的风格数变了，检查尺寸与素材是否配对", 3, withSquareAsset.size)
+        assertEquals("带方版素材的风格数变了，检查尺寸与素材是否配对", 2, withSquareAsset.size)
         withSquareAsset.forEach {
             assertEquals(
                 "${it.presetId} 已交付方版素材，最佳显示尺寸应为 4×4",

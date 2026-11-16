@@ -1,6 +1,5 @@
 package com.juge.app.render
 
-import android.graphics.Color
 import android.graphics.Paint
 import android.os.Build
 import android.text.Layout
@@ -124,14 +123,6 @@ internal object CardTextRenderer {
                 val cardTop = panel.top + textPadY
                 TextBox(paddingLeft, textWidth, cardTop, (panel.bottom - textPadY - cardTop).coerceAtLeast(1f))
             }
-            WidgetShape.GIANT_SWORD -> {
-                // 巨剑：左侧是扛剑武士，正文只压在右侧剑身金属面上，避开剑柄/护手与上下剑棱。
-                // 剑身纵向只占画面约 1/3，这里把可用高度吃满，保证 4×2 规格下也能排出两行
-                val paddingLeft = targetWidth * 0.33f
-                val paddingRight = targetWidth * 0.93f
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.39f, targetHeight * 0.33f)
-            }
             WidgetShape.PLUSH_FOREST -> {
                 // 毛绒森林：顶部毛绒小树/蘑菇与粉色花边不可压，正文落在奶油色毛绒面板内
                 val paddingLeft = targetWidth * 0.115f
@@ -147,15 +138,6 @@ internal object CardTextRenderer {
                 val paddingRight = targetWidth * 0.955f
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.545f)
-            }
-            WidgetShape.PANDA_BAMBOO -> {
-                // 竹林熊猫：正文落在竹框内的奶油面板里。比例取自素材实测
-                // （素材 2080×1184：面板内沿 x 111~1974 / y 485~1021），再各留一点余量不贴竹竿；
-                // 素材按 STRETCH 铺满，故比例与组件尺寸无关
-                val paddingLeft = targetWidth * 0.083f
-                val paddingRight = targetWidth * 0.917f
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.44f, targetHeight * 0.39f)
             }
             WidgetShape.CUTE_FOUR_KIDS -> {
                 // 可爱四小只：正文落在头像条**上方**的整幅留白区。
@@ -200,14 +182,6 @@ internal object CardTextRenderer {
                     targetHeight * CutoutPostcardRenderer.TEXT_TOP_RATIO,
                     targetHeight * CutoutPostcardRenderer.TEXT_HEIGHT_RATIO
                 )
-            }
-            WidgetShape.BOY_ROOM -> {
-                // 男生房间：正文落在设计稿的白框里（素材 250×250：框 x 5~244 / y 113~244），
-                // 再各留一点余量不贴 #AC7163 描边；框外全部透明，素材按 STRETCH 铺满
-                val paddingLeft = targetWidth * 0.08f
-                val paddingRight = targetWidth * 0.92f
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.49f, targetHeight * 0.44f)
             }
             WidgetShape.HURDLE_BOY -> {
                 // 跨栏小子：正文落在素材自带的白色记分牌里。

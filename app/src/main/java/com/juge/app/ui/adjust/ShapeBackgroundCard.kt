@@ -169,8 +169,7 @@ internal fun ShapeBackgroundCard(
  * 2. 形状本身没有可调的外框（椭圆/撕纸/书架各自的外轮廓另有来源）。
  *
  * 名单**必须覆盖第 1 类**，`ShapeCornerAdjustTest` 会逐形状核对这一点：
- * 这份名单历史上漏登记过三次（竹林熊猫、萌宠乐园、可爱四小只），
- * 表现都是「按钮能点、画面无反应」。
+ * 这份名单历史上漏登记过多次，表现为「按钮能点、画面无反应」。
  */
 internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
     shape != WidgetShape.ELLIPSE &&
@@ -179,15 +178,11 @@ internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
         shape != WidgetShape.TORN_PAPER &&
         // 以下全部在渲染层强制直角：整幅插画/自带框角的素材，裁圆角会切掉剑身、
         // 毛绒小树、实物模型、竹框、毛毡框、头像条与蜡笔框
-        shape != WidgetShape.GIANT_SWORD &&
         shape != WidgetShape.PLUSH_FOREST &&
         shape != WidgetShape.SUBOR_CONSOLE &&
         shape != WidgetShape.SPRING_DOG &&
         shape != WidgetShape.CRAYON_FRAME &&
-        shape != WidgetShape.PANDA_BAMBOO &&
         shape != WidgetShape.PET_PARK &&
         shape != WidgetShape.CUTE_FOUR_KIDS &&
-        // 素材里的白色正文框是直角的，强制 0 圆角避免切掉白框底角
-        shape != WidgetShape.BOY_ROOM &&
         // 素材里的浅灰卡面与蓝色描边自带圆角，管线再裁会切到描边
         shape != WidgetShape.BLUE_WHALE

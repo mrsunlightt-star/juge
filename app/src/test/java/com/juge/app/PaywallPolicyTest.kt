@@ -15,7 +15,7 @@ import org.junit.Test
 class PaywallPolicyTest {
 
     private val freeStyle = WidgetStyle.PRESETS.first { it.presetId == "p_pure_round" }
-    private val proStyle = WidgetStyle.PRESETS.first { it.presetId == "p_boy_room" }
+    private val proStyle = WidgetStyle.PRESETS.first { it.presetId == "p_after_school" }
     private val widgetId = 42
 
     @Test

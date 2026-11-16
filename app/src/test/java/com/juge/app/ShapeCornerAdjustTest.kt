@@ -12,7 +12,7 @@ import org.junit.Test
  *
  * 这两份名单各自维护（一份在 `ShapeTraits.SQUARE_CORNER_SHAPES`，一份在
  * `ui/adjust/ShapeBackgroundCard.kt` 的 [canAdjustCardCorner]），历史上漂移过三次：
- * 竹林熊猫、萌宠乐园、可爱四小只都漏登记，表现是「按钮看着能动、画面没反应」——
+ * 整幅插画类形状曾多次漏登记，表现是「按钮看着能动、画面没反应」——
  * 用户只会以为功能坏了，而测试全绿。
  *
  * 判据是单向的：**强制直角的形状必须禁用圆角步进器**。

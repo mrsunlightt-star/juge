@@ -134,11 +134,9 @@ private val INSET_CAPABLE_SHAPES = setOf(
  * 遮罩外的部分；斜杠后只数非卡面白的图案/笔画像素。4×4 只有 SPRING_DOG 另算——见它那一行，
  * CUTE_FOUR_KIDS 与 4×2 相同，其余 4×4 均为 0）：
  *  · SPRING_DOG     绿框四个角——**12dp 就会切到**：4×2 653/280px，4×4 273/34px；30dp 6473/4154px
- *  · PANDA_BAMBOO   竹框下沿两角：12dp 0，30dp 1018/956px
  *  · PET_PARK       毛毡框下沿两角：12dp 0，30dp 1053/684px
  *  · CRAYON_FRAME   最外侧的蜡笔波浪尖：12dp 0，30dp 693/433px
  *  · PLUSH_FOREST   底部毛绒草地：12dp 0，30dp 780/775px
- *  · GIANT_SWORD    左下衣摆：12dp、20dp 都是 0，30dp 才 102/92px
  *  · CUTE_FOUR_KIDS 白卡四角——切到的是**卡面**，不是头像（12dp 头像 0px、30dp 仅 10px）。
  *                   直角是这款的设计选择（整卡留白到边），别写成"保护头像条"
  *  · SUBOR_CONSOLE  标准尺寸下**切不到**：`CENTER_FIT` 把机身缩在中间，四角本来就是透明的
@@ -150,16 +148,12 @@ private val INSET_CAPABLE_SHAPES = setOf(
  * 只核对"强制直角 ⇒ 圆角步进器禁用"），而桌面上的老组件会当场多一刀。
  */
 private val SQUARE_CORNER_SHAPES = setOf(
-    WidgetShape.GIANT_SWORD,
     WidgetShape.PLUSH_FOREST,
     WidgetShape.SUBOR_CONSOLE,
     WidgetShape.SPRING_DOG,
-    WidgetShape.PANDA_BAMBOO,
     WidgetShape.PET_PARK,
     WidgetShape.CUTE_FOUR_KIDS,
     WidgetShape.CRAYON_FRAME,
-    // 男生房间：设计稿的白色正文框是直角的，12dp/30dp 圆角会切掉白框底角
-    WidgetShape.BOY_ROOM,
     // 蓝色鲸鱼：浅灰卡面与 #4998CD 描边本身的圆角都在素材里，管线再裁圆角会切到描边
     WidgetShape.BLUE_WHALE,
 )
@@ -220,13 +214,10 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.PIXEL_RETRO,
     WidgetShape.NIUPI_SHOUZHANG,
     WidgetShape.CLASSROOM_BLACKBOARD,
-    WidgetShape.GIANT_SWORD,
     WidgetShape.PLUSH_FOREST,
     // 春天与小狗：素材自带绿框与卡面，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
     WidgetShape.SPRING_DOG -> ShapeFamily.ROUND_RECT
 
-    // 竹林熊猫：竹框、熊猫、竹叶全在素材里，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
-    WidgetShape.PANDA_BAMBOO,
     // 萌宠乐园：毛毡框与六只小动物全在素材里，同上
     WidgetShape.PET_PARK,
     // 可爱四小只：头像条压在卡面左下角，走普通圆角矩形（卡面由背景色铺、头像条由背景图铺）
@@ -240,8 +231,6 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.CRAYON_FRAME,
     // Keep Smiling：白卡、头像、标题、三点、铅笔全在素材里，装饰由素材提供
     WidgetShape.KEEP_SMILING,
-    // 男生房间：房间抠图 + 白色正文框全在素材里，装饰由素材提供
-    WidgetShape.BOY_ROOM,
     // 跨栏小子：少年/栏杆抠图 + 白色记分牌全在素材里，装饰由素材提供
     WidgetShape.HURDLE_BOY,
     // 可爱Doro：毛绒角色 + 奶油色留言板全在素材里，装饰由素材提供

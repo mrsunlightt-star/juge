@@ -3,6 +3,6 @@
 # 字段: 场景 \t WxH \t 可见语义节点数 \t sha256[:16](截图) \t sha256[:16](语义摘要)
 main-library	1233x2673	20	6e4c7958bfdcaf51	d3390a7e504b2ef4
 main-adjust	1233x2673	20	79e14dc944644628	29f3a0a850216954
-main-adjust-postcard	1233x2673	30	8367f62010947261	01012de1bcb89d5e
-main-adjust-stepper	1233x2673	41	edb903c97512092f	e7aaa4eb94329644
+main-adjust-postcard	1233x2673	30	6d5521be88e988dc	d71e3395e1627206
+main-adjust-stepper	1233x2673	41	28c3380256679b0d	ba35d489028e7219
 main-adjust-tutorial	1233x2673	15	6e9f7f7661b7ce97	51fe6389182f68fb

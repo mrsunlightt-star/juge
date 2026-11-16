@@ -111,7 +111,7 @@ internal fun PostcardPresetsRow(
                 )
             }
 
-            // 代码绘制的大卡（蓝色画报、书香书架）排在插图素材之前：
+            // 代码绘制的大卡（书香书架）排在插图素材之前：
             // 组件内容在渲染时按画布自适应重排，避免一行内宽窄不一
             WidgetStyle.POSTCARD_CODE_PRESETS.forEach { (presetName, preset) ->
                 val isCodeSelected = selectedStyle.shape == preset.shape &&
