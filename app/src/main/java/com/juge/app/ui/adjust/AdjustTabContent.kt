@@ -60,6 +60,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.delay
+import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -233,7 +234,10 @@ fun AdjustTabContent(
                 selectedReminderId = selectedReminderId,
                 onStyleStateChange = onStyleStateChange,
                 onStyleChange = onStyleChange,
-                onPickImage = { selectImageLauncher.launch("image/*") }
+                onPickImage = { selectImageLauncher.launch("image/*") },
+                onCropImage = { path ->
+                    pendingCropUri = Uri.fromFile(File(path))
+                }
             )
         }
 
@@ -264,12 +268,15 @@ fun AdjustTabContent(
     BackgroundCropDialog(
         cropUri = pendingCropUri,
         selectedWidgetId = selectedWidgetId,
-        onDismiss = { pendingCropUri = null },
+        onDismiss = {
+            pendingCropUri = null
+        },
         onCropped = { path ->
             // 旧背景图不在这里删：延后到新图真正落库时再删，避免用户中途取消后原图已丢
-            val newStyle = selectedStyle.copy(backgroundImagePath = path)
+            val newStyle = selectedStyle.withCroppedBackgroundImage(path)
             onStyleStateChange(newStyle)
             onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+            pendingCropUri = null
         }
     )
 

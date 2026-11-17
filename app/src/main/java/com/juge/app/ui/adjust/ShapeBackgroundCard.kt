@@ -2,7 +2,6 @@ package com.juge.app.ui.adjust
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -16,23 +15,21 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.data.ImageScaleMode
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
-import com.juge.app.ui.AppDangerButton
-import com.juge.app.ui.AppFilterChip
 import com.juge.app.ui.AppNumberStepperRow
 import com.juge.app.ui.AppSecondaryButton
 import com.juge.app.ui.AppSectionCard
 import com.juge.app.ui.AppSectionHeader
 import com.juge.app.ui.AppSectionLabel
 import com.juge.app.ui.AppText
+import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppSpacing
-import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.accentBlue
-import com.juge.app.ui.theme.surfaceSubtle
+import com.juge.app.ui.theme.dangerRed
 import kotlin.math.roundToInt
 
-/** 物理形状与背景材质卡片：圆角、不透明度、自定义背景图与填充模式。 */
+/** 物理形状与背景材质卡片：圆角、不透明度与自定义背景图。 */
 @Composable
 internal fun ShapeBackgroundCard(
     isActivated: Boolean,
@@ -42,7 +39,8 @@ internal fun ShapeBackgroundCard(
     selectedReminderId: Long,
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
-    onPickImage: () -> Unit
+    onPickImage: () -> Unit,
+    onCropImage: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val hasImage = !selectedStyle.backgroundImagePath.isNullOrEmpty()
@@ -86,79 +84,65 @@ internal fun ShapeBackgroundCard(
 
         // 上传本地背景图
         AppSectionLabel("自定义背景图")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (!hasImage) {
-                AppSecondaryButton(
-                    text = "+ 选择本地图片",
-                    onClick = {
-                        if (!isActivated) {
-                            Toast.makeText(context, "👑 上传自定义背景图为 PRO 专属功能，请先激活！", Toast.LENGTH_SHORT).show()
-                        } else {
-                            onPickImage()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    contentColor = accentBlue
-                )
-            } else {
+        if (!hasImage) {
+            AppSecondaryButton(
+                text = "+ 选择本地图片",
+                onClick = {
+                    if (!isActivated) {
+                        Toast.makeText(context, "👑 上传自定义背景图为 PRO 专属功能，请先激活！", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onPickImage()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                contentColor = accentBlue
+            )
+        } else {
+            // 图片操作分两层：常用操作并排，破坏性操作单独放在下方，
+            // 避免三个等宽按钮挤成一行，也降低误触「清除」的机会。
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 AppSecondaryButton(
                     text = "更换图片",
                     onClick = { onPickImage() },
                     modifier = Modifier.weight(1f)
                 )
-                AppDangerButton(
-                    text = "清除背景图",
-                    onClick = {
-                        // 只把路径从样式里摘掉，交给 onStyleChange 的落库流程处理文件：
-                        // 1) 保存可能被付费墙拦下（激活被账号同步撤销后必然发生），
-                        //    先删文件再被拦会让 DB/组件的样式指向一个已消失的文件；
-                        // 2) 落库成功后由 persist 按引用计数决定删不删（别处可能还用着）
-                        val newStyle = selectedStyle.copy(backgroundImagePath = null)
-                        onStyleStateChange(newStyle)
-                        onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                    },
+                AppSecondaryButton(
+                    text = "调整裁切",
+                    onClick = { selectedStyle.backgroundImagePath?.let(onCropImage) },
                     modifier = Modifier.weight(1f)
                 )
             }
-        }
-
-        // 只有存在背景图时才显示填充模式；高度变化由 AppSectionCard 的 animateContentSize 平滑处理
-        if (hasImage) {
-            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.itemGap)) {
-                AppSectionLabel("图片填充模式")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.iconGap)
-                ) {
-                    ImageScaleMode.values().forEach { mode ->
-                        val modeDesc = when (mode) {
-                            ImageScaleMode.STRETCH -> "拉伸"
-                            ImageScaleMode.CENTER_CROP -> "裁剪"
-                            ImageScaleMode.CENTER_FIT -> "完整"
-                            ImageScaleMode.CENTER_CROP_TOP -> "铺满"
-                            ImageScaleMode.TILE -> "平铺"
-                        }
-                        AppFilterChip(
-                            selected = selectedStyle.bgImageScaleMode == mode,
-                            onClick = {
-                                val newStyle = selectedStyle.copy(bgImageScaleMode = mode)
-                                onStyleStateChange(newStyle)
-                                onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
-                            },
-                            label = modeDesc,
-                            textStyle = AppType.caption,
-                            containerColor = surfaceSubtle
-                        )
-                    }
-                }
-            }
+            AppTextButton(
+                text = "清除背景图",
+                onClick = {
+                    // 只把路径从样式里摘掉，交给 onStyleChange 的落库流程处理文件：
+                    // 1) 保存可能被付费墙拦下，先删文件会让 DB/组件指向已消失的文件；
+                    // 2) 落库成功后由 persist 按引用计数决定删不删。
+                    val newStyle = selectedStyle.copy(backgroundImagePath = null)
+                    onStyleStateChange(newStyle)
+                    onStyleChange(selectedWidgetId, selectedReminderId, selectedContent, newStyle)
+                },
+                modifier = Modifier.align(Alignment.End),
+                color = dangerRed,
+            )
         }
     }
 }
+
+/**
+ * 裁切结果统一按平铺方式显示。
+ *
+ * 自定义背景不再暴露填充模式：用户只需要选择图片区域，后续显示方式由裁切结果决定。
+ */
+internal fun WidgetStyle.withCroppedBackgroundImage(path: String): WidgetStyle =
+    copy(
+        backgroundImagePath = path,
+        bgImageScaleMode = ImageScaleMode.TILE,
+    )
 
 /**
  * 「外框圆角大小」步进器是否可用。

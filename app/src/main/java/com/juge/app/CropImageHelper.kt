@@ -24,14 +24,17 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogHeader
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppPrimaryButton
+import com.juge.app.ui.AppSecondaryButton
 import com.juge.app.ui.AppText
-import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.overlayCard
@@ -384,6 +387,38 @@ object CropImageHelper {
         }
     }
 
+    /**
+     * 把裁切预览的平移限制在图片覆盖取景框的范围内。
+     *
+     * 初始缩放就是 cover，且最小缩放为 1，所以按缩放后的图片尺寸与取景框尺寸
+     * 反推每个方向最多可移动多少；不夹紧时用户可以把图片拖出画面，保存出一大片空白。
+     */
+    internal fun clampCropOffset(
+        offset: Offset,
+        bitmapWidth: Float,
+        bitmapHeight: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+        scale: Float,
+    ): Offset {
+        if (bitmapWidth <= 0f || bitmapHeight <= 0f || viewWidthPx <= 0f || viewHeightPx <= 0f) {
+            return Offset.Zero
+        }
+        val viewAspectRatio = viewWidthPx / viewHeightPx
+        val imageAspectRatio = bitmapWidth / bitmapHeight
+        val initScale = if (imageAspectRatio > viewAspectRatio) {
+            viewHeightPx / bitmapHeight
+        } else {
+            viewWidthPx / bitmapWidth
+        }
+        val maxX = ((bitmapWidth * initScale * scale - viewWidthPx).coerceAtLeast(0f)) / 2f
+        val maxY = ((bitmapHeight * initScale * scale - viewHeightPx).coerceAtLeast(0f)) / 2f
+        return Offset(
+            x = offset.x.coerceIn(-maxX, maxX),
+            y = offset.y.coerceIn(-maxY, maxY),
+        )
+    }
+
     @Composable
     fun ImageCropDialog(
         show: Boolean,
@@ -418,8 +453,8 @@ object CropImageHelper {
         }
 
         if (bitmap != null) {
-            var scale by remember { mutableStateOf(1f) }
-            var offset by remember { mutableStateOf(Offset.Zero) }
+            var scale by remember(boundUri, targetWidth, targetHeight) { mutableFloatStateOf(1f) }
+            var offset by remember(boundUri, targetWidth, targetHeight) { mutableStateOf(Offset.Zero) }
             // 保存期间置忙：压缩+写盘在 IO 线程执行，防止重复点击与主线程卡顿
             var isSaving by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
@@ -427,14 +462,6 @@ object CropImageHelper {
             val density = LocalDensity.current
             // 裁剪视窗的宽高比与组件真实宽高比一致，用户框选的区域就是桌面上显示的区域
             val viewAspect = targetWidth.toFloat() / targetHeight.toFloat()
-            val maxBoxW = 300f
-            val maxBoxH = 220f
-            val boxW = minOf(maxBoxW, maxBoxH * viewAspect)
-            val boxH = boxW / viewAspect
-            val cropWidthDp = boxW.dp
-            val cropHeightDp = boxH.dp
-            val viewWidthPx = with(density) { cropWidthDp.toPx() }
-            val viewHeightPx = with(density) { cropHeightDp.toPx() }
 
             AppDialog(
                 visible = show,
@@ -449,107 +476,137 @@ object CropImageHelper {
                         role = AppTextRole.caption,
                     )
 
-                    // 裁剪取景区：只有画面本身是深色（图片编辑惯例），
-                    // 弹窗底板 / 圆角 / 阴影与其它子页面完全一致，不再整屏铺黑
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(AppShape.button)
-                            .background(overlayCard)
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        // 以弹窗实际可用宽度反推取景框大小，窄屏和 4×2 长条图都不会横向溢出。
+                        val innerMaxWidth = (maxWidth - 32.dp).coerceAtLeast(1.dp)
+                        val cropWidthDp = minOf(innerMaxWidth, 320.dp, 220.dp * viewAspect)
+                        val cropHeightDp = cropWidthDp / viewAspect
+                        val viewWidthPx = with(density) { cropWidthDp.toPx() }
+                        val viewHeightPx = with(density) { cropHeightDp.toPx() }
 
-                        // 裁剪视窗框
-                        Box(
-                            modifier = Modifier
-                                .size(width = cropWidthDp, height = cropHeightDp)
-                                .border(1.5.dp, Color.White)
-                                .clipToBounds(),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            val paint = remember { Paint() }
-                            Canvas(
+                            // 取景区用深色底承托图片；标题、说明与操作按钮仍留在弹窗底板，
+                            // 三个区域从上到下各占一行，不再互相叠压。
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(Unit) {
-                                        detectTransformGestures { _, pan, zoom, _ ->
-                                            scale = (scale * zoom).coerceIn(0.5f, 8f)
-                                            offset = offset + pan
+                                    .fillMaxWidth()
+                                    .clip(AppShape.button)
+                                    .background(overlayCard)
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                // 裁剪视窗框
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = cropWidthDp, height = cropHeightDp)
+                                        .border(1.5.dp, Color.White)
+                                        .clipToBounds(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    val paint = remember { Paint() }
+                                    Canvas(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .testTag("crop_preview")
+                                            .semantics {
+                                                contentDescription = "图片裁切预览"
+                                            }
+                                            .pointerInput(boundUri, viewWidthPx, viewHeightPx) {
+                                                detectTransformGestures { _, pan, zoom, _ ->
+                                                    val newScale = (scale * zoom).coerceIn(1f, 8f)
+                                                    scale = newScale
+                                                    offset = clampCropOffset(
+                                                        offset = offset + pan,
+                                                        bitmapWidth = bitmap!!.width.toFloat(),
+                                                        bitmapHeight = bitmap!!.height.toFloat(),
+                                                        viewWidthPx = viewWidthPx,
+                                                        viewHeightPx = viewHeightPx,
+                                                        scale = newScale,
+                                                    )
+                                                }
+                                            }
+                                    ) {
+                                        val viewWidth = size.width
+                                        val viewHeight = size.height
+
+                                        val viewAspectRatio = viewWidth / viewHeight
+                                        val imageAspectRatio = bitmap!!.width.toFloat() / bitmap!!.height
+                                        val initScale = if (imageAspectRatio > viewAspectRatio) {
+                                            viewHeight / bitmap!!.height
+                                        } else {
+                                            viewWidth / bitmap!!.width
+                                        }
+                                        val initX = (viewWidth - bitmap!!.width * initScale) / 2f
+                                        val initY = (viewHeight - bitmap!!.height * initScale) / 2f
+
+                                        drawIntoCanvas { canvas ->
+                                            canvas.save()
+                                            // 应用手势平移和缩放
+                                            // ⚠️ 这里的操作数序定义了「用户看到的构图」，
+                                            // 保存端 [cropMatrix] 与之逐层对应（pre* 链），
+                                            // 两端任何一处改动都要同步另一端
+                                            canvas.translate(offset.x, offset.y)
+                                            canvas.translate(viewWidth / 2f, viewHeight / 2f)
+                                            canvas.scale(scale, scale)
+                                            canvas.translate(-viewWidth / 2f, -viewHeight / 2f)
+                                            // 应用初始铺满和居中
+                                            canvas.translate(initX, initY)
+                                            canvas.scale(initScale, initScale)
+
+                                            canvas.drawImage(bitmap!!.asImageBitmap(), Offset.Zero, paint)
+                                            canvas.restore()
                                         }
                                     }
-                            ) {
-                                val viewWidth = size.width
-                                val viewHeight = size.height
-
-                                val viewAspectRatio = viewWidth / viewHeight
-                                val imageAspectRatio = bitmap!!.width.toFloat() / bitmap!!.height
-                                val initScale = if (imageAspectRatio > viewAspectRatio) {
-                                    viewHeight / bitmap!!.height
-                                } else {
-                                    viewWidth / bitmap!!.width
-                                }
-                                val initX = (viewWidth - bitmap!!.width * initScale) / 2f
-                                val initY = (viewHeight - bitmap!!.height * initScale) / 2f
-
-                                drawIntoCanvas { canvas ->
-                                    canvas.save()
-                                    // 应用手势平移和缩放
-                                    // ⚠️ 这里的操作数序定义了「用户看到的构图」，
-                                    // 保存端 [cropMatrix] 与之逐层对应（pre* 链），
-                                    // 两端任何一处改动都要同步另一端
-                                    canvas.translate(offset.x, offset.y)
-                                    canvas.translate(viewWidth / 2f, viewHeight / 2f)
-                                    canvas.scale(scale, scale)
-                                    canvas.translate(-viewWidth / 2f, -viewHeight / 2f)
-                                    // 应用初始铺满和居中
-                                    canvas.translate(initX, initY)
-                                    canvas.scale(initScale, initScale)
-
-                                    canvas.drawImage(bitmap!!.asImageBitmap(), Offset.Zero, paint)
-                                    canvas.restore()
                                 }
                             }
-                        }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AppTextButton(text = "取消", onClick = onDismiss, enabled = !isSaving)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            AppPrimaryButton(
-                                text = "保存并使用",
-                                onClick = {
-                                    if (isSaving) return@AppPrimaryButton
-                                    isSaving = true
-                                    val currentBitmap = bitmap!!
-                                    scope.launch {
-                                        val savedPath = withContext(Dispatchers.IO) {
-                                            cropAndSaveBitmap(
-                                                context = context,
-                                                bitmap = currentBitmap,
-                                                viewWidthPx = viewWidthPx,
-                                                viewHeightPx = viewHeightPx,
-                                                scale = scale,
-                                                offset = offset,
-                                                targetWidth = targetWidth,
-                                                targetHeight = targetHeight
-                                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppSecondaryButton(
+                                    text = "取消",
+                                    onClick = onDismiss,
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isSaving,
+                                )
+                                AppPrimaryButton(
+                                    text = "保存并使用",
+                                    onClick = {
+                                        if (isSaving) return@AppPrimaryButton
+                                        isSaving = true
+                                        val currentBitmap = bitmap!!
+                                        scope.launch {
+                                            val savedPath = withContext(Dispatchers.IO) {
+                                                cropAndSaveBitmap(
+                                                    context = context,
+                                                    bitmap = currentBitmap,
+                                                    viewWidthPx = viewWidthPx,
+                                                    viewHeightPx = viewHeightPx,
+                                                    scale = scale,
+                                                    offset = offset,
+                                                    targetWidth = targetWidth,
+                                                    targetHeight = targetHeight
+                                                )
+                                            }
+                                            isSaving = false
+                                            if (savedPath != null) {
+                                                onCropSuccess(savedPath)
+                                            } else {
+                                                Toast.makeText(context, "保存裁剪失败", Toast.LENGTH_SHORT).show()
+                                            }
+                                            onDismiss()
                                         }
-                                        isSaving = false
-                                        if (savedPath != null) {
-                                            onCropSuccess(savedPath)
-                                        } else {
-                                            Toast.makeText(context, "保存裁剪失败", Toast.LENGTH_SHORT).show()
-                                        }
-                                        onDismiss()
-                                    }
-                                },
-                                enabled = !isSaving,
-                                loading = isSaving,
-                            )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isSaving,
+                                    loading = isSaving,
+                                )
+                            }
                         }
                     }
                 }
