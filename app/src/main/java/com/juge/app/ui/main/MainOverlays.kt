@@ -37,6 +37,8 @@ fun MainOverlays(
     onRequestOpenPro: () -> Unit,
     showStatusDialog: Boolean,
     activationRecord: TrialManager.ActivationRecord?,
+    isExportingQuotes: Boolean,
+    onExportQuotes: () -> Unit,
     onStatusDismiss: () -> Unit,
     legalDoc: String?,
     onLegalDismiss: () -> Unit,
@@ -56,6 +58,7 @@ fun MainOverlays(
                 is PayFlow.Event.Activated -> {
                     onActivatedChange(true)
                     onProDialogDismiss()
+                    onStatusDismiss()
                     // 桌面组件上未激活时的提示位图需要重绘
                     ReminderWidgetProvider.triggerUpdateAllWidgets(context)
                     Toast.makeText(context, event.text, Toast.LENGTH_SHORT).show()
@@ -81,6 +84,10 @@ fun MainOverlays(
         show = showStatusDialog,
         isActivated = isActivated,
         record = activationRecord,
+        isRecovering = isRecovering,
+        isExportingQuotes = isExportingQuotes,
+        onRecover = { PayFlow.startRecovery(activity) },
+        onExportQuotes = onExportQuotes,
         onOpenPro = {
             onStatusDismiss()
             onRequestOpenPro()

@@ -66,7 +66,8 @@ fun ProActivationDialog(
                 listOf(
                     "解锁全部内置卡片风格，后续新增免费更新",
                     "自定义背景图（本地照片）无限制使用",
-                    "多组件独立配置，一次激活永久保留"
+                    "多组件独立配置，一次激活永久保留",
+                    "导出全部金句为 Markdown 文件"
                 ).forEach { benefit ->
                     AppText(
                         text = "✓ $benefit",

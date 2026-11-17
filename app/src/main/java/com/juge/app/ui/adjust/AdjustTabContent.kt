@@ -31,8 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.juge.app.CropImageHelper
+import com.juge.app.data.AppBackgroundPreset
 import com.juge.app.data.UserColorPresets
 import com.juge.app.data.WidgetStyle
 import com.juge.app.ui.AppText
@@ -72,6 +74,8 @@ fun AdjustTabContent(
     selectedReminderId: Long,
     selectedStyle: WidgetStyle,
     selectedContent: String,
+    selectedAppBackground: AppBackgroundPreset,
+    onAppBackgroundSelect: (AppBackgroundPreset) -> Unit,
     onStyleStateChange: (WidgetStyle) -> Unit,
     onContentStateChange: (String) -> Unit,
     onSelectPreset: (Int, Long, WidgetStyle) -> Unit,
@@ -115,6 +119,7 @@ fun AdjustTabContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .testTag("adjust_list")
             // 页面级右滑返回：只观察、不消费；普通区域与横向行（含行到边界后的
             // 继续右滑）统一判定。放在 padding 之前，左右留白里的右滑也能响应。
             .swipeBackToPage(pagerState, onSwipeBack)
@@ -174,9 +179,19 @@ fun AdjustTabContent(
             }
         }
 
-        // 3. ✍️ 文本内容与字形定制
+        // 3. 🖼 App 预览区背景
+        item(key = "app_background_card") {
+            SectionEntrance(key = "app_background_card", index = 2, entered = enteredSections) {
+                AppBackgroundCard(
+                    selected = selectedAppBackground,
+                    onSelect = onAppBackgroundSelect,
+                )
+            }
+        }
+
+        // 4. ✍️ 文本内容与字形定制
         item(key = "text_style_card") {
-            SectionEntrance(key = "text_style_card", index = 2, entered = enteredSections) {
+            SectionEntrance(key = "text_style_card", index = 3, entered = enteredSections) {
                 TextStyleCard(
                     selectedStyle = selectedStyle,
                     selectedContent = selectedContent,
@@ -189,7 +204,7 @@ fun AdjustTabContent(
             }
         }
 
-        // 4. 🎨 色彩与质感艺术
+        // 5. 🎨 色彩与质感艺术
         item(key = "color_texture_card") {
             ColorTextureCard(
                 selectedStyle = selectedStyle,
@@ -208,7 +223,7 @@ fun AdjustTabContent(
             )
         }
 
-        // 5. 🖼 物理形状与背景材质
+        // 6. 🖼 物理形状与背景材质
         item(key = "shape_background_card") {
             ShapeBackgroundCard(
                 isActivated = isActivated,
@@ -222,7 +237,7 @@ fun AdjustTabContent(
             )
         }
 
-        // 6. 保存修改并同步按钮
+        // 7. 保存修改并同步按钮
         item {
             AppPrimaryButton(
                 text = "保存并应用到桌面小组件",

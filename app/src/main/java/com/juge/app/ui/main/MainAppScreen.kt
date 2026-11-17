@@ -1,9 +1,12 @@
 package com.juge.app.ui.main
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -31,8 +34,10 @@ import androidx.lifecycle.lifecycleScope
 import com.juge.app.CropImageHelper
 import com.juge.app.JugeApplication
 import com.juge.app.ReminderWidgetProvider
+import com.juge.app.data.AppPrefs
 import com.juge.app.data.Category
 import com.juge.app.data.DbHelper
+import com.juge.app.data.QuoteMarkdownExporter
 import com.juge.app.data.Reminder
 import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
@@ -43,6 +48,7 @@ import com.juge.app.ui.AppText
 import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.animateToPageOnUserInput
+import com.juge.app.ui.heroAlignment
 import com.juge.app.ui.requiresProForDesktop
 import com.juge.app.ui.swipeBackChrome
 import com.juge.app.ui.swipeBackToPage
@@ -168,6 +174,9 @@ fun MainAppScreen(
         }
     }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
+    var selectedAppBackground by remember {
+        mutableStateOf(AppPrefs.appBackground(context))
+    }
 
     // 编辑状态弹窗控制 (专属于书库内容编辑)
     var editingReminderForContent by remember { mutableStateOf<Reminder?>(null) }
@@ -370,6 +379,34 @@ fun MainAppScreen(
     val selectedReminder = selectedConfig
 
     var showProDialog by remember { mutableStateOf(startOnActivate) }
+    var isExportingQuotes by rememberSaveable { mutableStateOf(false) }
+    val quoteExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(QuoteMarkdownExporter.MIME_TYPE),
+    ) { uri: Uri? ->
+        if (uri == null) {
+            isExportingQuotes = false
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            try {
+                val markdown = withContext(Dispatchers.IO) {
+                    QuoteMarkdownExporter.buildMarkdown(
+                        categories = dbHelper.getAllCategories(),
+                        reminders = dbHelper.getAllReminders(),
+                    )
+                }
+                withContext(Dispatchers.IO) {
+                    QuoteMarkdownExporter.write(context, uri, markdown)
+                }
+                Toast.makeText(context, "金句已导出为 Markdown 文件", Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                Timber.e(error, "export quotes markdown failed")
+                Toast.makeText(context, "导出失败，请重试", Toast.LENGTH_SHORT).show()
+            } finally {
+                isExportingQuotes = false
+            }
+        }
+    }
 
     var sizeHint by remember { mutableStateOf<WidgetSizeHint?>(null) }
 
@@ -493,6 +530,28 @@ fun MainAppScreen(
         onRequestOpenPro = { showProDialog = true },
         showStatusDialog = showStatusDialog,
         activationRecord = activationRecord,
+        isExportingQuotes = isExportingQuotes,
+        onExportQuotes = {
+            if (!isExportingQuotes) {
+                scope.launch {
+                    try {
+                        val hasQuotes = withContext(Dispatchers.IO) {
+                            dbHelper.getAllReminders().any { it.content.isNotBlank() }
+                        }
+                        if (hasQuotes) {
+                            isExportingQuotes = true
+                            quoteExportLauncher.launch(QuoteMarkdownExporter.SUGGESTED_FILE_NAME)
+                        } else {
+                            Toast.makeText(context, "还没有金句可导出", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (error: Exception) {
+                        isExportingQuotes = false
+                        Timber.e(error, "prepare quotes markdown export failed")
+                        Toast.makeText(context, "导出失败，请重试", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        },
         onStatusDismiss = { showStatusDialog = false },
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
@@ -514,7 +573,12 @@ fun MainAppScreen(
     // 「我的」页是全屏页面（不是弹窗）：作为同一窗口里的上层页面盖在主界面之上，
     // 从右侧滑入；协议/登录/付费墙仍是独立 Dialog 窗口，天然盖在它上面。
     Box(modifier = Modifier.fillMaxSize()) {
-        MainScreenBackground(heroHeight = heroHeight, hazeState = hazeState) {
+        MainScreenBackground(
+            heroHeight = heroHeight,
+            heroImageRes = selectedAppBackground.imageRes,
+            heroAlignment = selectedAppBackground.heroAlignment,
+            hazeState = hazeState,
+        ) {
             // 顶部区域（顶栏 + 预览轮播 + 组件标签）不在抽屉里，也纳入右滑返回：
             // 预览轮播还能往右翻时让轮播自己翻；单个组件/已在第一个预览时右滑返回。
             Column(
@@ -564,7 +628,7 @@ fun MainAppScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     AppText(
-                        text = "小组件#${pagerState.currentPage + 1} 实时设计·仅为预览·以桌面组件显示为准",
+                        text = "小组件#${pagerState.currentPage + 1} 仅为预览·以桌面组件显示为准",
                         role = AppTextRole.label,
                         color = Color.White,
                         textAlign = TextAlign.Center,
@@ -709,6 +773,11 @@ fun MainAppScreen(
                                 selectedReminderId = selectedReminder?.id ?: -1L,
                                 selectedStyle = currentStyle,
                                 selectedContent = textContentState,
+                                selectedAppBackground = selectedAppBackground,
+                                onAppBackgroundSelect = { preset ->
+                                    selectedAppBackground = preset
+                                    AppPrefs.setAppBackground(context, preset)
+                                },
                                 onStyleStateChange = { updateCurrentStyle(it) },
                                 onContentStateChange = { textContentState = it },
                                 onSelectPreset = { wId, rId, newStyle ->

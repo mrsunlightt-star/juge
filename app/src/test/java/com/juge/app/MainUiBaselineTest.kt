@@ -10,8 +10,10 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import com.juge.app.data.AppPrefs
@@ -27,7 +29,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * 主界面 UI 基线：拆 MainActivity 的安全网（配 [UiBaseline]）。
  *
- * 覆盖四个静态场景——「跃然纸上」「个性定制」「个性定制 + 教程展开」「个性定制滚到明信片行」。
+ * 覆盖六个静态场景——「跃然纸上」「个性定制」「明信片行」「App 背景图」
+ * 「文本与字号控件」「个性定制 + 教程展开」。
  * 比起点击十几个控件，这几个场景已经把主界面所有分支的排版都渲染了一遍
  * （左侧预览卡片、右侧列表、页脚协议行、五行风格预设），搬移代码时任何一处画错都会立刻失败。
  *
@@ -72,20 +75,38 @@ class MainUiBaselineTest {
         // 经典/萌宠/明信片行本身），用 hasScrollAction() 会先命中那些横向的，滚不动。
         // 还要限定「含『组件风格』那一页」：「跃然纸上」与「个性定制」同在一个横向 pager 里，
         // 两页的 LazyColumn 都在语义树上，只按滚动轴挑会命中屏幕外那一页。
-        compose.onNode(verticalScrollable and hasAnyDescendant(hasText("组件风格")))
-            .performScrollToNode(hasText("文本内容与字形定制"))
+        // 新插入的「App 背景图」卡片把后面的卡片推出了 LazyColumn 的预组合范围。
+        // performScrollToNode 要求目标已经进入语义树，因此先按固定 item 索引滚到目标卡：
+        // 顶部无组件警告是否出现会让索引相差 1。
+        val adjustList = compose.onNodeWithTag("adjust_list")
+        val hasNoWidgetWarning = compose
+            .onAllNodesWithText("未检测到已放置桌面小组件。", substring = true)
+            .fetchSemanticsNodes()
+            .isNotEmpty()
+        val styleIndex = if (hasNoWidgetWarning) 2 else 1
+        val appBackgroundIndex = styleIndex + 1
+        val textStyleIndex = appBackgroundIndex + 1
+
+        adjustList.performScrollToIndex(styleIndex)
+        adjustList.performScrollToNode(hasText("明信片风格"))
         scenes["main-adjust-postcard"] = snapshot("main-adjust-postcard")
+
+        adjustList.performScrollToIndex(appBackgroundIndex)
+        compose.waitForIdle()
+        scenes["main-adjust-background"] = snapshot("main-adjust-background")
+
+        adjustList.performScrollToIndex(textStyleIndex)
+        compose.waitForIdle()
 
         // 数值步进器必须单独入基线：上面几个场景都停在字号/行距/字间距三行上方。
         // 滚到字间距这一行，让「标签 …… − 当前值 +」整行进画面，防止步进器
         // 被样式改动挤掉、端点禁用态画错或单位文案丢失。
-        compose.onNode(verticalScrollable and hasAnyDescendant(hasText("组件风格")))
-            .performScrollToNode(hasText("字间距", substring = true))
+        adjustList.performScrollToNode(hasText("字间距", substring = true))
         scenes["main-adjust-stepper"] = snapshot("main-adjust-stepper")
 
         // 滚回顶部再展开教程：上一步把列表滚下去了，「桌面组件添加教程」在视口之外点不到
-        compose.onNode(verticalScrollable and hasAnyDescendant(hasText("组件风格")))
-            .performScrollToNode(hasText("桌面组件添加教程", substring = true))
+        compose.onNodeWithTag("adjust_list")
+            .performScrollToIndex(0)
         compose.onNodeWithText("桌面组件添加教程", substring = true).performClick()
         scenes["main-adjust-tutorial"] = snapshot("main-adjust-tutorial")
 

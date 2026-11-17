@@ -28,6 +28,8 @@ object AppPrefs {
     private const val KEY_HAD_LEGACY_DATA = "had_legacy_app_settings"
     /** 夜色模式开关（false=日间）。用户外观偏好，与颜色预设同类，随备份恢复 */
     private const val KEY_THEME_DARK = "ui_theme_dark"
+    /** 主界面预览区背景；默认沿用已有的阳光海滩图 */
+    private const val KEY_APP_BACKGROUND = "ui_app_background"
 
     // 旧 app_settings 中属于「用户资产」的键，迁移到 user_prefs
     private val USER_KEYS = listOf(
@@ -106,6 +108,18 @@ object AppPrefs {
 
     fun setDarkTheme(context: Context, dark: Boolean) {
         user(context).edit().putBoolean(KEY_THEME_DARK, dark).apply()
+    }
+
+    /** App 预览区背景。没有保存过或旧 key 已下架时回到默认的「阳光海滩」。 */
+    fun appBackground(context: Context): AppBackgroundPreset {
+        migrateLegacyIfNeeded(context)
+        return AppBackgroundPreset.fromKey(
+            user(context).getString(KEY_APP_BACKGROUND, AppBackgroundPreset.DEFAULT.key)
+        )
+    }
+
+    fun setAppBackground(context: Context, preset: AppBackgroundPreset) {
+        user(context).edit().putString(KEY_APP_BACKGROUND, preset.key).apply()
     }
 
     /** 旧 app_settings 里有没有任何键（隐私同意/迁移标记/颜色都算） */

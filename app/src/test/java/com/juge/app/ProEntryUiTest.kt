@@ -121,6 +121,7 @@ class ProEntryUiTest {
 
         compose.onNodeWithText("支付宝支付 ${ProPurchase.PRICE_TEXT}").assertIsDisplayed()
         compose.onNodeWithText("已购买过？用支付宝找回").assertIsDisplayed()
+        compose.onNodeWithText("✓ 导出全部金句为 Markdown 文件").assertIsDisplayed()
 
         compose.onNodeWithText("已购买过？用支付宝找回").performClick()
         assertTrue(recovered)
@@ -151,6 +152,9 @@ class ProEntryUiTest {
     private fun setStatusDialog(
         record: TrialManager.ActivationRecord?,
         isActivated: Boolean = true,
+        isRecovering: Boolean = false,
+        onRecover: () -> Unit = {},
+        onExportQuotes: () -> Unit = {},
     ) {
         compose.setContent {
             MyApplicationTheme {
@@ -158,6 +162,10 @@ class ProEntryUiTest {
                     show = true,
                     isActivated = isActivated,
                     record = record,
+                    isRecovering = isRecovering,
+                    isExportingQuotes = false,
+                    onRecover = onRecover,
+                    onExportQuotes = onExportQuotes,
                     onOpenPro = {},
                     onDismiss = {},
                 )
@@ -176,6 +184,55 @@ class ProEntryUiTest {
         // 标签必须是「购买时间」：换机找回时它显示的是当初付款的时间，不是找回的时间
         compose.onNodeWithText("购买时间").assertIsDisplayed()
         compose.onNodeWithText(formatActivationTime(activatedAt)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `会员状态卡提供真正的支付宝找回按钮`() {
+        var recovered = false
+        setStatusDialog(
+            record = TrialManager.ActivationRecord(
+                activatedAt = 1_767_000_000_000L,
+                payMethod = "支付宝",
+            ),
+            onRecover = { recovered = true },
+        )
+
+        compose.onNodeWithText("已购买过？用支付宝找回").assertIsDisplayed()
+        compose.onNodeWithText("已购买过？用支付宝找回").performClick()
+        assertTrue("提示旁边的找回按钮必须可点", recovered)
+    }
+
+    @Test
+    fun `会员状态卡找回进行中时置忙`() {
+        var recovered = false
+        setStatusDialog(
+            record = TrialManager.ActivationRecord(
+                activatedAt = 1_767_000_000_000L,
+                payMethod = "支付宝",
+            ),
+            isRecovering = true,
+            onRecover = { recovered = true },
+        )
+
+        compose.onNodeWithText("正在核验…").assertIsDisplayed()
+        compose.onNodeWithText("正在核验…").performClick()
+        assertFalse("核验中不能重复发起找回", recovered)
+    }
+
+    @Test
+    fun `会员状态卡可导出全部金句`() {
+        var exported = false
+        setStatusDialog(
+            record = TrialManager.ActivationRecord(
+                activatedAt = 1_767_000_000_000L,
+                payMethod = "支付宝",
+            ),
+            onExportQuotes = { exported = true },
+        )
+
+        compose.onNodeWithText("导出全部金句 (.md)").assertIsDisplayed()
+        compose.onNodeWithText("导出全部金句 (.md)").performClick()
+        assertTrue("导出按钮应触发 Markdown 导出", exported)
     }
 
     @Test

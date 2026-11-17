@@ -30,9 +30,11 @@ import com.juge.app.ui.AppDialog
 import com.juge.app.ui.AppDialogSurface
 import com.juge.app.ui.AppPrimaryButton
 import com.juge.app.ui.AppSectionCard
+import com.juge.app.ui.AppSecondaryButton
 import com.juge.app.ui.AppText
 import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.theme.AppTextRole
+import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.premiumGoldDeep
 import com.juge.app.ui.theme.successGreen
 import com.juge.app.ui.theme.textTertiary
@@ -71,6 +73,10 @@ fun ProStatusDialog(
     show: Boolean,
     isActivated: Boolean,
     record: TrialManager.ActivationRecord?,
+    isRecovering: Boolean,
+    isExportingQuotes: Boolean,
+    onRecover: () -> Unit,
+    onExportQuotes: () -> Unit,
     onOpenPro: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -85,7 +91,7 @@ fun ProStatusDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        AppDialogSurface {
+        AppDialogSurface(scrollable = true) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Filled.WorkspacePremium,
@@ -126,6 +132,27 @@ fun ProStatusDialog(
                         "点「已购买过？用支付宝找回」即可恢复，不需要账号和密码。",
                     role = AppTextRole.micro,
                     color = textTertiary,
+                )
+
+                AppSecondaryButton(
+                    text = if (isRecovering) "正在核验…" else "已购买过？用支付宝找回",
+                    onClick = onRecover,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isRecovering,
+                    contentColor = accentBlue,
+                )
+
+                AppText(
+                    text = "将文库中的全部金句按分类汇总，保存为 Markdown 文件。",
+                    role = AppTextRole.micro,
+                    color = textTertiary,
+                )
+                AppSecondaryButton(
+                    text = if (isExportingQuotes) "正在导出…" else "导出全部金句 (.md)",
+                    onClick = onExportQuotes,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isExportingQuotes,
+                    contentColor = accentBlue,
                 )
 
                 AppPrimaryButton(
