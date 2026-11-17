@@ -40,7 +40,7 @@ class PresetImageDecodeSizeTest {
 
     @Test
     fun `宽图保持宽高比并完整覆盖目标框`() {
-        val bitmap = decode("keep_smiling", 1125, 495)
+        val bitmap = decode("blue_whale", 1125, 495)
         assertTrue("宽不应小于目标：${bitmap.width}", bitmap.width >= 1125)
         assertTrue("高不应小于目标：${bitmap.height}", bitmap.height >= 495)
         assertEquals(2.0f, bitmap.width.toFloat() / bitmap.height, 0.01f)

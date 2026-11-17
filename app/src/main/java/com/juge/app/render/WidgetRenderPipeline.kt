@@ -196,8 +196,7 @@ internal object WidgetRenderPipeline {
 
         // 绘制卡片软阴影（移至 clip 外部以防被气泡边界截断）。
         // 整幅透明底的形状没有卡片外框，阴影只该跟着各自的文本框走，因此在家族绘制里单独处理。
-        // 课后时光的上半是透明抠图，整卡外框的阴影会在人物周围画出一圈圆角矩形，跳过；
-        // 青年雕塑的上半不透明，投影照常画（transparentTop = false）
+        // 透明顶部的形状要跳过整卡投影；青年雕塑的上半不透明，投影照常画。
         if (style.showCardShadow && !traits.transparentCard && !traits.transparentTop) {
             val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = scene.effectiveBgColor
@@ -340,7 +339,7 @@ internal object WidgetRenderPipeline {
     fun drawFamilyChrome(scene: RenderScene) {
         when (scene.traits.family) {
             ShapeFamily.SPLIT_CARD -> drawSplitCardPanel(scene)
-            // 课后时光：上半透明抠图，只用背景色铺下半正文面板
+            // 青年雕塑：只用背景色铺下半正文面板
             ShapeFamily.CUTOUT_POSTCARD -> drawCutoutPostcardPanel(scene)
             // 小霸王游戏机：素材的显像管玻璃原本是"未通电"的深灰玻璃，
             // 这里在屏幕区域内叠一层绿色荧光底，让屏幕看起来是开机的
@@ -415,8 +414,7 @@ internal object WidgetRenderPipeline {
     }
 
     /**
-     * 课后时光：上半是透明抠图，整卡底色会在人物周围露一圈；
-     * 背景色只铺下半的正文面板，面板同样受「背景不透明度」控制。
+     * 青年雕塑：背景色只铺下半的正文面板，面板同样受「背景不透明度」控制。
      * 面板矩形与正文安全区共用 [CutoutPostcardRenderer] 的比例。
      */
     private fun drawCutoutPostcardPanel(scene: RenderScene) {

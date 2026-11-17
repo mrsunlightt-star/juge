@@ -1,12 +1,12 @@
 # 组件风格总览与实现方案
 
 > 这份文档回答两件事：
-> 1. **现有 34 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
+> 1. **现有 31 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
 > 2. **新增一个风格要动哪些地方** —— 一份可照着做的改动清单。
 >
 > 配套文档：`docs/component-style-guide.md`（图片处理脚本 `tools/process_component_image.py` 的用法与踩坑）。
 >
-> **与代码对齐核对：2026-11-16** —— `PRESETS` 34 条、`WidgetShape` 29 个取值、
+> **与代码对齐核对：2026-11-17** —— `PRESETS` 31 条、`WidgetShape` 30 个取值、
 > `ShapeFamily` 12 个家族、免费预设 2 款（纯色圆角 / 青年雕塑）。
 > §4 / §5 的清单是**用脚本从 `WidgetStyle.kt` / `ShapeTraits.kt` 反查生成**的，不要手抄；
 > 改动预设或形状后请重跑核对脚本（在 `.scratch/style-doc-drift/issues/01-resync-style-overview.md`），
@@ -106,15 +106,13 @@
 | 萌宠乐园 | `PET_PARK` | `pet_park` | 粉色花边毛毡框 + 框顶六只毛毡小动物（猫狗兔鼠狐熊猫），框内奶油面板承载正文。素材原稿是**纯白底**（同样被压成无 alpha 的 RGB），按「低饱和 + 高亮 + 与边界连通」抠掉；白猫的绒毛与白底之间原图就没有硬边，门槛提到 240 才保住耳朵 |
 | 春天与小狗 | `SPRING_DOG` | `spring_dog` | 绿框白卡 + 上沿草丛麦穗粉花 + 右上角探头柯基；四周抠成透明（卡外透壁纸）。与毛绒森林同一套设计语言（素材 1.79:1），同样走 `STRETCH` |
 | 蜡笔彩虹框 **（4×2 原生）** | `CRAYON_FRAME` | `crayon_frame` | 蓝/绿/粉三色蜡笔波浪框 + 框内近白纸面，左上红蜡笔爱心、右下黄蜡笔气球；框外抠成透明。设计稿 2048×1152 是 16:9 画布、框只占中间一条（上下各留 21%~27% 透明），**入库前按内容框裁到 1826×627**，否则铺满后框会缩在中间。裁后 2.91:1，4×2 上纵向多铺约 28%。⚠️ **这款风格不出 4×4 版**（产品决定，2026-10-08）：4×4 上素材要纵向拉近 2.9 倍，爱心会拉成细条；**不要**替它补方版素材 |
-| Keep Smiling **（4×2 专属）** | `KEEP_SMILING` | `keep_smiling` | 社交动态卡：白卡 + 左上笑脸头像/「KEEP SMILING」/绿色副标题 + 右上三点 + 左下四个头像与「+2」 + 右下铅笔，中间大片留白承载正文。原稿 578×407（1.42:1）与 4×2 不等比，**没有横向拉伸**：按高度等比缩放后把三点/铅笔重新钉到右边缘、头像条留在左下角，中间留白横向加宽，重排成 2048×1024 的矢量素材（SVG 导出缺标题文字，已按 PNG 原稿补回）。产品归类为 4:2，**不出 4×4 版**；4×4 上纵向拉约 2 倍是已知且接受的 |
-| 课后时光 **（4×4 专属）** | `AFTER_SCHOOL` | `after_school` | 抠图明信片：上半部分 130/250 = 52% 横排三张校园人物**真透明抠图**（睡觉/写作业/蹲着看书，人物以外透出壁纸、沿人物边缘呈不规则形状），下半是**代码绘制**的正文面板（默认白色，跟随「小组件背景颜色」，不是素材的一部分）。设计稿 250×250，SVG 内嵌三张 **2048×1152** 原图（alpha=0 约 84%~88%），已去掉整幅白矩形和下方白面板，只保留上半抠图，渲染成 2048×2048 带 alpha 方版；目录里没找到 JPEG 原图，但内嵌图已是全分辨率。渲染器不整卡铺底色（`fillsBottomPanelOnly`），背景色只由 `CUTOUT_POSTCARD` 家族铺下半面板，因此不会把上半透明区域填掉；上半透明所以 `transparentTop=true`、跳过整卡投影。产品归类为明信片风格、默认 **4×4**，**不出 4×2 版**；4×2 上横向拉约 97% 是已知且接受的 |
 | 跨栏小子 **（4×4 专属）** | `HURDLE_BOY` | `hurdle_boy` | 明信片：素材原生 **1536×1536**——上半是跨栏少年 + 栏杆的**真透明抠图**（alpha=0 约 55.6%，人物/栏杆以外透出壁纸，沿人物边缘呈不规则形状），下半是素材自带的白色记分牌正文框（牌面 x 186~1356 / y 670~1405，牌角自带圆角）。卡面/牌面都烘在素材里，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）；牌角本身是圆角，**不强制直角**、圆角步进器可用。上半透明所以 `transparentTop=true`、跳过整卡投影。产品要求归类为明信片风格、默认 **4×4**，**不出 4×2 版**；4×2 上横向拉约 97% 是已知且接受的。**不要**给它补横版素材 |
 | 可爱Doro **（4×4 专属）** | `CUTE_DORO` | `cute_doro` | 萌宠：设计师新出的**原生 2048×2048 方形构图**（2026-10-22 由 1536 升到 2048 高清版，构图不变）——粉发毛绒角色在上、奶油色留言板占下方约 42%~94%，四周透明；不再裁切/放大，留言板圆角完整保留。素材本身就是设计好的角色+板子，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）。产品要求归类为萌宠风格、默认 **4×4**，**不出 4×2 版**；4×2 上横向拉约 97% 是已知且接受的 |
 | 蓝色鲸鱼 **（4×2 专属）** | `BLUE_WHALE` | `blue_whale` | 萌宠卡：浅灰圆角卡 + #4998CD 描边 + 右下角小鲸鱼。设计稿 250×110（2.27:1），按 4×2 画布渲染成 2048×1024（横向压缩约 12%，圆角和鲸鱼几乎看不出）。卡面、描边、鲸鱼都烘在素材里，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）；浅灰卡与描边自带 9.5 圆角，渲染时**强制 0 圆角**（加入 `SQUARE_CORNER_SHAPES`）避免管线再切一刀。正文落在鲸鱼上方的留白区。产品要求归类为萌宠风格、默认 **4×2** |
 | 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
-| 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充） |
+| 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充）。四款点缀分别是 `winter_branch` 950×360、`deepsea_whale` 915×405、`summersea_accent` 950×360、`lotus_accent` 938×398，**全部是真透明抠图**，不得带矩形卡纸底 |
 | 可爱四小只 **（4×2 专属）** | `CUTE_FOUR_KIDS` | `cute_four_kids` | 2026-10-07 改版：四个头像横排在左下角，素材是透明底的「头像条」，压在背景色铺出的卡面上。设计稿就是 1824×912（2:1），**按产品决定不出 4×4 版**，4×4 上的拉伸是已知且接受的。旧存档（左右分割卡 + 等比完整显示）读档时按 `PRESET_LEGACY_LOOKS` 自动迁移到本形状与拉伸铺满，不必重新套用预设 |
-| 青年雕塑 **（4×4 专属）** | `YOUTH_SCULPTURE` | `youth_sculpture` | 2026-10-21 改版：上方 130/250 = 52% 是雕塑图（内嵌 1920×1280 原图，肩部在 52% 处裁齐），下半是**代码绘制**的正文面板（默认白色，跟随「小组件背景颜色」）。素材已裁成「只保留上半雕塑图」的 2048×2048 带 alpha 方版，下半透明由代码面板补上；与课后时光共用 `CUTOUT_POSTCARD` 家族 + `fillsBottomPanelOnly`，但上半不透明，所以 `transparentTop=false`，整卡投影/1dp 描边照常。**按产品决定不出 4×2 版**，4×2 上的横向拉伸是已知且接受的。presetId 保持不变，已保存/已落桌面的旧组件读档时直接跟到新造型，不必重新套用预设。圆角交给管线裁，**不强制直角**、圆角步进器可用（12dp 起） |
+| 青年雕塑 **（4×4 专属）** | `YOUTH_SCULPTURE` | `youth_sculpture` | 2026-10-21 改版：上方 130/250 = 52% 是雕塑图（内嵌 1920×1280 原图，肩部在 52% 处裁齐），下半是**代码绘制**的正文面板（默认白色，跟随「小组件背景颜色」）。素材已裁成「只保留上半雕塑图」的 2048×2048 带 alpha 方版，下半透明由代码面板补上；使用 `CUTOUT_POSTCARD` 家族 + `fillsBottomPanelOnly`，上半不透明，所以 `transparentTop=false`，整卡投影/1dp 描边照常。**按产品决定不出 4×2 版**，4×2 上的横向拉伸是已知且接受的。presetId 保持不变，已保存/已落桌面的旧组件读档时直接跟到新造型，不必重新套用预设。圆角交给管线裁，**不强制直角**、圆角步进器可用（12dp 起） |
 
 > 例外：`WEATHER_BOX`（盒面）与 `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS`（卡纸）
 > 虽然也吃一整张素材，但素材只占画面的一部分，**背景色就是它们的盒面 / 卡纸底色**，因此可以设
@@ -132,7 +130,7 @@
 | 形状 | 图占 | 文字区 | 预设（当前） |
 | --- | --- | --- | --- |
 | `SPLIT_CARD` | 上半 **48%** | 下半 | 晨曦日出、治愈落日、星空森林、搏击俱乐部、绝命毒师（5 条） |
-| `SPLIT_CARD_HORIZONTAL` | 左半 **33.3%** | 右半 | 毛绒小狗、毛绒猫咪、得意doro（3 条） |
+| `SPLIT_CARD_HORIZONTAL` | 左半 **33.3%** | 右半 | 毛绒小狗、得意doro（2 条） |
 
 **素材分两种**，直接决定 `bgImageScaleMode`：
 
@@ -141,7 +139,7 @@
 
 > ⚠️ 明信片类的 `backgroundColor` 是**文字区底色**，不是整卡底色。图区单独铺图，两处不能各写一遍矩形（共用 `splitImageRect()`）。
 
-## 4. 全部 34 个风格清单
+## 4. 全部 31 个风格清单
 
 `PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。名称取自 §4.1 的六份分类清单，
 完整清单由脚本从 `WidgetStyle.kt` 反查生成，不要手抄。
@@ -157,31 +155,28 @@
 | 6 |搏击俱乐部 | `p_fight_club` | SPLIT_CARD | C | `boji_julebu` | PRO |
 | 7 |绝命毒师 | `p_breaking_bad` | SPLIT_CARD | C | `breaking_bad` | PRO |
 | 8 |毛绒小狗 | `p_fluffy_dog` | SPLIT_CARD_HORIZONTAL | C | `fluffy_dog` | PRO |
-| 9 |毛绒猫咪 | `p_fluffy_cat` | SPLIT_CARD_HORIZONTAL | C | `fluffy_cat` | PRO |
-| 10 |羽毛信纸 | `p_feather_letter` | FEATHER_LETTER | B | `feather_letter` | PRO |
-| 11 |复古像素 | `p_pixel_retro` | PIXEL_RETRO | B | `pixel_retro` | PRO |
-| 12 |可爱四小只 | `p_cute_four_kids` | CUTE_FOUR_KIDS | B | `cute_four_kids` | PRO |
-| 13 |蓝色便签 | `p_blue_note` | BLUE_NOTE | A | — | PRO |
-| 14 |撕边牛皮手账 | `p_niupi_shouzhang` | NIUPI_SHOUZHANG | B | `niupi_shouzhang` | PRO |
-| 15 |得意doro | `p_deyi_doro` | SPLIT_CARD_HORIZONTAL | C | `deyi_doro` | PRO |
-| 16 |教室黑板 | `p_classroom_blackboard` | CLASSROOM_BLACKBOARD | B | `classroom_blackboard` | PRO |
-| 17 |书香书架 | `p_bookshelf` | BOOKSHELF | A | — | PRO |
-| 18 |毛绒森林 | `p_plush_forest` | PLUSH_FOREST | B | `plush_forest` | PRO |
-| 19 |小霸王游戏机 | `p_subor_console` | SUBOR_CONSOLE | B | `subor_console` | PRO |
-| 20 |天气盒子 | `p_weather_box` | WEATHER_BOX | B | `weather_box_cavity` | PRO |
-| 21 |雪落宫墙 | `p_winter_palace` | WINTER_PALACE | B | `winter_frame` | PRO |
-| 22 |深海鲸歌 | `p_deep_sea` | DEEP_SEA | B | `deepsea_frame` | PRO |
-| 23 |夏天的海 | `p_summer_sea` | SUMMER_SEA | B | `summersea_frame` | PRO |
-| 24 |夏日荷花 | `p_summer_lotus` | SUMMER_LOTUS | B | `lotus_frame` | PRO |
-| 25 |春天与小狗 | `p_spring_dog` | SPRING_DOG | B | `spring_dog` | PRO |
-| 26 |萌宠乐园 | `p_pet_park` | PET_PARK | B | `pet_park` | PRO |
-| 27 |青年雕塑 | `p_youth_sculpture` | YOUTH_SCULPTURE | B | `youth_sculpture` | **免费** |
-| 28 |蜡笔彩虹框 | `p_crayon_frame` | CRAYON_FRAME | B | `crayon_frame` | PRO |
-| 29 |Keep Smiling | `p_keep_smiling` | KEEP_SMILING | B | `keep_smiling` | PRO |
-| 30 |课后时光 | `p_after_school` | AFTER_SCHOOL | B | `after_school` | PRO |
-| 31 |可爱Doro | `p_cute_doro` | CUTE_DORO | B | `cute_doro` | PRO |
-| 32 |蓝色鲸鱼 | `p_blue_whale` | BLUE_WHALE | B | `blue_whale` | PRO |
-| 33 |跨栏小子 | `p_hurdle_boy` | HURDLE_BOY | B | `hurdle_boy` | PRO |
+| 9 |羽毛信纸 | `p_feather_letter` | FEATHER_LETTER | B | `feather_letter` | PRO |
+| 10 |复古像素 | `p_pixel_retro` | PIXEL_RETRO | B | `pixel_retro` | PRO |
+| 11 |可爱四小只 | `p_cute_four_kids` | CUTE_FOUR_KIDS | B | `cute_four_kids` | PRO |
+| 12 |蓝色便签 | `p_blue_note` | BLUE_NOTE | A | — | PRO |
+| 13 |撕边牛皮手账 | `p_niupi_shouzhang` | NIUPI_SHOUZHANG | B | `niupi_shouzhang` | PRO |
+| 14 |得意doro | `p_deyi_doro` | SPLIT_CARD_HORIZONTAL | C | `deyi_doro` | PRO |
+| 15 |教室黑板 | `p_classroom_blackboard` | CLASSROOM_BLACKBOARD | B | `classroom_blackboard` | PRO |
+| 16 |书香书架 | `p_bookshelf` | BOOKSHELF | A | — | PRO |
+| 17 |毛绒森林 | `p_plush_forest` | PLUSH_FOREST | B | `plush_forest` | PRO |
+| 18 |小霸王游戏机 | `p_subor_console` | SUBOR_CONSOLE | B | `subor_console` | PRO |
+| 19 |天气盒子 | `p_weather_box` | WEATHER_BOX | B | `weather_box_cavity` | PRO |
+| 20 |雪落宫墙 | `p_winter_palace` | WINTER_PALACE | B | `winter_frame` | PRO |
+| 21 |深海鲸歌 | `p_deep_sea` | DEEP_SEA | B | `deepsea_frame` | PRO |
+| 22 |夏天的海 | `p_summer_sea` | SUMMER_SEA | B | `summersea_frame` | PRO |
+| 23 |夏日荷花 | `p_summer_lotus` | SUMMER_LOTUS | B | `lotus_frame` | PRO |
+| 24 |春天与小狗 | `p_spring_dog` | SPRING_DOG | B | `spring_dog` | PRO |
+| 25 |萌宠乐园 | `p_pet_park` | PET_PARK | B | `pet_park` | PRO |
+| 26 |青年雕塑 | `p_youth_sculpture` | YOUTH_SCULPTURE | B | `youth_sculpture` | **免费** |
+| 27 |蜡笔彩虹框 | `p_crayon_frame` | CRAYON_FRAME | B | `crayon_frame` | PRO |
+| 28 |可爱Doro | `p_cute_doro` | CUTE_DORO | B | `cute_doro` | PRO |
+| 29 |蓝色鲸鱼 | `p_blue_whale` | BLUE_WHALE | B | `blue_whale` | PRO |
+| 30 |跨栏小子 | `p_hurdle_boy` | HURDLE_BOY | B | `hurdle_boy` | PRO |
 
 ### 4.1 界面上怎么分组展示
 
@@ -189,14 +184,14 @@
 
 | 列表 | 界面标题 | 内容（当前） |
 | --- | --- | --- |
-| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框、Keep Smiling（12 条） |
-| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、毛绒小狗、毛绒猫咪、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼（8 条） |
+| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框（11 条） |
+| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、毛绒小狗、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼（7 条） |
 | `POSTCARD_LEADING_PRESETS` | 明信片风格（**行首**的整幅贴图） | 青年雕塑（1 条） |
 | `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 书香书架（1 条） |
-| `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、课后时光、跨栏小子（7 条） |
+| `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、跨栏小子（6 条） |
 | `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 5 张插图的 `资源名 → 展示名` 映射 |
 
-> 六份清单合计覆盖**全部 34 条**预设。
+> 六份清单合计覆盖**全部 31 条**预设。
 
 > **界面上的尺寸（2026-10-08 起）**：三行风格标题都**不带尺寸后缀**（原先「经典风格 · 4×2」的
 > 后缀取的是选中组件的入口尺寸，与各款风格自己的设计尺寸并不相干）。每款风格的最佳显示尺寸
@@ -244,13 +239,11 @@
 | `CUTE_FOUR_KIDS` | 圆角矩形（**强制 0 圆角**） | ❌ | 四个头像**横排**在左下角（2026-10-07 从「左侧 2×2 网格」改版），卡面由背景色铺；圆角会啃掉最左侧头像的下角 |
 | `YOUTH_SCULPTURE` | 圆角矩形 | ✅ | 上半 52% 雕塑图在不透明素材里，下半正文面板由代码绘制（`CUTOUT_POSTCARD` + `fillsBottomPanelOnly`，`transparentTop=false`）；背景色可调；**不强制直角**（圆角步进器可用） |
 | `CRAYON_FRAME` | 圆角矩形（**强制 0 圆角**） | ❌ | 整幅手绘素材：蜡笔波浪框 + 框内白纸面 + 两枚小装饰，框外已抠透明 |
-| `KEEP_SMILING` | 圆角矩形 | ✅ | 整幅社交动态卡素材：白卡 + 头像/标题/三点/头像条/铅笔都在 2048×1024 素材里，四角透明；**不强制直角**（圆角步进器可用） |
-| `AFTER_SCHOOL` | 圆角矩形 | ❌ | 上半三张真透明抠图在 2048×2048 素材里；下半正文面板由代码绘制，背景色只铺下半（`fillsBottomPanelOnly`），人物以外透出壁纸；**不强制直角**（圆角步进器可用） |
 | `HURDLE_BOY` | 圆角矩形 | ❌ | 上半跨栏少年/栏杆真透明抠图 + 下半白色记分牌都在素材里；牌角自带圆角，不铺背景色、不强制直角 |
 | `CUTE_DORO` | 圆角矩形 | ❌ | 原生 2048×2048 方形构图：角色在上 + 奶油色留言板在下，四周透明；不铺背景色 |
 | `BLUE_WHALE` | 圆角矩形（**强制 0 圆角**） | ❌ | 浅灰卡面 + #4998CD 描边 + 右下角鲸鱼都在素材里；卡面/描边自带圆角，不铺背景色 |
 
-**「可内缩」（`CARD_INSET_DP = 4dp`）**：名单在 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX` / `YOUTH_SCULPTURE` / `KEEP_SMILING`。
+**「可内缩」（`CARD_INSET_DP = 4dp`）**：名单在 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX` / `YOUTH_SCULPTURE`。
 
 > ⚠️ 这一列说的是「内容按 `rectF`/`outerRect` 布局，内缩**不会溢出**」，即**能不能**内缩；
 > **要不要**内缩由 `RenderScene.cardInset` 另判：`traits.insetCapable && style.showCardShadow`——
@@ -290,8 +283,6 @@
 | CUTE_DORO | 50% | 高 40% | 9% | 91% | 奶油留言板内（板约 y 42%~94%，正文从 50% 起、到 90% 止，避开角色与圆角） |
 | BLUE_WHALE | 18% | 高 52% | 8% | 92% | 鲸鱼上方的留白区（素材 2048×1024：鲸鱼占 x 80%~100% / y 72.7%~100%，正文底部到 70% 为止） |
 | CRAYON_FRAME | 17.5% | 高 67% | 14.5% | 12.5% | 蜡笔框内的白纸面（素材 1826×627：纸面 x 0.052~0.952 / y 0.137~0.861），左避红爱心（右沿 x 0.133）、右避黄气球（左沿 x 0.890） |
-| KEEP_SMILING | 24% | 高 54% | 8% | 92% | 标题与底部头像条之间的大留白（素材 2048×1024：标题占 y 约 6%~21%，头像条占 y 约 82%~95%） |
-| AFTER_SCHOOL | 56% | 高 34% | 8% | 92% | 上方 52% 三张并排插画以下的整片留白（素材 2048×2048，正文从插画下沿再留 4% 起，底部留 10%） |
 | SUBOR_CONSOLE | 屏幕内 + 4dp | 屏幕内 − 4dp | 屏幕内 + 6dp | 屏幕内 − 6dp | 屏幕矩形相对 `CENTER_FIT` 模型算 |
 | WEATHER_BOX | 腔体下沿 + 8dp | 盒底 − 8dp | 16dp | 16dp | 腔体下方的白留白区，组件变高只加文字不加腔体 |
 | WINTER_PALACE / DEEP_SEA / SUMMER_SEA / SUMMER_LOTUS | 相框下沿 + 3dp | 底 − max(5dp, 高×2.5%) | max(14dp, 宽×5%) | max(12dp, 宽×3.5%) | 相框下方整幅留白带（与 `FramedCardRenderer` 同一份布局） |
@@ -308,7 +299,7 @@
 
 主体四周透明、插画不铺满整幅位图 —— 设了背景色会在主体外围露出一圈圆角卡片。
 
-`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`KEEP_SMILING`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`
+`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`
 
 > 判定入口是 `WidgetStyle.supportsBackgroundColor(shape)`；渲染时也会强制按透明处理，所以**旧组件不用重新保存**也不会露出包裹卡片。
 

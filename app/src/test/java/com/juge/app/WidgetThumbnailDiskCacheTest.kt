@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.juge.app.data.WidgetStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -113,6 +114,30 @@ class WidgetThumbnailDiskCacheTest {
         assertEquals("预热加载的图与首次渲染尺寸一致", first.width, warmed.width)
         assertEquals(first.height, warmed.height)
         assertEquals("预热只解码、不重渲染", rendersBefore + 1, WidgetCanvasRenderer.thumbnailRenderCountForTest)
+    }
+
+    @Test
+    fun prewarmPurgesLegacyDiskVersionSoStaleVisualsCannotLoad() {
+        val context = RuntimeEnvironment.getApplication()
+        WidgetCanvasRenderer.clearThumbnailRamCacheForTest()
+        val key = "${preset.presetId}_150x80"
+
+        assertNotNull(WidgetCanvasRenderer.renderThumbnail(context, 150, 80, "", preset))
+        val currentFile = diskFile(context, key)
+        val currentBytes = currentFile.readBytes()
+        val cacheDir = currentFile.parentFile!!
+        currentFile.delete()
+
+        // v16 是加入真透明点缀之前的缩略图缓存版本。即使文件本身能正常解码，
+        // 新版本也不能把它预热回内存，否则升级后列表仍会显示旧素材。
+        val legacyFile = File(cacheDir, "v16$key.png")
+        legacyFile.writeBytes(currentBytes)
+        WidgetCanvasRenderer.clearThumbnailRamCacheForTest()
+
+        WidgetCanvasRenderer.prewarmThumbnailCache(context)
+
+        assertNull(WidgetCanvasRenderer.cachedThumbnail(150, 80, preset))
+        assertTrue("旧版本缩略图应被清理", !legacyFile.exists())
     }
 
     private fun <T> assertNotNull(value: T?): T {

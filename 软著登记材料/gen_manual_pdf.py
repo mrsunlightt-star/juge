@@ -134,7 +134,7 @@ def draw_toc_row(c, y, row, fonts, wc):
         c.drawString(right - pw, y, row.toc_page)
 
 
-def paginate(rows, per_page):
+def paginate_linear(rows, per_page):
     """按行分页；标题行不落在页末（与后续内容保持同页）。"""
     pages = []
     cur = []
@@ -151,6 +151,48 @@ def paginate(rows, per_page):
                 cur = []
     if cur:
         pages.append(cur)
+    return pages
+
+
+def paginate(rows, per_page, min_text_lines=30):
+    """在每页不少于 ``min_text_lines`` 行正文的前提下尽量少分页。
+
+    删除或缩短短落时，简单按固定行数分页会把余量全部挤到末页，导致末页不足 30 行。
+    这里用后缀动态规划重新分配页边界；无可行解时退回原来的线性分页。
+    """
+    total = len(rows)
+    text_prefix = [0] * (total + 1)
+    for i, row in enumerate(rows):
+        text_prefix[i + 1] = text_prefix[i] + (0 if row.blank or not row.text else 1)
+
+    best_pages = [None] * (total + 1)
+    best_end = [-1] * (total + 1)
+    best_pages[total] = 0
+    for start in range(total - 1, -1, -1):
+        for end in range(min(total, start + per_page), start, -1):
+            text_lines = text_prefix[end] - text_prefix[start]
+            if text_lines < min_text_lines:
+                continue
+            if end < total and rows[end - 1].key is not None:
+                continue
+            if best_pages[end] is None:
+                continue
+            candidate = 1 + best_pages[end]
+            if (best_pages[start] is None
+                    or candidate < best_pages[start]
+                    or (candidate == best_pages[start] and end > best_end[start])):
+                best_pages[start] = candidate
+                best_end[start] = end
+
+    if best_pages[0] is None:
+        return paginate_linear(rows, per_page)
+
+    pages = []
+    start = 0
+    while start < total:
+        end = best_end[start]
+        pages.append(rows[start:end])
+        start = end
     return pages
 
 
@@ -221,7 +263,7 @@ def main():
 
     print(f"文档标题：{title_text}")
     print(f"目录条目：{len(entries)} 条（含二级、三级标题）")
-    print(f"总页数：{total} 页（{LINES_PER_PAGE} 行/页）")
+    print(f"总页数：{total} 页（最多 {LINES_PER_PAGE} 行/页）")
     print(f"每页正文行数：最少 {min_lines} 行"
           + (f"，不足 30 行的页：{[s[0] for s in short]}" if short else "，全部满足「每页不少于 30 行」"))
     print(f"提交方式：{'整份提交' if total <= 60 else '前 30 页 + 后 30 页'}")

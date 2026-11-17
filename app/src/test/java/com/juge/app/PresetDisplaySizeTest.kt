@@ -32,10 +32,6 @@ class PresetDisplaySizeTest {
             "p_youth_sculpture" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：蜡笔彩虹框的最佳显示尺寸是 4:2（4×2 原生，方版素材未交付）
             "p_crayon_frame" to WidgetDisplaySize.WIDE_4X2,
-            // 产品点名：Keep Smiling 归类为 4:2（素材已按 2048×1024 重排，不出 4×4 版）
-            "p_keep_smiling" to WidgetDisplaySize.WIDE_4X2,
-            // 产品点名：课后时光归类为明信片风格，默认 4×4（素材按 2048×2048 方版出图）
-            "p_after_school" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：跨栏小子归类为明信片风格，默认 4×4（素材原生 1536×1536）
             "p_hurdle_boy" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：可爱Doro归类为萌宠风格，默认 4×4（原生 2048×2048 方形构图）

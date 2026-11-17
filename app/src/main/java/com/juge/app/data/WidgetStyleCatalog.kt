@@ -121,17 +121,6 @@ internal object WidgetStyleCatalog {
             authorSignature = "—— 毛绒小狗",
             presetImageResName = "fluffy_dog"
         ), // 毛绒小狗 (PRO)
-        WidgetStyle(
-            presetId = "p_fluffy_cat",
-            bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
-            shape = WidgetShape.SPLIT_CARD_HORIZONTAL,
-            backgroundColor = Color.WHITE,
-            font = WidgetFont.LXGW_WENKAI,
-            fontColor = Color.parseColor("#374151"),
-            authorSignature = "—— 毛绒猫咪",
-            presetImageResName = "fluffy_cat"
-        ), // 毛绒猫咪 (PRO)
-
         // 羽毛信纸 (PRO)：信纸即卡片(信纸外透明透桌面)，文字落信纸内部
         WidgetStyle(
             presetId = "p_feather_letter",
@@ -354,9 +343,8 @@ internal object WidgetStyleCatalog {
             authorSignature = "—— 天气盒子"
         ), // 49. 天气盒子 (PRO)
         // 雪落宫墙 (PRO)：整卡米色卡纸，木框雪景宫墙照片按真实比例摆在上方，
-        // 梅枝贴右下角。相框与梅枝都是带羽化米边的抠图图层（羽化边与卡纸同色，
-        // 任意组件比例都不露接缝），卡纸底色由「背景颜色」绘制（默认米白），
-        // 文字落在相框下方、梅枝以左的留白区。
+        // 梅枝贴右下角。相框带羽化米边，梅枝是真透明抠图，卡纸底色由
+        // 「背景颜色」绘制（默认米白），文字落在相框下方的留白带。
         WidgetStyle(
             presetId = "p_winter_palace",
             bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
@@ -378,7 +366,7 @@ internal object WidgetStyleCatalog {
         ), // 50. 雪落宫墙 (PRO)
         // 深海鲸歌 (PRO)：整卡白蓝卡纸，木框日光海面照片按真实比例摆上方，
         // 鲸影淡入右下角。与雪落宫墙共用「画框卡片」分层渲染：
-        // 相框与鲸影都是带羽化卡纸边的抠图图层，文字落在相框下方整幅留白带。
+        // 相框带羽化卡纸边，鲸影是真透明抠图，文字落在相框下方整幅留白带。
         WidgetStyle(
             presetId = "p_deep_sea",
             bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 明信片行按 4×4 设计：画框在上、正文在下
@@ -542,55 +530,6 @@ internal object WidgetStyleCatalog {
             presetImageResName = "crayon_frame",
             authorSignature = "—— 蜡笔彩虹框"
         ), // 63. 蜡笔彩虹框 (PRO)
-        // Keep Smiling (PRO)：社交动态卡风格——白卡 + 左上笑脸头像 / 标题 / 绿色副标题，
-        // 右上三点、左下头像条 +「+2」、右下铅笔，中间大片留白承载正文。
-        //
-        // 素材 2048×1024 按 4×2 画布重排（原稿 578×407 见 WidgetShape.KEEP_SMILING 的说明）：
-        // 按高度等比缩放、左右贴边元素重新钉边，不是把 1.42:1 的图横向拉宽 39%。
-        // 卡面与四角圆角都在素材里，因此不铺背景色（透明处透出壁纸），也不加投影/描边。
-        WidgetStyle(
-            presetId = "p_keep_smiling",
-            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：4×2 原生，不出 4×4 版
-            shape = WidgetShape.KEEP_SMILING,
-            cornerRadiusDp = 12f,
-            backgroundColor = android.graphics.Color.TRANSPARENT,
-            backgroundOpacity = 1f,
-            backgroundImagePath = null,
-            bgImageScaleMode = ImageScaleMode.STRETCH,
-            font = WidgetFont.SOURCE_HAN_SANS, // 无衬线：与社交动态卡的现代感一致
-            fontSizeSp = 18f,
-            fontColor = Color.parseColor("#1F1F1F"),
-            textAlign = "CENTER",
-            showCardShadow = false,
-            cardBorderWidthDp = 0f,
-            presetImageResName = "keep_smiling",
-            authorSignature = "—— Keep Smiling"
-        ), // 64. Keep Smiling (PRO)
-        // 课后时光 (PRO)：抠图明信片——上方 52% 横排三张校园人物真透明抠图，
-        // 下半是**代码绘制**的正文面板，颜色跟随「小组件背景颜色」；人物以外透出桌面壁纸，
-        // 沿人物边缘呈不规则形状。素材只保留上半的抠图，下半不再烘面板。
-        // 设计稿 250×250，已按 SVG 渲染成 2048×2048 方版；三张图由 SVG 内嵌的
-        // 2048×1152 原图裁出（alpha=0 约 84%~88%），入库不额外放大。
-        // 上半部分透明，所以渲染器不整卡铺底色，只由 CUTOUT_POSTCARD 家族铺下半面板。
-        // ⚠️ 按产品要求归类为明信片风格、默认 4×4，不出 4×2 版。
-        WidgetStyle(
-            presetId = "p_after_school",
-            bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4×4，不出 4×2 版
-            shape = WidgetShape.AFTER_SCHOOL,
-            cornerRadiusDp = 12f,
-            backgroundColor = Color.WHITE, // 默认白面板；用户可改，只作用于下半部分
-            backgroundOpacity = 1f,
-            backgroundImagePath = null,
-            bgImageScaleMode = ImageScaleMode.STRETCH,
-            font = WidgetFont.LXGW_WENKAI, // 霞鹜文楷：校园/手帐气质，贴合课后时光
-            fontSizeSp = 18f,
-            fontColor = Color.parseColor("#3A3A3A"),
-            textAlign = "CENTER",
-            showCardShadow = false,
-            cardBorderWidthDp = 0f,
-            presetImageResName = "after_school",
-            authorSignature = "—— 课后时光"
-        ), // 65. 课后时光 (PRO)
         // 可爱Doro (PRO)：萌宠——设计师新出的原生 2048×2048 方形版，
         // 粉发毛绒角色在上、奶油色留言板占下方约 42%~94%，四周透明；
         // 不再裁切/放大，留言板圆角完整保留，正文直接写在板子里。
@@ -695,9 +634,6 @@ internal object WidgetStyleCatalog {
         // 蜡笔彩虹框：同理——蜡笔框外一侧是透明的（透出壁纸），
         // 再铺一层背景色会在蜡笔描边外露出一圈方角色块
         WidgetShape.CRAYON_FRAME,
-        // Keep Smiling：白卡与四角圆角都在素材里，背景色只会在四角透明处露一圈；
-        // 不铺底色也让「背景不透明度」只作用于素材本身，不会出现底色与白卡叠两层
-        WidgetShape.KEEP_SMILING,
         // 跨栏小子：少年/栏杆抠图 + 白色记分牌都在素材里，周边透明；
         // 铺底色会把上半的透明区和记分牌外缘一起填掉
         WidgetShape.HURDLE_BOY,
@@ -705,7 +641,6 @@ internal object WidgetStyleCatalog {
         WidgetShape.CUTE_DORO,
         // 蓝色鲸鱼：浅灰卡面与蓝色描边都烘在素材里，铺底色会填掉卡外四角
         WidgetShape.BLUE_WHALE
-        // 课后时光不在这里：它支持背景色，但底色只铺下半面板（fillsBottomPanelOnly）
     )
 
     /** 该形状是否支持设置背景色 */
@@ -743,7 +678,7 @@ internal object WidgetStyleCatalog {
 
     // 明信片/画报风格可选插图（资源名 → 展示名）。
     // 主界面各分类行共用同一份列表，避免多处硬编码各自维护导致入口间素材不一致。
-    // 注意：萌宠/角色类素材(guga_doro、cute_cat、fluffy_dog、fluffy_cat)归入
+    // 注意：萌宠/角色类素材(guga_doro、cute_cat、fluffy_dog)归入
     // 下方的 PET_PRESETS(萌宠风格)，这里刻意排除，避免分类不干净、同一批图重复出现在明信片行。
     val ILLUSTRATION_PRESETS: List<Pair<String, String>> = listOf(
         "bg_illustration_1" to "晨曦日出",
@@ -788,7 +723,6 @@ internal object WidgetStyleCatalog {
         "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
         "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
         "蜡笔彩虹框" to (PRESETS.firstOrNull { it.presetId == "p_crayon_frame" } ?: PRESETS[0]),
-        "Keep Smiling" to (PRESETS.firstOrNull { it.presetId == "p_keep_smiling" } ?: PRESETS[0]),
     )
 
     // 明信片行**首位**的整幅贴图预设：按产品要求排在明信片风格第一个。
@@ -814,7 +748,6 @@ internal object WidgetStyleCatalog {
         "深海鲸歌" to (PRESETS.firstOrNull { it.presetId == "p_deep_sea" } ?: PRESETS[0]),
         "夏天的海" to (PRESETS.firstOrNull { it.presetId == "p_summer_sea" } ?: PRESETS[0]),
         "夏日荷花" to (PRESETS.firstOrNull { it.presetId == "p_summer_lotus" } ?: PRESETS[0]),
-        "课后时光" to (PRESETS.firstOrNull { it.presetId == "p_after_school" } ?: PRESETS[0]),
         "跨栏小子" to (PRESETS.firstOrNull { it.presetId == "p_hurdle_boy" } ?: PRESETS[0])
     )
 
@@ -822,7 +755,6 @@ internal object WidgetStyleCatalog {
     val PET_PRESETS: List<Pair<String, WidgetStyle>> = listOf(
         "得意doro" to (PRESETS.firstOrNull { it.presetImageResName == "deyi_doro" } ?: PRESETS[0]),
         "毛绒小狗" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_dog" } ?: PRESETS[0]),
-        "毛绒猫咪" to (PRESETS.firstOrNull { it.presetImageResName == "fluffy_cat" } ?: PRESETS[0]),
         "可爱四小只" to (PRESETS.firstOrNull { it.presetImageResName == "cute_four_kids" } ?: PRESETS[0]),
         "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0]),
         "萌宠乐园" to (PRESETS.firstOrNull { it.presetId == "p_pet_park" } ?: PRESETS[0]),

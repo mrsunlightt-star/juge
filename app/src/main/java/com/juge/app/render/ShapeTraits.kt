@@ -74,13 +74,13 @@ internal class ShapeTraits(
     /** 不走「整卡铺背景图」：素材由家族自己的绘制逻辑摆放 */
     val drawsOwnBackground: Boolean,
     /**
-     * 只在下半部分铺底色：整卡铺底色会把上半的透明区域填掉（课后时光），
+     * 只在下半部分铺底色：整卡铺底色会把上半的图片区域填掉，
      * 或在图片背后多叠一层（青年雕塑）。底色由家族绘制逻辑按
      * [CutoutPostcardRenderer.panelRect] 画在正文面板上。
      */
     val fillsBottomPanelOnly: Boolean,
     /**
-     * 上半部分透明：课后时光是人物抠图，上半以外要透出壁纸，所以不能画整卡投影；
+     * 上半部分透明：上半的人物抠图以外要透出壁纸，所以不能画整卡投影；
      * 青年雕塑的上半是不透明雕塑图，投影照常画。
      */
     val transparentTop: Boolean,
@@ -119,8 +119,6 @@ private val INSET_CAPABLE_SHAPES = setOf(
     WidgetShape.WEATHER_BOX,
     // 青年雕塑：卡面就是整幅素材，内容全按 outerRect 布局，内缩（给投影让位）安全
     WidgetShape.YOUTH_SCULPTURE,
-    // Keep Smiling：整幅素材按 outerRect 铺满，内缩（若用户后续打开投影）不会让装饰跑出卡面外
-    WidgetShape.KEEP_SMILING,
 )
 
 /**
@@ -179,12 +177,10 @@ private val OWN_BACKGROUND_SHAPES = setOf(
 /** 底色只铺下半正文面板的形状：上半是素材图，下半是代码面板 */
 private val BOTTOM_PANEL_SHAPES = setOf(
     WidgetShape.YOUTH_SCULPTURE,
-    WidgetShape.AFTER_SCHOOL,
 )
 
 /** 上半透明的底部面板型明信片：不能画整卡投影，否则会在抠图周围露出一圈圆角矩形 */
 private val TRANSPARENT_TOP_SHAPES = setOf(
-    WidgetShape.AFTER_SCHOOL,
     // 跨栏小子：上半是少年 + 栏杆的不规则抠图、下半是记分牌；整卡投影会在人物周围
     // 画出圆角矩形阴影（虽然预设默认不投影，用户/旧存档打开时也要跳过）
     WidgetShape.HURDLE_BOY,
@@ -224,22 +220,17 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.CUTE_FOUR_KIDS -> ShapeFamily.ROUND_RECT
 
     // 青年雕塑：上半是不透明雕塑图，下半是代码面板（背景色可调），
-    // 与课后时光共用 CUTOUT_POSTCARD 家族；上半不透明，所以整卡投影照常画
+    // 上半不透明，所以整卡投影照常画
     WidgetShape.YOUTH_SCULPTURE -> ShapeFamily.CUTOUT_POSTCARD
 
     // 蜡笔彩虹框：蜡笔框、爱心、气球全在素材里，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
     WidgetShape.CRAYON_FRAME,
-    // Keep Smiling：白卡、头像、标题、三点、铅笔全在素材里，装饰由素材提供
-    WidgetShape.KEEP_SMILING,
     // 跨栏小子：少年/栏杆抠图 + 白色记分牌全在素材里，装饰由素材提供
     WidgetShape.HURDLE_BOY,
     // 可爱Doro：毛绒角色 + 奶油色留言板全在素材里，装饰由素材提供
     WidgetShape.CUTE_DORO,
     // 蓝色鲸鱼：浅灰卡面 + 蓝描边 + 右下鲸鱼全在素材里，装饰由素材提供
     WidgetShape.BLUE_WHALE -> ShapeFamily.ROUND_RECT
-
-    // 课后时光：上半是三张透明抠图，下半是代码绘制的正文面板（背景色可调）
-    WidgetShape.AFTER_SCHOOL -> ShapeFamily.CUTOUT_POSTCARD
 
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER

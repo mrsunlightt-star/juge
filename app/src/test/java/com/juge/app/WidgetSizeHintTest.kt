@@ -9,7 +9,7 @@ import org.junit.Test
 /** 「风格默认尺寸 vs 桌面组件实际尺寸」的提示判定。 */
 class WidgetSizeHintTest {
 
-    private val squareStyle = WidgetStyle.PRESETS.first { it.presetId == "p_after_school" } // 4×4
+    private val squareStyle = WidgetStyle.PRESETS.first { it.presetId == "p_youth_sculpture" } // 4×4
     private val wideStyle = WidgetStyle.PRESETS.first { it.presetId == "p_blue_whale" }   // 4×2
 
     @Test

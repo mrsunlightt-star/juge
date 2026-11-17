@@ -93,22 +93,6 @@ enum class WidgetShape(val displayName: String) {
     // 左上角一颗红蜡笔爱心、右下角一只黄蜡笔气球。素材原稿 2048×1152 是 16:9 画布、
     // 框只占中间一条（四周透明留白 7%~27%），入库前已按内容框裁到 1826×627。
     CRAYON_FRAME("蜡笔彩虹框"),
-    // Keep Smiling：整幅社交动态卡素材——白卡 + 左上圆形笑脸头像 + 标题/绿色副标题，
-    // 右上三点、左下四个头像 +「+2」、右下铅笔；中间大片留白放正文。
-    //
-    // ⚠️ 设计稿原稿是 578×407（1.42:1），与 4×2 卡面（约 1.97:1）不等比。入库时**没有拉伸**，
-    // 而是按高度等比缩放后把「三点 / 铅笔」钉到右边缘、「头像条」留在左下角，中间留白横向加宽，
-    // 得到 2048×1024 的 2:1 素材（SVG 矢量重绘，标题文字在 SVG 导出时缺失，已按原稿补回）。
-    // 这是一款 **4×2 原生**风格，按产品要求归类为 4:2；4×4 上纵向拉伸约 2 倍是已知且接受的，
-    // **不要**给它补方版素材。
-    KEEP_SMILING("Keep Smiling"),
-    // 课后时光：抠图明信片——上方 52% 横排三张校园人物**真透明抠图**（内嵌三张 2048×1152 原图，
-    // alpha=0 约 84%~88%），下半是**代码绘制**的正文面板；人物以外透出桌面壁纸，
-    // 沿人物边缘呈不规则形状，面板颜色跟随「小组件背景颜色」。
-    // 素材 2048×2048，设计稿原生 250×250。
-    // ⚠️ 这是一款 **4×4 专属**风格：按产品要求默认 4×4，**不出 4×2 版**；
-    // 4×2 上横向拉伸约 97% 是已知且接受的，**不要**给它补横版素材。
-    AFTER_SCHOOL("课后时光"),
     // 跨栏小子：明信片——上半是跨栏少年 + 栏杆的**真透明抠图**（不规则形状，透出壁纸），
     // 下半是素材自带的白色记分牌正文框（素材 1536×1536：牌面 x 186~1356 / y 670~1405）。
     // 牌面与牌角圆角都在素材里，不铺背景色；牌角本身是圆角，不强制直角。
@@ -471,9 +455,9 @@ data class WidgetStyle(
          * 只保留用户可调的圆角与背景不透明度。
          */
         private val REMOVED_PRESET_FALLBACKS = mapOf(
-            // 萌宠猫咪趴、可爱猫咪 2026-10-24 下架 → 同为萌宠猫主题的毛绒猫咪
-            "p_pet_cat_nap" to "p_fluffy_cat",
-            "p_cute_cat" to "p_fluffy_cat",
+            // 萌宠猫咪趴、可爱猫咪 2026-10-24 下架 → 同为萌宠主题的毛绒小狗
+            "p_pet_cat_nap" to "p_fluffy_dog",
+            "p_cute_cat" to "p_fluffy_dog",
             // 信纸 2026-10-24 下架 → 观感最接近的白底居中卡片（纯色圆角，免费款）
             "p_ruled_paper" to "p_pure_round",
             // 2026-11-16 下架：旧组件整份迁移到观感最接近的现有预设，避免素材删除后渲染成透明坏卡
@@ -482,10 +466,14 @@ data class WidgetStyle(
             "p_texture_landscape" to "p_pure_round",
             "p_happy_dog" to "p_fluffy_dog",
             "p_panda_bamboo" to "p_pet_park",
-            "p_boy_room" to "p_after_school",
+            "p_boy_room" to "p_youth_sculpture",
             "p_postcard_note" to "p_bookshelf",
             "p_v_for_vendetta" to "p_fight_club",
             "p_la_la_land" to "p_fight_club",
+            // 2026-11-17 下架：旧组件迁移到同形象家族的现有预设
+            "p_fluffy_cat" to "p_fluffy_dog",
+            "p_keep_smiling" to "p_pure_round",
+            "p_after_school" to "p_youth_sculpture",
         )
 
         /**

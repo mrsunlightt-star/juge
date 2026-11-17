@@ -167,10 +167,9 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.175f, targetHeight * 0.67f)
             }
-            WidgetShape.YOUTH_SCULPTURE,
-            WidgetShape.AFTER_SCHOOL -> {
-                // 青年雕塑 / 课后时光：上半 130/250 = 52% 是素材图
-                // （青年雕塑不透明、课后时光是透明抠图），下半是代码绘制的正文面板
+            WidgetShape.YOUTH_SCULPTURE -> {
+                // 青年雕塑：上半 130/250 = 52% 是素材图，
+                // 下半是代码绘制的正文面板
                 //（比例见 CutoutPostcardRenderer）。正文从 56% 起、到 90% 止，
                 // 左右各留 8%，不贴图片下沿和卡片边缘
                 val paddingLeft = targetWidth * CutoutPostcardRenderer.TEXT_SIDE_RATIO
@@ -210,15 +209,6 @@ internal object CardTextRenderer {
                 val paddingRight = targetWidth * 0.92f
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.18f, targetHeight * 0.52f)
-            }
-            WidgetShape.KEEP_SMILING -> {
-                // Keep Smiling：正文落在标题（素材 y 约 6%~21%）与底部头像条（y 约 82%~95%）
-                // 之间的大留白区。素材 2048×1024 已按 4×2 画布重排、按 STRETCH 铺满，
-                // 故比例与组件尺寸无关；上下各再留一点余量，正文不贴标题和头像
-                val paddingLeft = targetWidth * 0.08f
-                val paddingRight = targetWidth * 0.92f
-                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.24f, targetHeight * 0.54f)
             }
             WidgetShape.SUBOR_CONSOLE -> {
                 // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。

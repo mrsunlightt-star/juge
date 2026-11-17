@@ -36,25 +36,25 @@ class RemovedPresetFallbackTest {
     """.trimIndent()
 
     @Test
-    fun `下架的萌宠猫咪趴读档后换成毛绒猫咪`() {
+    fun `下架的萌宠猫咪趴读档后换成毛绒小狗`() {
         val migrated = WidgetStyle.fromJsonString(legacyCatNapJson)
-        assertEquals("p_fluffy_cat", migrated.presetId)
+        assertEquals("p_fluffy_dog", migrated.presetId)
         assertEquals(WidgetShape.SPLIT_CARD_HORIZONTAL, migrated.shape)
         // 替代预设的素材整份生效，不再引用已删除的 cute_cat_lying
-        assertEquals("fluffy_cat", migrated.presetImageResName)
+        assertEquals("fluffy_dog", migrated.presetImageResName)
         // 用户可调项保留
         assertEquals(16f, migrated.cornerRadiusDp)
         assertEquals(0.7f, migrated.backgroundOpacity)
     }
 
     @Test
-    fun `下架的可爱猫咪读档后换成毛绒猫咪`() {
+    fun `下架的可爱猫咪读档后换成毛绒小狗`() {
         val json = """
             {"presetId":"p_cute_cat","shape":"SPLIT_CARD_HORIZONTAL","presetImageResName":"cute_cat"}
         """.trimIndent()
         val migrated = WidgetStyle.fromJsonString(json)
-        assertEquals("p_fluffy_cat", migrated.presetId)
-        assertEquals("fluffy_cat", migrated.presetImageResName)
+        assertEquals("p_fluffy_dog", migrated.presetId)
+        assertEquals("fluffy_dog", migrated.presetImageResName)
     }
 
     @Test
@@ -71,10 +71,27 @@ class RemovedPresetFallbackTest {
             "p_texture_landscape" to "p_pure_round",
             "p_happy_dog" to "p_fluffy_dog",
             "p_panda_bamboo" to "p_pet_park",
-            "p_boy_room" to "p_after_school",
+            "p_boy_room" to "p_youth_sculpture",
             "p_postcard_note" to "p_bookshelf",
             "p_v_for_vendetta" to "p_fight_club",
             "p_la_la_land" to "p_fight_club",
+        )
+        fallbacks.forEach { (removedId, replacementId) ->
+            val json = """
+                {"presetId":"$removedId","shape":"RECTANGLE","presetImageResName":"removed_asset"}
+            """.trimIndent()
+            val migrated = WidgetStyle.fromJsonString(json)
+            assertEquals("$removedId 未迁移到 $replacementId", replacementId, migrated.presetId)
+            assertNotEquals("迁移后不应继续引用已删除素材", "removed_asset", migrated.presetImageResName)
+        }
+    }
+
+    @Test
+    fun `2026-11-17 下架的三款风格读档后迁移到在售替代款`() {
+        val fallbacks = mapOf(
+            "p_fluffy_cat" to "p_fluffy_dog",
+            "p_keep_smiling" to "p_pure_round",
+            "p_after_school" to "p_youth_sculpture",
         )
         fallbacks.forEach { (removedId, replacementId) ->
             val json = """

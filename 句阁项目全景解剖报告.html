@@ -834,7 +834,7 @@ git push server main</code></pre>
       <tr>
         <td class="key">风格预设</td>
         <td>横向浏览经典 / 萌宠 / 明信片 / 插图四组风格，一键套用</td>
-        <td>34 款预设；免费仅 2 款；会员款未激活时点击弹付费墙，不套用</td>
+        <td>31 款预设；免费仅 2 款；会员款未激活时点击弹付费墙，不套用</td>
         <td class="mono">ui/adjust/StylePresetCard.kt<br>data/WidgetStyle.kt</td>
       </tr>
       <tr>
@@ -851,7 +851,7 @@ git push server main</code></pre>
       </tr>
       <tr>
         <td class="key">形状与背景</td>
-        <td>切换 29 种形状；调外框圆角 0–30dp；从相册选背景图并裁剪；选拉伸 / 居中裁剪 / 平铺；调模糊与遮罩</td>
+        <td>切换 30 种形状；调外框圆角 0–30dp；从相册选背景图并裁剪；选拉伸 / 居中裁剪 / 平铺；调模糊与遮罩</td>
         <td>整幅贴图类形状强制直角；圆角滑块对椭圆 / 撕纸 / 书架不生效</td>
         <td class="mono">ui/adjust/ShapeBackgroundCard.kt<br>CropImageHelper.kt</td>
       </tr>
@@ -1070,14 +1070,14 @@ git push server main</code></pre>
   </div>
   <p class="cap"><b>图 4</b> 渲染管线。第 9 步的文字排版由 <code>CardTextRenderer</code> 计算安全区、行高、对齐与垂直居中。</p>
 
-  <h4>32 个形状，12 个渲染家族</h4>
+  <h4>30 个形状，12 个渲染家族</h4>
   <div class="table-wrap">
   <table class="t-small">
     <thead><tr><th>家族</th><th>包含的形状</th><th>渲染要点</th></tr></thead>
     <tbody>
-      <tr><td class="key">ROUND_RECT（13）</td><td>矩形、复古像素、撕边牛皮手账、教室黑板、毛绒森林、春天与小狗、萌宠乐园、可爱四小只、蜡笔彩虹框、Keep Smiling、跨栏小子、可爱Doro、蓝色鲸鱼</td><td>普通圆角矩形；装饰由素材或各自绘制函数提供</td></tr>
+      <tr><td class="key">ROUND_RECT（12）</td><td>矩形、复古像素、撕边牛皮手账、教室黑板、毛绒森林、春天与小狗、萌宠乐园、可爱四小只、蜡笔彩虹框、跨栏小子、可爱Doro、蓝色鲸鱼</td><td>普通圆角矩形；装饰由素材或各自绘制函数提供</td></tr>
       <tr><td class="key">FRAMED_CARD（4）</td><td>雪落宫墙、深海鲸歌、夏天的海、夏日荷花</td><td>卡纸 + 相框 + 角落点缀，按 spec 表定位</td></tr>
-      <tr><td class="key">CUTOUT_POSTCARD（2）</td><td>青年雕塑、课后时光</td><td>上半透明抠图，下半代码绘制的正文面板</td></tr>
+      <tr><td class="key">CUTOUT_POSTCARD（1）</td><td>青年雕塑</td><td>上半素材图，下半代码绘制的正文面板</td></tr>
       <tr><td class="key">SPLIT_CARD（2）</td><td>图文明信片、左右分割明信片</td><td>一半铺图、一半文字；上下或左右分割</td></tr>
       <tr><td class="key">TORN_PAPER</td><td>撕裂纸片</td><td>固定种子生成撕边路径，纸面颜色即背景色</td></tr>
       <tr><td class="key">FEATHER_LETTER</td><td>羽毛信纸</td><td>居中撕纸信纸，四周透出底色</td></tr>
@@ -1091,16 +1091,16 @@ git push server main</code></pre>
   </table>
   </div>
 
-  <h4>34 款预设的分组</h4>
+  <h4>31 款预设的分组</h4>
   <div class="table-wrap">
   <table class="t-small">
     <thead><tr><th>展示行</th><th>数量</th><th>条目</th><th>会员规则</th></tr></thead>
     <tbody>
-      <tr><td class="key">经典风格</td><td class="mono">12</td><td>纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框、Keep Smiling</td><td>纯色圆角免费，其余 PRO</td></tr>
-      <tr><td class="key">萌宠风格</td><td class="mono">8</td><td>得意doro、毛绒小狗、毛绒猫咪、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼</td><td>全部 PRO</td></tr>
-      <tr><td class="key">明信片风格</td><td class="mono">9</td><td>青年雕塑；书香书架；天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、课后时光、跨栏小子</td><td>青年雕塑免费（4×4 专属），其余 PRO</td></tr>
+      <tr><td class="key">经典风格</td><td class="mono">11</td><td>纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框</td><td>纯色圆角免费，其余 PRO</td></tr>
+      <tr><td class="key">萌宠风格</td><td class="mono">7</td><td>得意doro、毛绒小狗、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼</td><td>全部 PRO</td></tr>
+      <tr><td class="key">明信片风格</td><td class="mono">8</td><td>青年雕塑；书香书架；天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、跨栏小子</td><td>青年雕塑免费（4×4 专属），其余 PRO</td></tr>
       <tr><td class="key">插图素材</td><td class="mono">5</td><td>晨曦日出、治愈落日、星空森林、搏击俱乐部、绝命毒师</td><td>全部 PRO</td></tr>
-      <tr><td class="key">合计</td><td class="mono">34</td><td>免费 2 款 / 会员 32 款</td><td>付费判定按 <code>presetId</code> 身份，不按下标</td></tr>
+      <tr><td class="key">合计</td><td class="mono">31</td><td>免费 2 款 / 会员 29 款</td><td>付费判定按 <code>presetId</code> 身份，不按下标</td></tr>
     </tbody>
   </table>
   </div>
@@ -1626,7 +1626,7 @@ git push server main</code></pre>
     <thead><tr><th>锚点</th><th>区块</th><th>核心内容</th></tr></thead>
     <tbody>
       <tr><td class="mono">#top</td><td class="key">顶部导航</td><td>Logo + 句阁 / DeskQuotes + 桌面所见 / 风格谱系 / 字如其人 / 三步上手 / 价格 + v1.0 + 免费下载按钮</td></tr>
-      <tr><td class="mono">—</td><td class="key">Hero</td><td>标题「把阳光与力量 / 留在每天看得见的地方」；副文案「34 款风格、29 种形状、8 款字体」；CTA「下载 APK · ¥3.99 买断」；右侧模拟手机桌面</td></tr>
+      <tr><td class="mono">—</td><td class="key">Hero</td><td>标题「把阳光与力量 / 留在每天看得见的地方」；副文案「31 款风格、30 种形状、8 款字体」；CTA「下载 APK · ¥3.99 买断」；右侧模拟手机桌面</td></tr>
       <tr><td class="mono">#how</td><td class="key">01 · 三步上手</td><td>建一个句子库 → 挑一张喜欢的纸 → 拖到桌面上</td></tr>
       <tr><td class="mono">#styles</td><td class="key">02 · 风格谱系</td><td>「三十四种纸 一张一张挑」；8 张风格卡（纯色圆角 / 教室黑板 / 复古像素 / 羽毛信纸 / 深海鲸歌 / 夏日荷花 / 雪落宫墙 / 蜡笔彩虹框）</td></tr>
       <tr><td class="mono">#fonts</td><td class="key">03 · 字如其人</td><td>「一个字 有八种脾气」；8 款字体逐行展示同一句「做自己的光，不必借谁的光」</td></tr>
@@ -1695,7 +1695,7 @@ git push server main</code></pre>
     <thead><tr><th>项</th><th>内容</th></tr></thead>
     <tbody>
       <tr><td class="key">Title</td><td>句阁 DeskQuotes · 把阳光与力量，留在每天看得见的地方</td></tr>
-      <tr><td class="key">Description</td><td>句阁是一款 Android 桌面金句与自律提醒小组件。34 款风格、29 种形状、8 款字体，内容全部本地保存，零广告、无统计 SDK；联网只用于你主动选择的账号与支付，4×2 / 4×4 自由摆放。</td></tr>
+      <tr><td class="key">Description</td><td>句阁是一款 Android 桌面金句与自律提醒小组件。31 款风格、30 种形状、8 款字体，内容全部本地保存，零广告、无统计 SDK；联网只用于你主动选择的账号与支付，4×2 / 4×4 自由摆放。</td></tr>
       <tr><td class="key">OG</td><td>og:title / og:description / og:type=website / og:image=<code>assets/styles/lotus_frame.webp</code></td></tr>
       <tr><td class="key">图标</td><td>favicon.ico / svg / 16 / 32 / 48 / 64 / 180 / 192 / 512 + maskable 512 + apple-touch-icon</td></tr>
       <tr><td class="key">PWA</td><td>site.webmanifest；theme-color <code>#FBFFFD</code></td></tr>
@@ -1714,7 +1714,7 @@ git push server main</code></pre>
       <li><strong>「8 款字体」</strong> 的口径是 8 款中文字体；App 实际提供 10 个选项（多出两款纯拉丁字体）。文案不算错，但建议注明「8 款中文字体 + 2 款英文字体」以免误解。</li>
     </ol>
   </div>
-  <p class="cap"><b>已核对一致</b> 34 款风格 / 29 种形状 / ¥3.99 / 仅申请联网 / 本地存储 / 零广告 / 无统计 SDK / Android 7.0+ / 4×2 与 4×4 —— 这些文案与当前代码一致。</p>
+  <p class="cap"><b>已核对一致</b> 31 款风格 / 30 种形状 / ¥3.99 / 仅申请联网 / 本地存储 / 零广告 / 无统计 SDK / Android 7.0+ / 4×2 与 4×4 —— 这些文案与当前代码一致。</p>
 </section>
 
 <!-- ============ 09 ============ -->
@@ -1869,7 +1869,7 @@ git push server main</code></pre>
   <table class="t-small">
     <thead><tr><th>产物</th><th>路径</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td class="key">组件渲染预览</td><td class="mono">app/build/widget-previews/{4x2,4x4}/&lt;presetId&gt;.png</td><td>34 款 × 2 尺寸，用于商店截图与设计核对</td></tr>
+      <tr><td class="key">组件渲染预览</td><td class="mono">app/build/widget-previews/{4x2,4x4}/&lt;presetId&gt;.png</td><td>31 款 × 2 尺寸，用于商店截图与设计核对</td></tr>
       <tr><td class="key">UI 基线截图</td><td class="mono">app/build/ui-shots/*.png</td><td>主界面、暗色、我的、教程等 8 张</td></tr>
       <tr><td class="key">官网长图</td><td class="mono">docs/website-redesign/site-desktop-1440.png</td><td>历史版本整页截图（价格仍为 ¥1.99）</td></tr>
       <tr><td class="key">软著材料</td><td class="mono">软著登记材料/*.pdf</td><td>源程序 60 页 + 用户手册 19 页</td></tr>
@@ -1896,7 +1896,7 @@ git push server main</code></pre>
   <table class="t-small">
     <thead><tr><th>测试域</th><th>代表文件</th><th>验证什么</th></tr></thead>
     <tbody>
-      <tr><td class="key">渲染</td><td class="mono">WidgetPreviewRenderTest · WidgetRenderBaselineTest · WidgetFontRenderTest · VerticalAlignRenderTest</td><td>34 款预设 × 2 尺寸的真实位图；字体、垂直对齐、形状圆角</td></tr>
+      <tr><td class="key">渲染</td><td class="mono">WidgetPreviewRenderTest · WidgetRenderBaselineTest · WidgetFontRenderTest · VerticalAlignRenderTest</td><td>31 款预设 × 2 尺寸的真实位图；字体、垂直对齐、形状圆角</td></tr>
       <tr><td class="key">UI 基线</td><td class="mono">MainUiBaselineTest · PrivacyDialogUiBaselineTest · UiBaseline</td><td>整页截图 + 语义树基线，改动后逐像素对比</td></tr>
       <tr><td class="key">数据</td><td class="mono">DbHelperTest · WidgetStyleJsonTest · WidgetConfigBindingTest</td><td>建表 / 升级 / 迁移、JSON 往返与未知枚举降级、组件绑定</td></tr>
       <tr><td class="key">商业逻辑</td><td class="mono">TrialManagerTest · ProPurchaseTest · PaywallPolicyTest · AccountSyncTest</td><td>激活校验、订单找回、付费墙判定、账号对账撤销规则</td></tr>
@@ -2092,7 +2092,7 @@ git push server main</code></pre>
       <tr><td class="key">WidgetStyle</td><td>一个组件样式的完整 JSON 协议</td></tr>
       <tr><td class="key">presetId</td><td>预设的唯一身份；付费判定与存档兼容都靠它，不靠数组下标</td></tr>
       <tr><td class="key">bestDisplaySize</td><td>预设的最佳显示尺寸，决定预览按 4×2 还是 4×4 渲染</td></tr>
-      <tr><td class="key">ShapeFamily</td><td>32 个形状收敛后的 12 个渲染家族</td></tr>
+      <tr><td class="key">ShapeFamily</td><td>30 个形状收敛后的 12 个渲染家族</td></tr>
       <tr><td class="key">SPLIT_CARD</td><td>图文明信片：一半铺图、一半文字；分上下 / 左右两种</td></tr>
       <tr><td class="key">PRO</td><td>¥3.99 一次性买断的永久会员</td></tr>
       <tr><td class="key">pending 订单</td><td>已下单但未确认支付的订单号队列，用于支付找回</td></tr>

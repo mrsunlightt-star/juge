@@ -12,8 +12,8 @@ import com.juge.app.render.WidgetRenderKernel.getPresetImage
 /**
  * 画框卡片族（雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花）。同一族整卡设计：
  * 卡纸由「背景颜色」绘制（含纸张颗粒），木框照片按真实比例摆上方，点缀层（梅枝 / 鲸影 /
- * 浪花 / 荷影）贴右下角。两个图层都是带羽化卡纸边的抠图（羽化边与卡纸同色），
- * 任意组件宽高比下都不露接缝。几何比例各自从设计稿实测。
+ * 浪花 / 荷影）贴右下角。相框带羽化卡纸边，点缀层是真透明抠图；任意组件宽高比下
+ * 都不露接缝。几何比例各自从设计稿实测。
  *
  * 新增一个画框风格 = 新增一条 [FramedCardSpec]，不必改渲染管线。
  *
@@ -38,7 +38,7 @@ internal object FramedCardRenderer {
         frameAsset = "winter_frame", accentAsset = "winter_branch",
         frameAspect = 1280f / 648f, frameWFrac = 0.9324f,
         woodTopFrac = 0.0392f, woodInset = 0.03504f,
-        accentAspect = 945f / 306f, accentWFrac = 0.6019f,
+        accentAspect = 950f / 360f, accentWFrac = 950f / 1570f,
         frameShadow = 0x4D2E241C
     )
 
@@ -56,7 +56,7 @@ internal object FramedCardRenderer {
         frameAsset = "summersea_frame", accentAsset = "summersea_accent",
         frameAspect = 1280f / 677f, frameWFrac = 0.9463f,
         woodTopFrac = 0.0508f, woodInset = 0.03444f,
-        accentAspect = 875f / 396f, accentWFrac = 0.5802f,
+        accentAspect = 950f / 360f, accentWFrac = 950f / 1508f,
         frameShadow = 0x43291F15
     )
 
