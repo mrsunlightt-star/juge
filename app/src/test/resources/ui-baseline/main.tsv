@@ -1,8 +1,8 @@
 # 句阁 UI 基线 —— 由 MainUiBaselineTest 维护
 # 拆 Activity 前后，截图像素与可见语义都应完全一致；删除本文件后重跑可重新生成（须人工确认）。
 # 字段: 场景 \t WxH \t 可见语义节点数 \t sha256[:16](截图) \t sha256[:16](语义摘要)
-main-library	1233x2673	20	6e4c7958bfdcaf51	d3390a7e504b2ef4
-main-adjust	1233x2673	20	79e14dc944644628	29f3a0a850216954
-main-adjust-postcard	1233x2673	30	6d5521be88e988dc	d71e3395e1627206
-main-adjust-stepper	1233x2673	41	28c3380256679b0d	ba35d489028e7219
-main-adjust-tutorial	1233x2673	15	6e9f7f7661b7ce97	51fe6389182f68fb
+main-library	1233x2673	20	3bf1b9206b638db9	d3390a7e504b2ef4
+main-adjust	1233x2673	20	458fe874392008e1	29f3a0a850216954
+main-adjust-postcard	1233x2673	30	afdc03ba3340558f	d71e3395e1627206
+main-adjust-stepper	1233x2673	41	8abf08b33e323b94	ba35d489028e7219
+main-adjust-tutorial	1233x2673	15	a769a9f3031f7fd5	51fe6389182f68fb

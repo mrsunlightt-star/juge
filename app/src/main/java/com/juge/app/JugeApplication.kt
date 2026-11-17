@@ -1,7 +1,9 @@
 package com.juge.app
 
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.pm.ApplicationInfo
+import android.content.res.Configuration
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +30,35 @@ class JugeApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         plantLogging()
+        // 崩溃现场落盘：release 没有崩溃上报，用户报「用着用着就退」
+        // 时手机上的 logcat 早已滚掉，只剩这一份文件能当证据（见 CrashReporter）
+        com.juge.app.data.CrashReporter.install(this)
+        // 收银台/找回跑在这个 scope 上：Activity 重建不会掐掉在途流程（见 PayFlow）
+        com.juge.app.pay.PayFlow.init(this)
         appScope.launch {
             WidgetCanvasRenderer.prewarmThumbnailCache(this@JugeApplication)
         }
+        registerComponentCallbacks(object : ComponentCallbacks2 {
+            /**
+             * 系统内存吃紧时的第一响应点。
+             *
+             * 之前这里是空的（全仓 `onTrimMemory` / `onLowMemory` 零命中）：
+             * 两块位图缓存（缩略图 32MB + 预设插画 24MB）只会等系统直接杀进程，
+             * 而杀进程恰恰发生在桌面正在重画组件的时候。
+             * Application 级的回调会在进程内任何时刻收到，比 Activity 级更可靠——
+             * 组件渲染本来就不依赖任何 Activity 存活。
+             */
+            override fun onTrimMemory(level: Int) {
+                WidgetCanvasRenderer.trimMemory(level)
+            }
+
+            /** API 24 以下没有 onTrimMemory 的 Application 级等价回调，只有这个老入口 */
+            override fun onLowMemory() {
+                WidgetCanvasRenderer.trimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+            }
+
+            override fun onConfigurationChanged(newConfig: Configuration) = Unit
+        })
     }
 
     /**

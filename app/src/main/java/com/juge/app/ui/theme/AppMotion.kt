@@ -35,6 +35,8 @@ object AppMotion {
     /** 颜色过渡时长（tween 专用档位） */
     const val FastMs = 140
     const val StandardMs = 220
+    /** 全屏日夜切换：大块明暗变化需要比普通控件颜色过渡更从容 */
+    const val ThemeMs = 420
 
     /** 按压缩放：轻微回弹，只做触感提示 */
     const val PressedScale = 0.97f

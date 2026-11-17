@@ -27,7 +27,7 @@ class AlipayPayServiceTest {
             outTradeNo = returnedNo
             code = "10000"
             tradeStatus = "TRADE_SUCCESS"
-            totalAmount = "1.99"
+            totalAmount = "3.99"
         }
         `when`(client.execute(any(AlipayTradeQueryRequest::class.java))).thenReturn(response)
 

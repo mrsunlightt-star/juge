@@ -6,16 +6,54 @@ spring:
     # 路径必须通过 PAY_DB_PATH 固定为绝对路径（如 /opt/juge/data/paydb）：
     # 相对路径会随进程工作目录变化，systemd 重启后可能连到另一个空库。
     url: "jdbc:h2:file:${PAY_DB_PATH:./data/paydb};DB_CLOSE_DELAY=-1"
-    username: sa
-    password: ""
+    # 库口令默认取环境变量。留空等于没有口令——而这个库里有全部买家的
+    # 支付宝用户号与订单，是本服务唯一有价值的资产。
+    # 生产环境务必设 PAY_DB_PASSWORD（并在 setenv 里 chmod 600）。
+    username: ${PAY_DB_USER:sa}
+    password: ${PAY_DB_PASSWORD:}
   jpa:
     # 单表小服务，交由 Hibernate 维护表结构；表变多后再考虑引入 Flyway
     hibernate:
       ddl-auto: update
     open-in-view: false
+  jackson:
+    # 服务端对外的时间一律按北京时间序列化。订单的 time_expire / 订单号前缀
+    # 已显式用 ZoneId.of("Asia/Shanghai")（AlipayPayService），这里补上兜底，
+    # 避免今后新增的 LocalDateTime 字段又依赖 JVM 默认时区（云主机常为 UTC）。
+    time-zone: Asia/Shanghai
 
 server:
+  # 只监听回环：8081 是纯内部端口，对外一律走 Nginx 443。
+  # 之前不写 address 时绑定 0.0.0.0，安全组一放行就是无鉴权公网入口
+  # （create/query/recover 全靠限流，notify 无任何鉴权）。
+  # 部署脚本里有 `ss -lntp | grep 8081` 的校验，见 README。
+  address: 127.0.0.1
   port: 8081
+  # 不暴露任何错误细节给客户端；日志里保留完整栈
+  error:
+    include-stacktrace: never
+    include-message: never
+
+# ── 日志 ──
+# 之前没有 logging 段：默认 INFO 只打到 stdout，用 systemd 接管时进 journald，
+# 一旦没人配 journald 轮转，/var/log 会被撑满；也无法单独调到 DEBUG 排查。
+logging:
+  level:
+    root: INFO
+    com.juge.lklpay: INFO
+    # 支付宝 SDK 的 INFO 会打印每次请求的完整报文（含签名），默认关掉
+    com.alipay: WARN
+  file:
+    name: ${PAY_LOG_PATH:./logs/lkl-pay-server.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 14
+      total-size-cap: 200MB
+  pattern:
+    # 带时间戳与级别，便于 journald / 文件双路对齐
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 # ── 商品目录 ──
 # 价格以服务端为准：App 只传商品 ID，避免客户端篡改金额
@@ -29,15 +67,51 @@ pay:
 # 密钥体系为「公钥模式 + RSA2」：应用私钥本地保存，支付宝公钥从开放平台获取
 alipay:
   app-id: "2021007103686388"
-  # 签约支付宝账号的 PID（2088 开头）。只有「找回已购」用到，留空则该接口返回 503
+  # 签约支付宝账号的 PID（2088 开头）。
+  #
+  # ⚠ 留空 = 「换机找回 PRO」100% 不可用：/auth-info 会恒返回 503 RECOVERY_UNAVAILABLE，
+  #   App 里点「已购买过？用支付宝找回」永远失败。下单与查单不受影响，
+  #   所以这个缺口不会在使用中暴露（本次审查就是在线上跑通下单后才发现它一直是空的）。
+  #
+  # 取值：开放平台 → 账号中心 → 签约支付宝账号的 PID。
+  # 也可用启动参数覆盖，避免把 PID 写进配置文件：
+  #   --alipay.pid=2088xxxxxxxxxxxx
+  # 启动时会打一条自检日志 ALIPAY_CONFIG pid=<未配置> recoveryReady=false，
+  # 部署后请确认它是 true。
   pid: ""
+  # 密钥路径：相对路径按进程工作目录解析，systemd 下工作目录不确定，生产请用绝对路径
+  #   --alipay.private-key-path=/etc/juge/alipay_app_private_key.txt
   private-key-path: "certs/alipay_app_private_key.txt"
   alipay-public-key-path: "certs/alipay_public_key.txt"
   gateway-url: "https://openapi.alipay.com/gateway.do"
-  # 必须公网可达，且与开放平台「应用网关」填写的一致
+  # 必须公网可达，且与开放平台「应用网关」填写的一致。
+  # 注意：这个 URL 依赖 Nginx 把 /api/alipay/notify 反代到本服务，
+  # 见 lkl-pay-server/deploy/nginx-juge-api.conf。反代没配 = 通知永远收不到。
   notify-url: "https://puretxt.cn/api/alipay/notify"
   sign-type: RSA2
   charset: UTF-8
   format: json
   # 订单有效期：超时后支付宝自动关闭交易
   order-expire-minutes: 120
+
+# ── 权益凭证（PRO）──
+# 与上面那三把钥匙完全独立：这是「服务端给自己出的 App 签授权」用的密钥对。
+# 私钥只在服务器上，客户端内置公钥；换掉这一对会让**已发出的凭证全部失效**，
+# 用户会从 PRO 掉回免费版（下次找回时重新签发才恢复），所以不要随手换。
+entitlement:
+  private-key-path: "certs/entitlement_private_key.pem"
+  # 只用于启动自检时打印指纹，与客户端 EntitlementVerifier.BUILTIN_PUBLIC_KEY_PEM 比对
+  # （EntitlementSignerTest 在本机存在 certs 时会直接断言两者 DER 逐字节一致）
+  public-key-path: "certs/entitlement_public_key.pem"
+
+# ── 本地维护任务 ──
+juge:
+  maintenance:
+    # 僵尸订单清理：下单接口是公网无鉴权的，每次调用写一行 CREATED。
+    # 之前这些行永不删除，被刷几小时就能把表撑到几十万行。
+    # 这里只删 CREATED 且超过 N 小时的（PAID 是资产凭证、CLOSED 是争议留档，都不动）。
+    stale-order-retention-hours: 48
+    # 清理任务自身的执行间隔。这个键由 @Scheduled 的
+    # `${juge.maintenance.cleanup-interval-minutes:60}` 占位符在 Bean 创建期直接读取，
+    # 不走 MaintenanceProperties 绑定（那里故意没有同名字段，避免「看着绑定了其实没读」）。
+    cleanup-interval-minutes: 60

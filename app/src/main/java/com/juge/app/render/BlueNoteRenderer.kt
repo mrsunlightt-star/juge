@@ -1,35 +1,13 @@
 package com.juge.app.render
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.BitmapShader
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-import android.graphics.PorterDuffXfermode
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.Shader
-import android.os.Build
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextPaint
-import com.juge.app.data.ImageScaleMode
 import com.juge.app.data.WidgetFont
-import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
-import java.io.File
-import java.io.FileOutputStream
-import java.util.Locale
-import java.util.Random
-import timber.log.Timber
 import com.juge.app.WidgetCanvasRenderer.render
 
 /**
@@ -137,12 +115,15 @@ internal object BlueNoteRenderer {
             color = Color.parseColor("#1A1A1A")
             textSize = (20f * sy).coerceIn(14f * densityScale, 26f * densityScale)
             textAlign = Paint.Align.CENTER
-            typeface = try {
-                val tf = android.graphics.Typeface.createFromAsset(context.assets, "fonts/MaShanZheng-Regular.ttf")
-                android.graphics.Typeface.create(tf, android.graphics.Typeface.ITALIC)
-            } catch (_: Exception) {
-                android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.ITALIC)
-            }
+            // 走 WidgetFont.MASHAN_ZHENG.getTypeface()：它内部有按路径的
+            // ConcurrentHashMap 缓存。此前这里直接调 Typeface.createFromAsset，
+            // 而这个 Paint 是**每次渲染都新建**的（组件每刷新一次、桌面每缩放一次都算一次），
+            // 等于每次都重读 + 重新解析 5.7MB 的 TTF：低端机单次几十到上百毫秒，
+            // 且每次产生的 Typeface 无法共享底层 native 资源。
+            typeface = android.graphics.Typeface.create(
+                com.juge.app.data.WidgetFont.MASHAN_ZHENG.getTypeface(context),
+                android.graphics.Typeface.ITALIC
+            )
         }
         val centerX = (outerRect.left + outerRect.right) / 2f
         val fm = sigPaint.fontMetrics

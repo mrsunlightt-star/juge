@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -33,12 +34,10 @@ import com.juge.app.ui.AppText
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
-import com.juge.app.ui.theme.cardBg
-import com.juge.app.ui.theme.surfaceRaised
 import com.juge.app.ui.theme.panelTrack
 import com.juge.app.ui.theme.rememberAppHaptics
+import com.juge.app.ui.theme.selectBlue
 import com.juge.app.ui.theme.textGray
-import com.juge.app.ui.theme.textWhite
 
 /**
  * 苹果风分段控制器：「跃然纸上 / 个性定制」。
@@ -69,10 +68,10 @@ fun SubTabSwitcher(
 
         // 视觉底板：42dp 高，居中；上下各 3dp 留给触控热区。
         // 整条控制是「凹槽轨道 + 滑块」：轨道用 panelTrack（比面板/卡片深一档），
-        // 滑块用 surfaceRaised（日间白、夜间比卡片再亮一档），层次完全由明度台阶表达。
+        // 滑块用全 App 统一的浅蓝选中填充 selectBlue，和筛选胶囊、主按钮保持一致。
         // 旧版靠 1dp borderBlue 给白色轨道勾边（面板是近白毛玻璃，纯白胶囊会融进去）；
         // 2026-10 改版去掉结构性描边后，改用「轨道比面板深」把控件嵌进面板，
-        // 白色滑块再靠 shadow 浮在轨道上——不画线也能读出「这是一个控件」。
+        // 浅蓝滑块再靠 shadow 浮在轨道上——不画线也能读出「这是一个控件」。
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,8 +79,8 @@ fun SubTabSwitcher(
                 .background(panelTrack, AppShape.pill)
         )
 
-        // 背景滑块：36dp 高，落在轨道内侧。选白色而不是强调色，是因为「轨道凹槽 + 白滑块」
-        // 就是 iOS 分段控制的明度层次；选中态靠滑块本身 + 文字变墨色表达。
+        // 背景滑块：36dp 高，落在轨道内侧。选中态沿用全局浅蓝填充 + 白色字图标，
+        // 不再用白滑块配深色文字，避免和页面里其他选中按钮形成两套视觉语言。
         Box(
             modifier = Modifier
                 .offset(x = selectedOffset, y = 6.dp)
@@ -94,7 +93,7 @@ fun SubTabSwitcher(
                     ambientColor = AppShadows.ambientShadow,
                     spotColor = AppShadows.spotShadow,
                 )
-                .background(surfaceRaised, AppShape.chip)
+                .background(selectBlue, AppShape.chip)
         )
 
         // Tab 按钮：扁平线性图标 + 文字，整高 48dp 都是热区
@@ -110,9 +109,9 @@ fun SubTabSwitcher(
             ).forEach { (label, icon, index) ->
                 val selectedFraction =
                     (1f - kotlin.math.abs(position - index)).coerceIn(0f, 1f)
-                // 文字/图标颜色直接跟滑块位移插值：滑块是 cardBg（白），
-                // 选中侧用墨色 textWhite 才读得出来，未选中侧保持 textGray。
-                val tabTint = lerp(textGray, textWhite, selectedFraction)
+                // 文字/图标颜色直接跟滑块位移插值：滑块是浅蓝，选中侧用白字，
+                // 未选中侧保持 textGray。
+                val tabTint = lerp(textGray, Color.White, selectedFraction)
                 Box(
                     modifier = Modifier
                         .weight(1f)

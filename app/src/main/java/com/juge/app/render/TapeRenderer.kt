@@ -1,35 +1,9 @@
 package com.juge.app.render
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.BitmapShader
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-import android.graphics.PorterDuffXfermode
-import android.graphics.RadialGradient
-import android.graphics.RectF
-import android.graphics.Shader
-import android.os.Build
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextPaint
-import com.juge.app.data.ImageScaleMode
-import com.juge.app.data.WidgetFont
-import com.juge.app.data.WidgetShape
-import com.juge.app.data.WidgetStyle
-import java.io.File
-import java.io.FileOutputStream
-import java.util.Locale
-import java.util.Random
-import timber.log.Timber
 import com.juge.app.WidgetCanvasRenderer.render
 
 /**

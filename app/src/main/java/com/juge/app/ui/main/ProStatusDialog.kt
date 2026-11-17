@@ -1,20 +1,29 @@
 package com.juge.app.ui.main
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.juge.app.data.CrashReporter
 import com.juge.app.data.TrialManager
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AppDialog
@@ -65,6 +74,12 @@ fun ProStatusDialog(
     onOpenPro: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+    // 只有本机确实存过崩溃记录才显示导出入口：绝大多数用户看不到额外节点，
+    // 隐私同意弹窗 / 主界面的 UI 基线因此不受影响；每次打开弹窗重新查一次目录。
+    var hasCrashReports by remember(show) {
+        mutableStateOf(CrashReporter.pendingReports(context).isNotEmpty())
+    }
     AppDialog(
         visible = show,
         onDismissRequest = onDismiss,
@@ -136,8 +151,51 @@ fun ProStatusDialog(
                     color = textTertiary,
                 )
             }
+
+            // 崩溃诊断落盘之后必须有出口，否则用户反馈「组件突然没了」时
+            // 我们依然拿不到任何现场。只在有记录时出现，避免打扰正常用户。
+            if (hasCrashReports) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AppText(
+                    text = "检测到上次运行的崩溃记录。导出后发给客服可帮助定位问题；" +
+                        "记录只存在本机，不会自动上传。",
+                    role = AppTextRole.micro,
+                    color = textTertiary,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppTextButton(
+                        text = "导出诊断信息",
+                        onClick = { shareCrashReport(context) },
+                        color = textTertiary,
+                    )
+                    AppTextButton(
+                        text = "清除记录",
+                        onClick = {
+                            CrashReporter.clear(context)
+                            hasCrashReports = false
+                        },
+                        color = textTertiary,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * 只在本机把崩溃文本交给系统分享面板，由用户自己决定发给谁。
+ * 不上传、不写外部存储、不申请额外权限——这也是隐私政策里的承诺。
+ */
+private fun shareCrashReport(context: Context) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "句阁 崩溃诊断信息")
+        putExtra(Intent.EXTRA_TEXT, CrashReporter.buildReport(context))
+    }
+    val chooser = Intent.createChooser(send, "导出诊断信息")
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    // 某些定制系统没有可处理 ACTION_SEND 的组件，不能直接让弹窗崩掉
+    runCatching { context.startActivity(chooser) }
 }
 
 /** 明细行：左标签右值，值右对齐，长文案换行不挤标签 */

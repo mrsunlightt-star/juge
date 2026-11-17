@@ -54,4 +54,20 @@ interface PayOrderRepository : JpaRepository<PayOrder, String> {
         """
     )
     fun markClosedIfCreated(outTradeNo: String, closed: String, created: String): Int
+
+    /**
+     * 删除长期未支付的僵尸订单。
+     *
+     * 只删 CREATED：PAID 是资产凭证不能动，CLOSED 是争议处理需要的留档。
+     * 用 JPQL 批量 DELETE 而非查出实体逐个删，避免把几十万行拉进持久化上下文。
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        """
+        delete from PayOrder o
+         where o.status = :created
+           and o.createdAt < :before
+        """
+    )
+    fun deleteStaleCreated(created: String, before: Long): Int
 }

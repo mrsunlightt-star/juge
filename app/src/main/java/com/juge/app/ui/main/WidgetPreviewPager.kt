@@ -60,12 +60,13 @@ private data class PreviewSlot(
 fun WidgetPreviewPager(
     pagerState: PagerState,
     appWidgetIds: IntArray,
+    widgetPages: List<WidgetPage>,
     widgetConfigs: List<WidgetConfig>,
     selectedWidgetId: Int,
     currentStyle: WidgetStyle,
     textContentState: String,
     previewBoxHeightDp: Int,
-    previewHeightForPage: (Int) -> Int,
+    previewHeightForPage: (Int, WidgetStyle) -> Int,
     onEditClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -84,34 +85,31 @@ fun WidgetPreviewPager(
             contentPadding = PaddingValues(horizontal = 36.dp),
             pageSpacing = 16.dp
         ) { page ->
-            val pageWidgetId = if (appWidgetIds.isNotEmpty()) appWidgetIds[page] else -1
-            val pageConfigId = if (pageWidgetId != -1) {
-                ReminderWidgetProvider.getBoundConfigId(context, pageWidgetId)
-            } else {
-                -1L
+            // 不能写 appWidgetIds[page]：pageCount 由调用方实时读取状态，而本 lambda 捕获的是
+            // 上一次组合时的数组快照。桌面新增组件后（1 → N），Pager 会先按新 pageCount 去
+            // 组合第 N-1 页，此时快照仍只有 1 个元素 → ArrayIndexOutOfBoundsException。
+            // 已用探针测试复现（Index 2 out of bounds for length 1）：增长与滚动同帧发生必崩。
+            val pageWidgetId = appWidgetIds.getOrNull(page) ?: -1
+            // 绑定关系、组件级样式、配置正文全部来自 [buildWidgetPages] 在 IO 线程拍好的快照。
+            // 这里以前是现算的：getBoundConfigId → synchronized + 读 prefs，
+            // getWidgetStyle → 再读一次 prefs + WidgetStyle.fromJsonString（29 字段 JSON）。
+            // 每重组一次、每滑一页就是 N 次锁 + N 次 prefs 读 + N 次 JSON 解析，全在主线程上。
+            // 快照还没到时（首帧）用兜底项，不再回头去读 prefs。
+            val snapshot = widgetPages.getOrNull(page)
+            val pageConfigId = snapshot?.configId ?: -1L
+            val pageStyle = when {
+                pageWidgetId == selectedWidgetId -> currentStyle
+                snapshot != null -> snapshot.style
+                else -> WidgetStyle.fromJsonString(widgetConfigs.firstOrNull()?.styleJson)
             }
-            val pageConfig = if (pageConfigId != -1L) {
-                widgetConfigs.find { it.id == pageConfigId } ?: widgetConfigs.firstOrNull()
-            } else {
-                widgetConfigs.firstOrNull()
-            }
-
-            val pageStyle = if (pageWidgetId == selectedWidgetId) {
-                currentStyle
-            } else if (pageWidgetId != -1) {
-                ReminderWidgetProvider.getWidgetStyle(context, pageWidgetId, pageConfig?.styleJson)
-            } else {
-                WidgetStyle.fromJsonString(pageConfig?.styleJson)
-            }
-
             val pageContent = if (pageWidgetId == selectedWidgetId) {
                 textContentState
             } else {
-                pageConfig?.content ?: "静静地，坐一会。"
+                snapshot?.content ?: DEFAULT_PAGE_CONTENT
             }
 
             // 复用与预览盒一致的规格计算，避免渲染高度与盒高度不一致造成裁切/空洞
-            val previewHeightDp = previewHeightForPage(page)
+            val previewHeightDp = previewHeightForPage(page, pageStyle)
             // 预览按**风格自己的最佳显示尺寸**出图（4×4 款 250×250、4×2 款 250×110，见
             // WidgetStyle.bestDisplaySize），不跟桌面组件走：同一个风格无论从哪个入口添加、
             // 在桌面上被拉成多大，App 内预览的比例都固定——4:4 款始终方形、4:2 款始终长条
@@ -121,23 +119,34 @@ fun WidgetPreviewPager(
             val displaySize = pageStyle.bestDisplaySize
             val renderWidthDp = displaySize.widthDp
             val renderHeightDp = displaySize.heightDp
-            // 先同步取一张磁盘缓存里的成品图作为初值（remember 保证每个 key 只读一次盘，
-            // 写在下面 produceState 的 initialValue 里会在每次重组时重复解码）。
-            // 冷启动时预览区因此首帧就有内容，不必空等约 0.8s；
-            // 随后的渲染会用当前样式重新画一张并覆盖它。
-            val cachedPreview = remember(pageConfigId, pageStyle, renderWidthDp, renderHeightDp) {
-                WidgetCanvasRenderer.cachedPreview(
-                    context = context,
-                    configId = pageConfigId,
-                    widthDp = renderWidthDp,
-                    heightDp = renderHeightDp,
-                    style = pageStyle
-                )
-            }
+            // 预览位图分两步出：先磁盘成品图（冷启动首帧即有内容，不必空等约 0.8s），
+            // 再按当前样式重画一张覆盖它。
+            //
+            // 两步都必须在 IO/Default 上做——这里以前是
+            //   remember(...) { WidgetCanvasRenderer.cachedPreview(...) }
+            // 直接把 `BitmapFactory.decodeFile` 放在组合函数体里：读盘 + PNG 解压
+            // 全在**主线程的组合阶段**完成（几 MB 的位图在低端机上要几十毫秒），
+            // 每次样式变化、每次 pager 滚动到新页都要付一次，表现为掉帧与白屏。
             val pageBitmap by produceState<Bitmap?>(
-                initialValue = cachedPreview,
-                pageContent, pageStyle, renderWidthDp, renderHeightDp
+                initialValue = null,
+                pageConfigId, pageContent, pageStyle, renderWidthDp, renderHeightDp
             ) {
+                // 1) 磁盘缓存（可能 miss）
+                val fromDisk = withContext(Dispatchers.IO) {
+                    WidgetCanvasRenderer.cachedPreview(
+                        context = context,
+                        configId = pageConfigId,
+                        widthDp = renderWidthDp,
+                        heightDp = renderHeightDp,
+                        style = pageStyle
+                    )
+                }
+                if (fromDisk != null) {
+                    value = fromDisk
+                    // 磁盘图已经在屏上：让它先显示出来，别为了等重渲染而空白
+                    kotlinx.coroutines.yield()
+                }
+                // 2) 按当前内容与样式重渲染（会顺带落盘）
                 value = withContext(Dispatchers.Default) {
                     try {
                         WidgetCanvasRenderer.renderPreview(
@@ -174,11 +183,13 @@ fun WidgetPreviewPager(
             //  2. key 变了：旧槽搬进 previous、新图进 current，Crossfade 才从旧图淡入**已渲染好的**新图。
             // 此前实现是 key 一变就让两层都指着旧图干等新渲染（约 0.8s），渐变形同虚设、
             // 新图落地发生在动画结束后，视觉上是一次硬切。
+            // 初值给 null：磁盘缓存图现在是异步来的（见上面 produceState 的说明），
+            // 同步拿它就意味着把解码放回组合线程。空一帧的代价远小于主线程卡住。
             var currentSlot by remember(pageWidgetId) {
-                mutableStateOf(PreviewSlot(previewTransitionKey, cachedPreview))
+                mutableStateOf(PreviewSlot(previewTransitionKey, null))
             }
             var previousSlot by remember(pageWidgetId) {
-                mutableStateOf(PreviewSlot(previewTransitionKey, cachedPreview))
+                mutableStateOf(PreviewSlot(previewTransitionKey, null))
             }
 
             LaunchedEffect(pageBitmap, previewTransitionKey) {

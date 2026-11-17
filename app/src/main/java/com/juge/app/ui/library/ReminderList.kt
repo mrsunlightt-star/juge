@@ -1,9 +1,5 @@
 package com.juge.app.ui.library
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,7 +19,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +63,7 @@ internal fun ReminderList(
     reminders: List<Reminder>,
     categories: List<Category>,
     isLoaded: Boolean,
+    selectedCategoryId: Long?,
     onReminderClick: (Reminder) -> Unit,
     onEditRequest: (Reminder) -> Unit,
     onDeleteRequest: (Reminder) -> Unit,
@@ -80,8 +76,10 @@ internal fun ReminderList(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val dragState = remember { ReorderDragState<Reminder> { it.id } }
-    // 只给初次出现的前几条或后来新增到顶部的条目播放一次进场动画；普通滚动不反复动画。
-    val animatedReminderIds = remember { mutableSetOf<Long>() }
+
+    // 分类切换后必须从新列表顶部开始看，否则 LazyColumn 会按旧 key 维持滚动位置，
+    // 用户可能看到某一分类的条目“凭空消失”，实际只是被保留的偏移量推到了视口外。
+    LaunchedEffect(selectedCategoryId) { listState.scrollToItem(0) }
 
     // 提交后的顺序先在本地顶住，等 onReorder 落库回读的新列表（顺序一致）到达后再放行，
     // 否则松手到状态回传之间列表会按旧顺序闪跳一下
@@ -91,6 +89,8 @@ internal fun ReminderList(
         if (reminders.map { it.id } == pending.map { it.id }) pendingOrder = null
     }
     val displayList = dragState.items ?: pendingOrder ?: reminders
+    // 分类 id → 名称，供 item 内 O(1) 查表（原来每张卡片每帧一次 categories.find）
+    val categoryNames = remember(categories) { categories.associate { it.id to it.name } }
 
     DragAutoScrollEffect(state = dragState, listState = listState)
 
@@ -107,117 +107,128 @@ internal fun ReminderList(
                 EmptyReminderState(hasCategories = categories.isNotEmpty())
             }
         } else {
-            itemsIndexed(displayList, key = { _, reminder -> reminder.id }) { index, reminder ->
-                val catName = categories.find { it.id == reminder.categoryId }?.name ?: "普通"
+            // contentType 固定成同一个值：金句卡片彼此同构，LazyColumn 可以跨列表位置
+            // 复用已组合的 item 槽位。不声明的话 Lazy 只能按 key 逐项新建，滚动时
+            // 组合/释放的次数随列表长度线性增长。
+            itemsIndexed(
+                items = displayList,
+                key = { _, reminder -> reminder.id },
+                contentType = { _, _ -> "reminder_card" }
+            ) { _, reminder ->
+                // 分类名查表原来是 `categories.find { ... }`，在 item 体内 = 每张可见卡片
+                // 每帧 O(categories) 线性扫。预先建 id→name 索引，查表降为 O(1)。
+                val catName = categoryNames[reminder.categoryId] ?: "普通"
 
-                val shouldAnimate = index < 4 && reminder.id !in animatedReminderIds
-                if (shouldAnimate) SideEffect { animatedReminderIds.add(reminder.id) }
-                val visibleState = remember(reminder.id) {
-                    MutableTransitionState(initialState = !shouldAnimate)
-                }.apply { targetState = true }
                 val isDragging = dragState.dragKey == reminder.id
-                // 拖拽项不加 animateItem：它的视觉位置由 translation 手动钉住，
-                // 再叠加让位动画会双重位移；其余卡片靠 animateItem 平滑让位
-                AnimatedVisibility(
-                    visibleState = visibleState,
-                    enter = slideInVertically(
-                        animationSpec = AppMotion.entrance()
-                    ) { it / 2 } + fadeIn(
-                        animationSpec = AppMotion.entrance()
-                    ),
-                    modifier = if (isDragging) Modifier.zIndex(1f) else Modifier.animateItem(
-                        placementSpec = AppMotion.entrance()
-                    ),
-                ) {
-                    // 手指位置：长按回调给的是卡片内坐标，加卡片 root 坐标得到菜单锚点
-                    var cardRootPos by remember { mutableStateOf(Offset.Zero) }
-                    var pressOffset by remember { mutableStateOf(Offset.Zero) }
-                    AppSectionCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { cardRootPos = it.positionInRoot() }
-                            // mergeDescendants：TalkBack 把整卡当单个元素朗读（旧 .clickable
-                            // 自带合并，换成裸 pointerInput 后要补回来），自定义操作直达编辑/删除
-                            .semantics(mergeDescendants = true) {
-                                customActions = listOf(
-                                    CustomAccessibilityAction("编辑金句") {
-                                        onEditRequest(reminder)
-                                        true
-                                    },
-                                    CustomAccessibilityAction("删除金句") {
-                                        onDeleteRequest(reminder)
-                                        true
-                                    },
+                // 手指位置：长按回调给的是卡片内坐标，加卡片 root 坐标得到菜单锚点
+                // 只在真的变化时才写：onGloballyPositioned 会在滚动、让位动画、
+                // 键盘弹出等每一帧回调一次，而 Offset 是值语义的**新实例**。
+                // 无条件赋值等于每帧都把这张卡片标脏 → 每张可见卡片每帧重组一次。
+                // 同类写法在 AppTextField 的光标定位那处也踩过。
+                var cardRootPos by remember { mutableStateOf(Offset.Zero) }
+                var pressOffset by remember { mutableStateOf(Offset.Zero) }
+                AppSectionCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // 卡片正文直接参与布局，绝不能藏在可跳过的入场可见性动画里。
+                        // 分类快速切换时，旧的 AnimatedVisibility 状态会被打断并保留占位，
+                        // 形成“中间金句空白、上下卡片还在”的稳定故障。
+                        .then(
+                            if (isDragging) {
+                                Modifier.zIndex(1f)
+                            } else {
+                                Modifier.animateItem(
+                                    fadeInSpec = null,
+                                    placementSpec = AppMotion.entrance(),
+                                    fadeOutSpec = null,
                                 )
                             }
-                            .graphicsLayer {
-                                translationY = if (isDragging) dragState.translationPx else 0f
-                                val lifted = isDragging
-                                scaleX = if (lifted) 1.03f else 1f
-                                scaleY = if (lifted) 1.03f else 1f
-                                // 抬起加一层实影：graphicsLayer 的 shadowElevation 只在
-                                // 有数值时画，落回 0 时与卡片自身的弥散阴影并存无冲突
-                                shadowElevation = if (lifted) 16.dp.toPx() else 0f
-                            }
-                            .longPressMenuDragGestures(
-                                key = reminder.id,
-                                onTap = {
-                                    haptics.tap()
-                                    onReminderClick(reminder)
+                        )
+                        .onGloballyPositioned {
+                            val pos = it.positionInRoot()
+                            if (pos != cardRootPos) cardRootPos = pos
+                        }
+                        // mergeDescendants：TalkBack 把整卡当单个元素朗读（旧 .clickable
+                        // 自带合并，换成裸 pointerInput 后要补回来），自定义操作直达编辑/删除
+                        .semantics(mergeDescendants = true) {
+                            customActions = listOf(
+                                CustomAccessibilityAction("编辑金句") {
+                                    onEditRequest(reminder)
+                                    true
                                 },
-                                onLongPress = { local ->
-                                    pressOffset = local
-                                    haptics.tap()
-                                    onMenuRequest(reminder, cardRootPos + local)
+                                CustomAccessibilityAction("删除金句") {
+                                    onDeleteRequest(reminder)
+                                    true
                                 },
-                                onDragStart = {
-                                    onDragStart()
-                                    haptics.tap()
-                                    dragState.start(
-                                        items = displayList,
-                                        key = reminder.id,
-                                        grabOffsetPx = pressOffset.y,
-                                    )
-                                },
-                                onDrag = { delta ->
-                                    dragState.addTranslation(delta.y)
-                                    // 一次大位移可能跨过多项，反复交换直到不再越界
-                                    while (dragState.swapIfNeeded(listState.layoutInfo)) {
-                                        // 交换在 state 内部完成
-                                    }
-                                },
-                                onDragEnd = {
-                                    dragState.settle(scope) { newOrder ->
-                                        if (newOrder != null) {
-                                            haptics.confirm()
-                                            pendingOrder = newOrder
-                                            onReorder(newOrder)
-                                        }
-                                    }
-                                },
-                                onDragCancel = { dragState.cancel() },
-                            ),
-                        contentPadding = PaddingValues(
-                            horizontal = AppSpacing.cardPadding,
-                            vertical = 12.dp
-                        ),
-                        animateSize = false,
-                    ) {
-                        Surface(
-                            shape = AppShape.badge,
-                            color = selectBlue
-                        ) {
-                            AppText(
-                                text = catName,
-                                role = AppTextRole.badgeOnFill,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
+                        .graphicsLayer {
+                            translationY = if (isDragging) dragState.translationPx else 0f
+                            val lifted = isDragging
+                            scaleX = if (lifted) 1.03f else 1f
+                            scaleY = if (lifted) 1.03f else 1f
+                            // 抬起加一层实影：graphicsLayer 的 shadowElevation 只在
+                            // 有数值时画，落回 0 时与卡片自身的弥散阴影并存无冲突
+                            shadowElevation = if (lifted) 16.dp.toPx() else 0f
+                        }
+                        .longPressMenuDragGestures(
+                            key = reminder.id,
+                            onTap = {
+                                haptics.tap()
+                                onReminderClick(reminder)
+                            },
+                            onLongPress = { local ->
+                                pressOffset = local
+                                haptics.tap()
+                                onMenuRequest(reminder, cardRootPos + local)
+                            },
+                            onDragStart = {
+                                onDragStart()
+                                haptics.tap()
+                                dragState.start(
+                                    items = displayList,
+                                    key = reminder.id,
+                                    grabOffsetPx = pressOffset.y,
+                                )
+                            },
+                            onDrag = { delta ->
+                                dragState.addTranslation(delta.y)
+                                // 一次大位移可能跨过多项，反复交换直到不再越界
+                                while (dragState.swapIfNeeded(listState.layoutInfo)) {
+                                    // 交换在 state 内部完成
+                                }
+                            },
+                            onDragEnd = {
+                                dragState.settle(scope) { newOrder ->
+                                    if (newOrder != null) {
+                                        haptics.confirm()
+                                        pendingOrder = newOrder
+                                        onReorder(newOrder)
+                                    }
+                                }
+                            },
+                            onDragCancel = { dragState.cancel() },
+                        ),
+                    contentPadding = PaddingValues(
+                        horizontal = AppSpacing.cardPadding,
+                        vertical = 12.dp
+                    ),
+                    animateSize = false,
+                ) {
+                    Surface(
+                        shape = AppShape.badge,
+                        color = selectBlue
+                    ) {
                         AppText(
-                            text = reminder.content,
-                            role = AppTextRole.bodyLarge
+                            text = catName,
+                            role = AppTextRole.badgeOnFill,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
+                    AppText(
+                        text = reminder.content,
+                        role = AppTextRole.bodyLarge
+                    )
                 }
             }
         }

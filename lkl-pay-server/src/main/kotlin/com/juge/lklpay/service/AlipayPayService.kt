@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -66,7 +67,7 @@ class AlipayPayService(private val props: AlipayProperties) {
             this.subject = sanitizeSubject(subject)
             // App 支付的固定销售产品码
             this.productCode = PRODUCT_CODE
-            this.timeExpire = LocalDateTime.now().plusMinutes(props.orderExpireMinutes).format(DT)
+            this.timeExpire = LocalDateTime.now(ALIPAY_ZONE).plusMinutes(props.orderExpireMinutes).format(DT)
         }
         val request = AlipayTradeAppPayRequest().apply {
             bizModel = model
@@ -156,7 +157,7 @@ class AlipayPayService(private val props: AlipayProperties) {
 
     private fun genOutTradeNo(): String {
         // 官方约束：≤64 位，仅字母、数字、下划线，且商户端唯一
-        val ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+        val ts = LocalDateTime.now(ALIPAY_ZONE).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
         return (ts + UUID.randomUUID().toString().replace("-", "").take(12)).uppercase()
     }
 
@@ -168,5 +169,15 @@ class AlipayPayService(private val props: AlipayProperties) {
         private const val MAX_AMOUNT_FEN = 10_000_000_000L
 
         private val DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+
+        /**
+         * 支付宝的时间字段（time_expire / 交易时间）**一律按北京时间**解释，与本机 JVM 时区无关。
+         *
+         * 之前在 LocalDateTime.now() 上直接格式化，等价于「取 JVM 默认时区」：
+         * 容器/云主机普遍是 UTC，北京时间的 23:00 在 UTC 机器上是 15:00，
+         * 于是 time_expire 被写成「8 小时前」——订单一下发就过期，用户拉起收银台直接报交易关闭。
+         * 这里显式钉死 Asia/Shanghai，部署时区怎么设都不影响。
+         */
+        private val ALIPAY_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
     }
 }

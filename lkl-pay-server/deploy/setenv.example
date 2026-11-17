@@ -1,0 +1,23 @@
+# systemd EnvironmentFile 模板。
+#
+#   sudo install -m 600 deploy/setenv.example /opt/juge/lkl-pay-server/setenv
+#   sudo chown juge:juge /opt/juge/lkl-pay-server/setenv
+#
+# 这是**模板**：下面的值全是占位符，不含任何真实密钥。真实值只留在服务器上，
+# 绝不提交仓库（.gitignore 已覆盖 certs/、keystore/、data/）。
+#
+# PAY_DB_* 与 PAY_LOG_PATH 在 application.yml 里通过 ${...} 占位符直接读取，
+# 名字必须完全一致；ALIPAY_PID 由 juge-pay.service 的 ExecStart 展开成 --alipay.pid。
+
+# H2 库文件必须是绝对路径：相对路径会随进程工作目录漂移，重启后连到另一个空库
+PAY_DB_PATH=/opt/juge/data/paydb
+PAY_DB_USER=sa
+PAY_DB_PASSWORD=CHANGE_ME_SET_A_REAL_PASSWORD
+
+# 日志文件（自带 20MB × 14 轮转，见 application.yml logging 段）
+PAY_LOG_PATH=/opt/juge/logs/lkl-pay-server.log
+
+# 签约支付宝账号 PID（2088 开头，开放平台 → 账号中心可见）。
+# 留空 = /api/alipay/auth-info 恒返回 503 RECOVERY_UNAVAILABLE，
+# 即「换机找回 PRO」100% 不可用，且下单/查单不受影响、不会被自测发现。
+ALIPAY_PID=2088xxxxxxxxxxxx

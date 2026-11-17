@@ -28,16 +28,16 @@ App 界面统一使用**系统中文无衬线字体**。`assets/fonts/` 下的 9
 
 | 令牌 | 字号 / 行高 | 字重 | 用途 |
 | --- | --- | --- | --- |
-| `AppType.brand` | 24 / 30 | Black | 顶部品牌「句阁」 |
+| `AppType.brand` | 24 / 30 | Black，字距 -0.3 | 顶部品牌「句阁」 |
 | `AppType.brandSub` | 12 / 16 | SemiBold，字距 0.8 | 「DeskQuotes」 |
-| `AppType.hero` | 20 / 26 | ExtraBold | PRO / 账号弹窗的强调标题 |
-| `AppType.dialogTitle` | 18 / 24 | Bold | 普通弹窗标题 |
-| `AppType.title` | 16 / 22 | Bold | 卡片级标题（预留） |
-| `AppType.sectionTitle` | 14 / 20 | Bold | 定制页区块标题、预设行标题 |
-| `AppType.label` | 12 / 16 | Bold | 控件标签、小按钮、页签角标 |
-| `AppType.body` | 13 / 20 | Regular | 标准正文与说明 |
-| `AppType.bodyStrong` | 13 / 20 | SemiBold | 需要强调的正文 |
-| `AppType.bodyLarge` | 15 / 23 | Regular | 金句内容 |
+| `AppType.hero` | 20 / 26 | Bold，字距 -0.2 | PRO 弹窗的强调标题 |
+| `AppType.dialogTitle` | 18 / 24 | SemiBold | 普通弹窗标题 |
+| `AppType.title` | 16 / 22 | SemiBold | 卡片级标题（预留） |
+| `AppType.sectionTitle` | 14 / 20 | SemiBold，字距 0.1 | 定制页区块标题、预设行标题 |
+| `AppType.label` | 12 / 16 | SemiBold，字距 0.1 | 控件标签、小按钮、页签角标 |
+| `AppType.body` | 14 / 21 | Normal | 标准正文与说明 |
+| `AppType.bodyStrong` | 14 / 21 | SemiBold | 需要强调的正文 |
+| `AppType.bodyLarge` | 16 / 24 | Normal | 金句内容 |
 | `AppType.caption` | 12 / 16 | Regular | 次要说明、空态、页脚 |
 | `AppType.micro` | 11 / 16 | Regular | 备案号、支付说明等最小可读文字 |
 | `AppType.badge` | 11 / 14 | SemiBold | 免费 / PRO / 分类角标 |
@@ -61,9 +61,9 @@ Material 组件也会落在同一套阶梯上。
 
 `ui/theme/AppColors.kt` 分两层：
 
-- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（明亮浅蓝填充，按用户偏好搭配白色文字/图标）、
-  `accentLightBlue`（协议链接）、`premiumGold` / `premiumGoldEnd`（PRO 金色渐变填充）、
-  `premiumGoldDeep`（白底上的金色图标/文字）、`premiumGoldInk`（金色底上的深棕文字）。
+- **品牌色**：`accentBlue`（薄荷青，区块标题/链接）、`selectBlue`（明亮浅蓝填充，按用户偏好搭配白色文字/图标；
+  协议链接与它同色相，历史上的 `accentLightBlue` 三蓝并存已合并至此）、`premiumGold` / `premiumGoldEnd`
+  （PRO 金色渐变填充）、`premiumGoldDeep`（白底上的金色图标/文字）、`premiumGoldInk`（金色底上的深棕文字）。
 - **语义色**：`textPrimary` / `textSecondary` / `textTertiary`、`borderBlue`、`surfaceSubtle`、
   `surfaceMuted`、`dangerRed`、`disabledGray`、`warning*`、`successGreen`、`brandInk*`。
 
@@ -99,7 +99,8 @@ Material 组件也会落在同一套阶梯上。
 | --- | --- | --- |
 | `AppShape.card` | 16dp | 所有内容卡片 |
 | `AppShape.button` | 12dp | 主/次按钮、输入框、提示条 |
-| `AppShape.chip` | 10dp | 筛选胶囊、色板、列表行 |
+| `AppShape.chip` | 50%（全胶囊） | 筛选胶囊、勾选 chip |
+| `AppShape.swatch` | 10dp | 方形缩略色块、直角变体 |
 | `AppShape.thumbnail` | 10dp | 预设缩略图 |
 | `AppShape.badge` | 6dp | 免费/分类角标 |
 | `AppShape.dialog` | 20dp | 弹窗底板 |
@@ -108,8 +109,8 @@ Material 组件也会落在同一套阶梯上。
 | `AppShape.check` | 5dp | 勾选框 |
 | `AppShape.handle` | 2dp | 抽屉把手 |
 
-间距：`AppSpacing.screen`(16) / `cardPadding`(16) / `sectionGap`(16) / `itemGap`(10) /
-`controlGap`(12) / `iconGap`(6) / `tight`(4)。
+间距：`AppSpacing.screen`(20) / `cardPadding`(16) / `sectionGap`(16) / `itemGap`(12) /
+`controlGap`(12) / `iconGap`(8) / `tight`(4)。
 
 ### 4.0 触控热区
 
@@ -135,8 +136,8 @@ Material 组件也会落在同一套阶梯上。
 - 可读性：图片顶部是亮蓝天空，顶栏品牌字使用白色 + 文字阴影，图片顶部再加
   38%→20%→透明 的黑色渐变暗压；预览提示使用白色文字 + 30% 黑色胶囊；
 - **顶栏三颗圆钮（刷新 / 日夜 / 我的）底色随主题**（`MainTopBar`）：
-  日间是白色 38dp 圆 + 墨绿图标（英雄区是亮天空，与白色卡片同一套明度语言）；
-  夜间改用 `surfaceRaised` 暗色圆 + 霜白图标——英雄区在夜间被压暗 52%~64%，
+  日间是白色 38dp 圆 + `selectBlue` 浅蓝图标（与页签、筛选胶囊同一套选中色）；
+  夜间改用 `surfaceRaised` 暗色圆 + 夜间 `selectBlue`——英雄区在夜间被压暗 52%~64%，
   再摆三块纯白圆就是全屏最亮的东西，与「真正的暗黑背景」冲突。图标/加载指示器的
   颜色与底色成对切换，不要只换底色。
 - **顶栏会员入口按激活状态两态**（`MainTopBar`）：
@@ -179,9 +180,8 @@ Material 组件也会落在同一套阶梯上。
 已统一的交互：
 
 - **分段页签**：指示器跟手位移；文字/图标颜色按 pager 实时位移在灰与白之间插值，
-  不再“块滑到一半、字还是全灰”；胶囊轨道改用 `panelTrack` 凹槽明度 + `cardBg` 滑块分层，
-  不画 1dp 描边，滑块上的文字/图标在 `textGray`→`textWhite`（日间即墨色、暗色即霜白）间随
-  位移插值，日夜都保持可读；
+  不再“块滑到一半、字还是全灰”；胶囊轨道用 `panelTrack` 凹槽明度，选中滑块与筛选胶囊、
+  主按钮统一使用 `selectBlue` 浅蓝填充并配白色字图标，不画 1dp 描边；
 - **筛选胶囊 / 勾选胶囊**：底色、文字色、描边色平滑过渡；
 - **预设缩略图 / 色板**：选中描边宽度与颜色平滑过渡；
 - **风格预设行**：缩略图统一 180×96dp 卡片盒（`PresetThumbnailBox`，旧版 150×80 的 1.2 倍），内容按
@@ -220,7 +220,7 @@ Material 组件也会落在同一套阶梯上。
   内边距上下 12dp——整卡高度比旧版收约 10%（用户定档）；
 - **长按上下文菜单（iOS 式）**：金句卡片长按弹「编辑金句 / 删除金句」，分类 chip 长按弹「重命名 / 删除」
   （`ContextMenuOverlay`）。菜单是**同窗口非模态浮层**（不用 Dialog：弹出后那根手指继续拖动要能立刻
-  取消菜单进入排序），整页压暗 16% + 菜单卡（`AppShape.menu` 14dp 圆角 + `surfaceRaised` 明度分层 +
+  取消菜单进入排序），页面背景保持原亮度 + 菜单卡（`AppShape.menu` 14dp 圆角 + `surfaceRaised` 明度分层 +
   `AppShadows.dialog` 弥散阴影，不画 1dp 描边），从指尖方向 scale 0.9→1 弹出；原地松手菜单保持打开，点空白处关闭。菜单项 44dp 行高、
   20dp 图标、破坏性项红色，无波纹按压高亮。检测器是
   `longPressMenuDragGestures` 单一状态机——**不能**用 detectTapGestures + detectDragGesturesAfterLongPress
@@ -228,7 +228,7 @@ Material 组件也会落在同一套阶梯上。
 - **⋮ 溢出菜单**：分类管理弹窗每行右侧的「更多」按钮弹「重命名 / 删除」（`AppDropdownMenu`）。
   卡片与行与长按菜单**同一个出处**（`ui/AppMenu.kt`：`AppMenuCard` + `AppMenuItemRow`），
   区别只在浮出方式：它贴在按钮下方（`Popup`，右边缘对齐、下方放不下翻到上方、四周 8dp 钳制），
-  **不再压暗背景**——它本来就弹在已经压暗的弹窗之上，再压一层会把弹窗压灰，反而和别的页面对不上。
+  **不压暗背景**——菜单卡自身用底色、圆角与阴影建立层级。
   与长按菜单同宽的 176dp 卡片；弹出时 0.9→1 缩放、从靠近按钮的那一角长出来（关闭即时，
   与长按菜单一致，不做退出动画）。
   **不要再用 Material3 `DropdownMenu`**：容器色取 `MenuDefaults.containerColor`（`surfaceContainer`），

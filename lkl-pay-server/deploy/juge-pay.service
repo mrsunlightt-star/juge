@@ -1,0 +1,47 @@
+# 句阁支付服务 systemd unit
+#
+# 安装：
+#   sudo install -m 644 deploy/juge-pay.service /etc/systemd/system/juge-pay.service
+#   sudo install -m 600 deploy/setenv.example /opt/juge/lkl-pay-server/setenv
+#   sudo systemctl daemon-reload && sudo systemctl enable --now juge-pay.service
+#   journalctl -u juge-pay -f          # 确认启动自检里 recoveryReady=true
+#
+# 构建产物请统一命名为 /opt/juge/lkl-pay-server/app.jar：
+#   ./mvnw -DskipTests package && cp target/lkl-pay-server-0.0.1-SNAPSHOT.jar app.jar
+#
+# 前置：Nginx 已把 /api/ 反代到 127.0.0.1:8081（见 nginx-juge-api.conf）。
+# 本服务**只监听回环**，不要为了「方便调试」把 server.address 改成 0.0.0.0。
+
+[Unit]
+Description=Juge Pay Server (Alipay orders and PRO entitlements)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=juge
+Group=juge
+WorkingDirectory=/opt/juge/lkl-pay-server
+# 权限 600，属主 juge。里面放 PAY_DB_PASSWORD 与 ALIPAY_PID，绝不进仓库。
+EnvironmentFile=/opt/juge/lkl-pay-server/setenv
+ExecStart=/usr/bin/java -jar /opt/juge/lkl-pay-server/app.jar \
+    --alipay.pid=${ALIPAY_PID} \
+    --alipay.private-key-path=/etc/juge/alipay_app_private_key.txt \
+    --alipay.alipay-public-key-path=/etc/juge/alipay_public_key.txt \
+    --entitlement.private-key-path=/etc/juge/entitlement_private_key.pem \
+    --entitlement.public-key-path=/etc/juge/entitlement_public_key.pem
+Restart=on-failure
+RestartSec=10
+
+# 加固：私钥只读、进程拿不到新特权，只有库与日志目录可写
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/juge/data /opt/juge/logs /opt/juge/lkl-pay-server/data /opt/juge/lkl-pay-server/logs
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

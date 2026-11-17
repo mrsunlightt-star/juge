@@ -1,0 +1,52 @@
+name: CI
+
+on: [push, pull_request, workflow_dispatch]
+
+# 单人项目的最低水位：每次推送都把两侧测试真跑一遍，而不是等想起来才跑。
+# 渲染/UI 像素指纹基线故意不在 CI 上跑——Robolectric NATIVE 用真实 Skia，
+# macOS 与 Linux 栅格化结果有细微差异，换机器会假红。那三类留给本地手动跑。
+
+jobs:
+  server:
+    name: 支付服务端单测
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lkl-pay-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: mvnw test
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp test
+
+  android:
+    name: Android lint + 单测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: 安装 compileSdk 37 平台
+        run: sdkmanager --install "platforms;android-37" "build-tools;37.0.0" > /dev/null
+      - uses: gradle/actions/setup-gradle@v4
+      - name: lint + 单测（排除像素基线）
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:lintDebug :app:testDebugUnitTest -PciSkipPixelBaselines --stacktrace
+      - name: 上传测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/reports/lint-results-debug.html

@@ -1,7 +1,6 @@
 package com.juge.app.ui.library
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -19,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -40,14 +38,14 @@ import com.juge.app.ui.theme.AppMotion
 import kotlin.math.roundToInt
 
 /**
- * iOS 式长按上下文菜单浮层：全页压暗 + 指尖处弹出的白卡菜单。
+ * iOS 式长按上下文菜单浮层：透明交互层 + 指尖处弹出的白卡菜单。
  *
  * 刻意**不用 Dialog**：菜单弹出时那根手指通常还按在卡片上，继续拖动要能立刻
  * 取消菜单、进入拖拽排序——Dialog 是独立窗口，收不到这根手指的后续事件，
  * 只有同窗口的浮层才接得住这套连续手势。
  *
- * 遮罩只压暗不模糊：毛玻璃（Haze）跨不进同窗口浮层的层级，压暗 + dialog 档
- * 弥散阴影已足够把视线聚焦到菜单上（弹窗们用 FLAG_BLUR_BEHIND，是另一个窗口才有的能力）。
+ * 浮层本身不画底色，页面保持原亮度；菜单卡靠 dialog 档弥散阴影与明度差分层。
+ * 透明交互层仍覆盖整页，负责接住空白处点击并关闭菜单。
  */
 @Composable
 internal fun ContextMenuOverlay(
@@ -60,7 +58,7 @@ internal fun ContextMenuOverlay(
     var overlayBounds by remember { mutableStateOf(Rect.Zero) }
     var menuSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // 出场：压暗先到、菜单带一点从指尖放大的弹性（iOS 同款手感）
+    // 出场：菜单带一点从指尖放大的弹性（iOS 同款手感）
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val progress by animateFloatAsState(
@@ -73,16 +71,10 @@ internal fun ContextMenuOverlay(
         modifier = Modifier
             .fillMaxSize()
             .onGloballyPositioned { overlayBounds = it.boundsInRoot() }
-            // 遮罩点击/长按都收掉菜单。触发长按的那根手指的后续事件仍归卡片检测器，
+            // 空白处点击/长按都收掉菜单。触发长按的那根手指的后续事件仍归卡片检测器，
             // 这里只会收到浮层出现之后的新触摸。
             .pointerInput(Unit) { detectTapGestures(onTap = { onDismiss() }) }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = 0.16f * progress }
-                .background(Color.Black)
-        )
         if (overlayBounds != Rect.Zero && items.isNotEmpty()) {
             val menuWidth = AppMenuWidth
             // 菜单落点与缩放原点都在 Density 域内一次算清（浮层内 px 坐标）

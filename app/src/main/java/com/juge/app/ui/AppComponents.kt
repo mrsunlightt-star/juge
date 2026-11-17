@@ -70,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -84,6 +85,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppPalette
 import kotlinx.coroutines.delay
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
@@ -91,8 +93,7 @@ import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.TextRole
-import com.juge.app.ui.theme.LocalAppDarkTheme
-import com.juge.app.ui.theme.LocalAppPalette
+import com.juge.app.ui.theme.LocalAppDarkThemeProgress
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.cardBg
@@ -280,7 +281,11 @@ fun AppDangerButton(
         containerColor = dangerRed,
         // 夜间 dangerRed 提亮为红-400（否则红色文字在深底上不达标），白字只剩 2.8:1，
         // 换深墨字（与 Material 夜间 onPrimary=darkBg 同一约定，约 6.8:1）
-        contentColor = if (LocalAppDarkTheme.current) LocalAppPalette.current.darkBg else Color.White,
+        contentColor = lerp(
+            Color.White,
+            AppPalette.Dark.darkBg,
+            LocalAppDarkThemeProgress.current,
+        ),
     )
 }
 

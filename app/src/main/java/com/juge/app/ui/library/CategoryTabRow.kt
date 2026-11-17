@@ -30,9 +30,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import com.juge.app.data.Category
 import com.juge.app.ui.AppFilterChip
+import com.juge.app.ui.horizontalControlUsage
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.textGray
+import com.juge.app.ui.theme.selectBlue
 
 /**
  * 文库顶部分类筛选条：全部 / 各分类 / 分类管理入口。
@@ -68,10 +69,15 @@ internal fun CategoryTabRow(
 
     DragAutoScrollEffect(state = dragState, listState = listState)
 
+    // horizontalControlUsage 必须挂在横向滚动容器上：它负责在 Initial 阶段
+    // 记录「这次右滑用掉了横向位移」，SwipeBackGesture 据此决定是让位还是翻页。
+    // 漏挂的表现是这一行右滑永远不返回上一页——行把事件吃掉了，页面手势层收不到。
+    // 正确范式见 PresetRow / PostcardPresetsRow / TextStyleCard。
     LazyRow(
         state = listState,
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalControlUsage(listState)
             .padding(horizontal = AppSpacing.screen),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
         verticalAlignment = Alignment.CenterVertically
@@ -100,7 +106,12 @@ internal fun CategoryTabRow(
                             scaleX = if (isDragging) 1.05f else 1f
                             scaleY = if (isDragging) 1.05f else 1f
                         }
-                        .onGloballyPositioned { chipRootPos = it.positionInRoot() }
+                        .onGloballyPositioned {
+                            // 同上：每一帧都会回调，Offset 每次都是新实例，
+                            // 无条件赋值会让整行 chip 每帧重组
+                            val pos = it.positionInRoot()
+                            if (pos != chipRootPos) chipRootPos = pos
+                        }
                         .semantics {
                             // 长按菜单是视觉手势，TalkBack 走自定义操作直达重命名/删除
                             customActions = listOf(
@@ -155,7 +166,7 @@ internal fun CategoryTabRow(
         item {
             // 不覆写尺寸：IconButton 自带 48dp 触控热区
             IconButton(onClick = onOpenManager) {
-                Icon(Icons.Default.Settings, contentDescription = "管理分类", tint = textGray)
+                Icon(Icons.Default.Settings, contentDescription = "管理分类", tint = selectBlue)
             }
         }
     }

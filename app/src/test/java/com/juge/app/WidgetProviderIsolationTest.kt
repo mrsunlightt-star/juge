@@ -252,7 +252,7 @@ class WidgetProviderIsolationTest {
     }
 
     @Test
-    fun `备份包含绑定和样式但仍排除账号与隐私状态`() {
+    fun `备份包含绑定和样式但仍排除激活与隐私状态`() {
         for (resource in listOf(R.xml.backup_rules, R.xml.data_extraction_rules)) {
             val excluded = mutableListOf<String>()
             var includesSharedPrefs = false
@@ -270,7 +270,18 @@ class WidgetProviderIsolationTest {
             }
             assertTrue(includesSharedPrefs)
             assertFalse(excluded.contains("widget_bindings_prefs.xml"))
-            assertTrue(excluded.containsAll(listOf("account_prefs.xml", "consent_prefs.xml", "trial_activation_v2_prefs.xml")))
+            // account_prefs.xml 已随账号体系删除，不再出现在排除列表里
+            assertFalse(excluded.contains("account_prefs.xml"))
+            assertTrue(
+                excluded.containsAll(
+                    listOf(
+                        "trial_activation_v2_prefs.xml",
+                        "pro_purchase_prefs.xml",
+                        "consent_prefs.xml",
+                        "app_settings.xml",
+                    )
+                )
+            )
         }
     }
 }

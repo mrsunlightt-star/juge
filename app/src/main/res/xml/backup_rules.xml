@@ -5,19 +5,17 @@
     <!-- 备份用户自定义背景图，避免恢复后样式引用失效（编辑期临时图在 bg_tmp，不在备份范围） -->
     <include domain="file" path="bg_images/"/>
 
-    <!-- 备份 SharedPreferences，但排除凭证/同意状态/激活状态/未结算订单；
+    <!-- 备份 SharedPreferences，但排除激活状态/未结算订单/同意状态；
          组件绑定（widget_bindings_prefs）刻意保留：换机恢复后由
          ReminderWidgetProvider.onRestored 把旧 widgetId 映射到新 widgetId，不要加回 exclude -->
     <include domain="sharedpref" path="."/>
 
-    <!-- 付费激活状态：恢复后无意义，且属于敏感状态 -->
+    <!-- 付费激活状态（含服务端签发的权益凭证）：随备份漂到新设备等于绕过找回流程，
+         且凭证本身是可复制的凭据，不该由系统备份通道传递 -->
     <exclude domain="sharedpref" path="trial_activation_v2_prefs.xml"/>
 
-    <!-- 登录凭证（Bearer Token）：不随普通 App 数据备份，新设备重新登录即可 -->
-    <exclude domain="sharedpref" path="account_prefs.xml"/>
-
-    <!-- 未结算购买订单号：同一订单在换机后由谁查询受登录态限制，
-         游客订单随备份漂到新设备会撞上「权益只绑定设备」的承诺，故留在本机 -->
+    <!-- 未结算购买订单号：新设备上应由「找回」重新确认权益归属，
+         旧的待查订单号跟过去只会在启动时白查一轮 -->
     <exclude domain="sharedpref" path="pro_purchase_prefs.xml"/>
 
     <!-- 隐私同意状态：新设备应重新征求同意，不静默继承 -->
@@ -27,4 +25,6 @@
     <exclude domain="sharedpref" path="app_settings.xml"/>
 
     <!-- user_prefs.xml（用户自定义颜色等）不排除：属于用户资产，应随备份恢复 -->
+
+    <!-- 说明：本应用没有账号体系，曾经排除的 account_prefs.xml 已随账号功能一起删除 -->
 </full-backup-content>

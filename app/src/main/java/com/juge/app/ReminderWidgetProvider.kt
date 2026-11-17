@@ -43,12 +43,25 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        // 新组件登记会走 onUpdate：此刻「哪些组件在等恢复」的答案可能已经变了
+        invalidateRestoreProbe()
+        // 世代号在**入队前**取：真正执行时才知道自己有没有被后来的请求取代
+        val generations = appWidgetIds.associateWith { nextRenderGeneration(it) }
         dispatchAsync(context) { ctx, manager ->
             for (appWidgetId in appWidgetIds) {
+                val generation = generations[appWidgetId]
+                if (generation != null && isSuperseded(appWidgetId, generation)) {
+                    Timber.i("widget render id=%d 的请求已被更新的请求取代，跳过本次", appWidgetId)
+                    continue
+                }
                 try {
                     updateAppWidget(ctx, manager, appWidgetId)
-                } catch (e: Exception) {
-                    Timber.e(e, "onUpdate failed for widget %d", appWidgetId)
+                } catch (t: Throwable) {
+                    // 必须是 Throwable 而不是 Exception：渲染一张 4×4 位图就可能抛
+                    // OutOfMemoryError，它是 Error 不是 Exception，用 Exception 兜不住。
+                    // 这里跑在 widget-render daemon 线程上，该线程没有未捕获异常处理器，
+                    // 漏掉一个 Error 就是整个进程被带走（用户桌面上的组件全白）。
+                    Timber.e(t, "onUpdate failed for widget %d", appWidgetId)
                 }
             }
         }
@@ -56,12 +69,19 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
 
     override fun onAppWidgetOptionsChanged(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle?) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        // 桌面缩放组件时会连续触发多次，统一走渲染队列避免主线程卡顿
+        // 桌面缩放组件时会连续触发多次，统一走渲染队列避免主线程卡顿。
+        // 世代号让「连续多次」只剩最后一次真正渲染（见 nextRenderGeneration 的说明）。
+        val generation = nextRenderGeneration(appWidgetId)
         dispatchAsync(context) { ctx, manager ->
+            if (isSuperseded(appWidgetId, generation)) {
+                Timber.i("widget render id=%d 的缩放请求已被取代，跳过本次", appWidgetId)
+                return@dispatchAsync
+            }
             try {
                 updateAppWidget(ctx, manager, appWidgetId)
-            } catch (e: Exception) {
-                Timber.e(e, "onAppWidgetOptionsChanged failed for widget %d", appWidgetId)
+            } catch (t: Throwable) {
+                // 同 onUpdate：缩放时的重画是最容易撞上 OOM 的路径，必须兜 Throwable
+                Timber.e(t, "onAppWidgetOptionsChanged failed for widget %d", appWidgetId)
             }
         }
     }
@@ -86,7 +106,11 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val restored = if (continuing) {
                 prefs.getStringSet(KEY_RESTORED_IDS, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
             } else emptySet()
-            val targets = if (continuing) savedTargets else (pendingRestoreIds(context) + newWidgetIds.toSet()).map { it.toString() }.toSet()
+            val completedBefore = prefs.getStringSet(KEY_RESTORED_IDS, emptySet()).orEmpty()
+            val targets = if (continuing) savedTargets else {
+                (pendingRestoreIds(context, savedTargets, completedBefore) + newWidgetIds.toSet())
+                    .map { it.toString() }.toSet()
+            }
             val remapped = WidgetConfigBinding.remap(bindings, oldWidgetIds, newWidgetIds, source, restored)
             val editor = prefs.edit()
             values.keys.filter { it.startsWith(KEY_WIDGET_CONFIG_ID) || it.startsWith(KEY_WIDGET_STYLE) }
@@ -105,7 +129,13 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val completed = (restored + newWidgetIds.toSet()).map { it.toString() }.toSet()
             editor.putStringSet(KEY_RESTORE_TARGETS, targets)
                 .putStringSet(KEY_RESTORED_IDS, completed)
-            check(editor.commit()) { "Unable to restore widget bindings" }
+            // 不能用 check(commit())：这是系统回调 onRestored，抛出去没有任何上层 catch，
+            // 会直接把进程打崩（IllegalStateException 走不到 AppWidgetProvider 的兜底）。
+            // 提交失败时保留旧映射、不写 RESTORE_COMPLETED，等下一次恢复流程重来。
+            if (!editor.commit()) {
+                Timber.e("Unable to restore widget bindings, abort restore mapping")
+                return
+            }
             newWidgetIds.forEach { id ->
                 manager.updateAppWidgetOptions(id, Bundle().apply {
                     putBoolean(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED, true)
@@ -114,13 +144,21 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             if (completed.containsAll(targets)) {
                 val cleanup = prefs.edit().remove(KEY_RESTORE_TARGETS).remove(KEY_RESTORED_IDS)
                 prefs.all.keys.filter { it.startsWith(RESTORE_SOURCE_PREFIX) }.forEach { cleanup.remove(it) }
-                check(cleanup.commit()) { "Unable to finish widget restore" }
+                // 同上：收尾失败只记日志。残留的 restore_source_* 会被下一次恢复流程覆盖，
+                // 而崩溃是用户不可恢复的损失
+                if (!cleanup.commit()) {
+                    Timber.e("Unable to finish widget restore, stale restore sources kept")
+                }
+                // 映射已重建完成：让 pendingRestoreIds 的记忆失效，下一次渲染立刻重新探测
+                invalidateRestoreProbe()
                 if (restored.isNotEmpty()) triggerUpdateAllWidgets(context)
             }
         }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        // 组件增删会改变「哪些组件还在等恢复」的答案，先让记忆失效
+        invalidateRestoreProbe()
         for (id in appWidgetIds) {
             clearWidgetData(context, id)
         }
@@ -129,8 +167,9 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         renderExecutor.execute {
             try {
                 pruneOrphanAutoConfigs(appContext)
-            } catch (e: Exception) {
-                Timber.w(e, "pruneOrphanAutoConfigs failed after onDeleted")
+            } catch (t: Throwable) {
+                // 同样跑在 widget-render daemon 线程上，收口口径与渲染路径一致
+                Timber.w(t, "pruneOrphanAutoConfigs failed after onDeleted")
             }
         }
     }
@@ -159,8 +198,10 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             try {
                 val manager = AppWidgetManager.getInstance(appContext)
                 block(appContext, manager)
-            } catch (e: Exception) {
-                Timber.e(e, "widget dispatch failed")
+            } catch (t: Throwable) {
+                // 队列的最后一道闸：任何 Error（OOM / StackOverflow）都在这里收口，
+                // 不能让它落到 daemon 线程的默认未捕获处理器上带走进程
+                Timber.e(t, "widget dispatch failed")
             } finally {
                 timeoutHandler.removeCallbacks(finishOnce)
                 finishOnce.run()
@@ -192,6 +233,28 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
         private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
             Thread(r, "widget-render").apply { isDaemon = true }
         }
+
+        // ===== 渲染请求去重（P1-24）=====
+        //
+        // 桌面缩放组件时 onAppWidgetOptionsChanged 会连续触发多次（本文件 onAppWidgetOptionsChanged
+        // 的注释里就写着这句），每次都会往单线程队列里排一个**完整重画任务**
+        // （解码素材 + 上千个纹理对象 + Canvas 绘制），而队列里前面那些的结果早就过时了：
+        // 用户看到的是最后那一帧，中间的几次纯粹在烧 CPU 与内存。
+        //
+        // 机制：入队时给 (appWidgetId) 记一个单调递增的世代号；任务真正开始执行时，
+        // 若该组件已经有更新的世代号，说明这次请求已被取代，直接跳过。
+        // 队列里同时堆积 5 次缩放请求时，只有最后一次会真正渲染。
+        private val renderGeneration = java.util.concurrent.atomic.AtomicLong(0L)
+        private val latestRenderRequest = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+        private fun nextRenderGeneration(appWidgetId: Int): Long {
+            val generation = renderGeneration.incrementAndGet()
+            latestRenderRequest[appWidgetId] = generation
+            return generation
+        }
+
+        private fun isSuperseded(appWidgetId: Int, generation: Long): Boolean =
+            latestRenderRequest[appWidgetId]?.let { it != generation } ?: false
 
         /**
          * 根据 appWidgetId 的 options 估算桌面的网格尺寸 (如 "4*2", "4*3", "4*4")
@@ -315,7 +378,13 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val editor = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE).edit()
                 .putLong(KEY_WIDGET_CONFIG_ID + appWidgetId, config.id)
             if (!preserveStyle) editor.remove(KEY_WIDGET_STYLE + appWidgetId)
-            check(editor.commit()) { "Unable to persist widget binding" }
+            // 原先这里是 check(editor.commit())：绑定没写进去就抛 IllegalStateException，
+            // 会穿透到渲染线程/主线程的上层。现在保留同样的失败语义（写不进去就不返回
+            // config），但改成记日志 + 返回 null——调用方全都写过 `?: return`，能正常降级。
+            if (!editor.commit()) {
+                Timber.e("Unable to persist widget binding for widget %d", appWidgetId)
+                return null
+            }
             return config
         }
 
@@ -400,20 +469,55 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun pendingRestoreIds(context: Context): Set<Int> {
+        // pendingRestoreIds 是「每个组件一次 Binder IPC」的形态，
+        // 而 hasPendingRestore 会被 updateAppWidget（渲染线程，每个组件一次）、
+        // saveWidgetStyle（主线程）、pruneOrphanAutoConfigs 反复调用——
+        // 渲染 N 个组件就是 N 次 hasPendingRestore × N 次 getAppWidgetOptions = **N² 次跨进程调用**。
+        //
+        // 这里按「决定结果的输入」做记忆化：组件 ID 集合 + prefs 里的恢复快照。
+        // 同样的输入必然得到同样的输出（唯一的例外是系统单方面改 OPTION_APPWIDGET_RESTORE_COMPLETED，
+        // 而那一定伴随 onRestored 回调与 prefs 写入，两者都在下面的 key 里）。
+        // **不用纯 TTL**：那样会在组件集合变化后返回上一个组件的答案——
+        // 恢复进行中漏判一次，就会把组件错绑到别的配置上（WidgetProviderIsolationTest 里
+        // 「普通更新和清理在恢复映射之前不能误绑定」正是守这条的）。
+        private data class RestoreProbeKey(val ids: List<Int>, val targets: Set<String>, val completed: Set<String>)
+
+        @Volatile private var restoreProbeKey: RestoreProbeKey? = null
+        @Volatile private var restoreProbeResult: Set<Int> = emptySet()
+
+        /** 恢复流程状态变动（onRestored / onDeleted / onUpdate）时让记忆失效 */
+        private fun invalidateRestoreProbe() {
+            restoreProbeKey = null
+            restoreProbeResult = emptySet()
+        }
+
+        private fun pendingRestoreIds(context: Context, targets: Set<String>, completed: Set<String>): Set<Int> {
+            val ids = getAllAppWidgetIds(context).sorted()
+            val key = RestoreProbeKey(ids, targets, completed)
+            restoreProbeKey?.let { if (it == key) return restoreProbeResult }
+
             val manager = AppWidgetManager.getInstance(context)
-            return getAllAppWidgetIds(context).filter { id ->
+            val pending = ids.filter { id ->
                 val options = manager.getAppWidgetOptions(id)
                 options.containsKey(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED) &&
                     !options.getBoolean(AppWidgetManager.OPTION_APPWIDGET_RESTORE_COMPLETED)
             }.toSet()
+            restoreProbeResult = pending
+            restoreProbeKey = key
+            return pending
         }
 
         private fun hasPendingRestore(context: Context): Boolean {
             val prefs = context.getSharedPreferences(PREFS_WIDGET_BINDINGS, Context.MODE_PRIVATE)
             val targets = prefs.getStringSet(KEY_RESTORE_TARGETS, emptySet()).orEmpty()
             val completed = prefs.getStringSet(KEY_RESTORED_IDS, emptySet()).orEmpty()
-            return targets.any { it !in completed } || pendingRestoreIds(context).isNotEmpty()
+            if (targets.any { it !in completed }) return true
+            // 注意：这里**不能**用「targets 和 completed 都为空就返回 false」来省掉下面这次探测。
+            // 系统在两个回调之间有一个窗口：组件已经带着 OPTION_APPWIDGET_RESTORE_COMPLETED=false
+            // 登记好了，而 onRestored 还没来（我们的 restore_targets 还是空的）——
+            // 此时若跳过探测，就会在恢复过程中照常渲染并把组件错绑到别的配置上。
+            // 省 IPC 靠 pendingRestoreIds 的输入记忆化，不靠猜。
+            return pendingRestoreIds(context, targets, completed).isNotEmpty()
         }
 
         /**
@@ -470,8 +574,8 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
             val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            // 位图按 MIN 尺寸渲染，而桌面把位图按 fitXY 拉满整个组件视图：
-            // 两者比例不一致时画面会被非等比拉伸，卡片描边（尤其深色卡片上的白边）会沿拉伸方向变粗。
+            // 位图按 MIN 尺寸渲染。历史上布局里是 fitXY（比例不一致就非等比拉伸，深色卡片上的
+            // 白边会沿拉伸方向变粗），现已改成 fitCenter：比例不一致时改为留透明边，不再变形。
             // 打点记下实际用的尺寸与比例，便于和桌面实测的组件尺寸对账。
             // OPTION_APPWIDGET_SIZES（API 31+）是 launcher 声明的候选尺寸列表——
             // 实测（PJF110 / ColorOS）它与 MIN/MAX 一致、却按更大尺寸布局，所以拿不到真实视图尺寸；
@@ -566,12 +670,17 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
          */
         fun updateAppWidgetAsync(context: Context, appWidgetId: Int) {
             val appContext = context.applicationContext
+            val generation = nextRenderGeneration(appWidgetId)
             renderExecutor.execute {
+                if (isSuperseded(appWidgetId, generation)) {
+                    Timber.i("widget render id=%d 的异步刷新已被取代，跳过本次", appWidgetId)
+                    return@execute
+                }
                 try {
                     val manager = AppWidgetManager.getInstance(appContext)
                     updateAppWidget(appContext, manager, appWidgetId)
-                } catch (e: Exception) {
-                    Timber.e(e, "async update failed for widget %d", appWidgetId)
+                } catch (t: Throwable) {
+                    Timber.e(t, "async update failed for widget %d", appWidgetId)
                 }
             }
         }
@@ -588,22 +697,41 @@ open class ReminderWidgetProvider : AppWidgetProvider() {
             return (idsMain + idsCompact).distinct().toIntArray()
         }
 
+        /**
+         * 全量刷新的合并令牌，与上面按 appWidgetId 的世代号**故意分开**。
+         *
+         * 全量刷新要遍历所有 ID；如果在这里也写 `latestRenderRequest`，会把
+         * 「某个组件刚排进队的单次刷新」误判成过期并跳过，反而丢帧。
+         * 所以只让连续多次全量刷新彼此合并：入队时取一个批次号，
+         * 真正开始执行时若已有更新的批次，说明本次结果注定会被覆盖，直接跳过。
+         */
+        private val allWidgetsGeneration = java.util.concurrent.atomic.AtomicLong(0L)
+
         // 提供外部刷新方法（异步，渲染在后台队列完成）
         fun triggerUpdateAllWidgets(context: Context) {
             val appContext = context.applicationContext
+            val generation = allWidgetsGeneration.incrementAndGet()
             renderExecutor.execute {
+                // 连续两次调用（例如激活 PRO 后连续广播）只让最后一次真正重画
+                if (allWidgetsGeneration.get() != generation) {
+                    Timber.i("triggerUpdateAllWidgets 已被更新的全量刷新取代，跳过本次")
+                    return@execute
+                }
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext)
                     val ids = getAllAppWidgetIds(appContext)
                     for (id in ids) {
                         try {
                             updateAppWidget(appContext, appWidgetManager, id)
-                        } catch (e: Exception) {
-                            Timber.e(e, "update failed for widget %d", id)
+                        } catch (t: Throwable) {
+                            // 与 dispatchAsync / updateAppWidgetAsync 保持同一水位：
+                            // OOM 是 Error 不是 Exception，只兜 Exception 会穿透到
+                            // widget-render daemon 线程的默认处理器，直接带走进程。
+                            Timber.e(t, "update failed for widget %d", id)
                         }
                     }
-                } catch (e: Exception) {
-                    Timber.e(e, "triggerUpdateAllWidgets failed")
+                } catch (t: Throwable) {
+                    Timber.e(t, "triggerUpdateAllWidgets failed")
                 }
             }
         }

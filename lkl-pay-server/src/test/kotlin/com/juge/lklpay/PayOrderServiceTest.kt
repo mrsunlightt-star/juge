@@ -25,10 +25,12 @@ class PayOrderServiceTest {
     @Test
     fun `重复通知只落一次已支付`() {
         val no = "T_IDEMPOTENT"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
 
-        val first = service.markPaid(no, "TRADE_1", "BUYER_1", "138****0000", "1.99")
-        val second = service.markPaid(no, "TRADE_1", "BUYER_1", "138****0000", "1.99")
+        // 传网关返回的**原始值**给 markPaid，由它在入库前脱敏；
+        // 早先这里直接传 "138****0000"（已是脱敏样式），等于绕过被测逻辑。
+        val first = service.markPaid(no, "TRADE_1", "BUYER_1", "13800001234", "3.99")
+        val second = service.markPaid(no, "TRADE_1", "BUYER_1", "13800001234", "3.99")
 
         assertEquals(PayOrderService.MarkPaidOutcome.Marked, first)
         assertEquals(PayOrderService.MarkPaidOutcome.AlreadyPaid, second)
@@ -38,7 +40,7 @@ class PayOrderServiceTest {
     @Test
     fun `金额不符时拒绝置为已支付`() {
         val no = "T_MISMATCH"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
 
         val outcome = service.markPaid(no, "TRADE_2", "BUYER_2", null, "0.01")
 
@@ -53,8 +55,8 @@ class PayOrderServiceTest {
         // 防改价是最后一道闸：拿不到金额时绝不能「跳过核对直接放行」
         val noNull = "T_AMOUNT_NULL"
         val noBad = "T_AMOUNT_BAD"
-        service.recordCreated(noNull, "pro_permanent", "句阁 PRO 会员", 199)
-        service.recordCreated(noBad, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(noNull, "pro_permanent", "句阁 PRO 会员", 399)
+        service.recordCreated(noBad, "pro_permanent", "句阁 PRO 会员", 399)
 
         assertEquals(
             PayOrderService.MarkPaidOutcome.AmountMissing,
@@ -72,7 +74,7 @@ class PayOrderServiceTest {
     fun `订单不存在时不抛异常`() {
         assertEquals(
             PayOrderService.MarkPaidOutcome.OrderMissing,
-            service.markPaid("T_NOT_EXIST", "TRADE_3", null, null, "1.99"),
+            service.markPaid("T_NOT_EXIST", "TRADE_3", null, null, "3.99"),
         )
     }
 
@@ -81,7 +83,7 @@ class PayOrderServiceTest {
         // 支付宝会对同一笔订单并发重投；若状态变更仍是「先读后写」，
         // 多条线程都会读到 CREATED 并各自发货。这里检查 compare-and-set 真的只有一个赢家。
         val no = "T_CONCURRENT"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
 
         val threads = 4
         val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
@@ -89,7 +91,7 @@ class PayOrderServiceTest {
         val futures = (1..threads).map {
             pool.submit<PayOrderService.MarkPaidOutcome> {
                 startGate.await()
-                service.markPaid(no, "TRADE_C", "BUYER_C", null, "1.99")
+                service.markPaid(no, "TRADE_C", "BUYER_C", null, "3.99")
             }
         }
         startGate.countDown()
@@ -108,7 +110,7 @@ class PayOrderServiceTest {
     @Test
     fun `关闭未支付订单`() {
         val no = "T_CLOSED"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
 
         assertEquals(PayOrderService.MarkPaidOutcome.Marked, service.markClosed(no))
         assertEquals(PayOrder.STATUS_CLOSED, service.find(no)!!.status)
@@ -117,8 +119,8 @@ class PayOrderServiceTest {
     @Test
     fun `已支付订单不会被关闭覆盖`() {
         val no = "T_PAID_THEN_CLOSE"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
-        service.markPaid(no, "TRADE_4", "BUYER_4", null, "1.99")
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
+        service.markPaid(no, "TRADE_4", "BUYER_4", null, "3.99")
 
         service.markClosed(no)
 
@@ -128,10 +130,10 @@ class PayOrderServiceTest {
     @Test
     fun `关闭订单不能被当作幂等付款成功`() {
         val no = "T_CLOSED_THEN_PAY"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
         service.markClosed(no)
 
-        assertEquals(PayOrderService.MarkPaidOutcome.NotPaid, service.markPaid(no, "TRADE_X", null, null, "1.99"))
+        assertEquals(PayOrderService.MarkPaidOutcome.NotPaid, service.markPaid(no, "TRADE_X", null, null, "3.99"))
         assertEquals(PayOrderService.MarkPaidOutcome.NotPaid, service.markClosed(no))
         val order = service.find(no)!!
         assertEquals(PayOrder.STATUS_CLOSED, order.status)
@@ -142,13 +144,13 @@ class PayOrderServiceTest {
     @Test
     fun `已支付订单的重复结果仍需核对金额`() {
         val no = "T_PAID_AMOUNT_CHECK"
-        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
-        service.markPaid(no, "TRADE_VALID", null, null, "1.99")
+        service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
+        service.markPaid(no, "TRADE_VALID", null, null, "3.99")
         val paidAt = service.find(no)!!.paidAt
 
         assertEquals(PayOrderService.MarkPaidOutcome.AmountMissing, service.markPaid(no, "OTHER", null, null, null))
         assertEquals(PayOrderService.MarkPaidOutcome.AmountMismatch, service.markPaid(no, "OTHER", null, null, "0.01"))
-        assertEquals(PayOrderService.MarkPaidOutcome.AlreadyPaid, service.markPaid(no, "TRADE_VALID", null, null, "1.990"))
+        assertEquals(PayOrderService.MarkPaidOutcome.AlreadyPaid, service.markPaid(no, "TRADE_VALID", null, null, "3.990"))
         val order = service.find(no)!!
         assertEquals(PayOrder.STATUS_PAID, order.status)
         assertEquals(paidAt, order.paidAt)
@@ -160,7 +162,7 @@ class PayOrderServiceTest {
         // 18446744073709551815 分截断到 Long 后恰好是 199，必须精确转换。
         listOf("1.999", "184467440737095518.15", "", "NaN").forEachIndexed { index, amount ->
             val no = "T_INEXACT_AMOUNT_$index"
-            service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 199)
+            service.recordCreated(no, "pro_permanent", "句阁 PRO 会员", 399)
             assertEquals(PayOrderService.MarkPaidOutcome.AmountMissing, service.markPaid(no, null, null, null, amount))
             assertEquals(PayOrder.STATUS_CREATED, service.find(no)!!.status)
             assertNull(service.find(no)!!.paidAt)

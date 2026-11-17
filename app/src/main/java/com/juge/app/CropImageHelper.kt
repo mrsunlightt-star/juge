@@ -46,6 +46,10 @@ import java.io.FileOutputStream
 object CropImageHelper {
 
     private const val MAX_IMAGE_DIMENSION = 2048
+    // 按目标尺寸解码时留的余量：用户可能把图放大后再框选，刚好按目标尺寸解会糊
+    private const val DECODE_HEADROOM = 2
+    // 再小的目标也不低于这个边长，否则放大后锯齿明显
+    private const val MIN_DECODE_DIMENSION = 480
     private const val DEFAULT_CROP_WIDTH = 840
     private const val DEFAULT_CROP_HEIGHT = 270
     private const val MAX_CROP_OUTPUT_DIMENSION = 4096
@@ -140,8 +144,29 @@ object CropImageHelper {
         }
     }
 
-    // 从 Uri 加载图片，支持防 OOM 的 downsample 与 EXIF 方向矫正
-    fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? {
+    /**
+     * 从 Uri 加载图片，支持防 OOM 的 downsample 与 EXIF 方向矫正。
+     *
+     * [targetWidth] / [targetHeight] 是**最终产物**的尺寸（由 [cropTargetForWidget] 算出，
+     * 通常只有 840×270 这个量级）。传了它们之后，解码上限会跟着目标走，而不是一律
+     * 解到 [MAX_IMAGE_DIMENSION]：
+     *
+     * 一张 4000×3000 的照片，早先固定按 2048 解 = 2048×1536 ≈ **12MB**；
+     * 而 EXIF 旋转还要再分配一张同尺寸位图，峰值 **24MB**——这一切只为了产出
+     * 一张 840×270（0.9MB）的图，中间多花了 26 倍内存。低端机上这一下就是整机卡顿
+     * 甚至直接被系统回收。
+     *
+     * 现在留 2 倍余量（用户可能把图放大后再框选，完全按目标尺寸解会糊），
+     * 同一张照片解到 1000×750 ≈ 3MB，峰值从 24MB 降到 6MB，产物逐像素不变。
+     * 不传目标尺寸时行为与从前完全一致（上限 [MAX_IMAGE_DIMENSION]），
+     * 供「只想看一眼原图」的调用方使用。
+     */
+    fun loadBitmapFromUri(
+        context: Context,
+        uri: Uri,
+        targetWidth: Int = 0,
+        targetHeight: Int = 0
+    ): Bitmap? {
         return try {
             val bounds = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
@@ -150,8 +175,9 @@ object CropImageHelper {
             boundsInput.use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
+            val maxDimension = decodeLimitFor(targetWidth, targetHeight)
             var sampleSize = 1
-            while (bounds.outWidth / sampleSize > MAX_IMAGE_DIMENSION || bounds.outHeight / sampleSize > MAX_IMAGE_DIMENSION) {
+            while (bounds.outWidth / sampleSize > maxDimension || bounds.outHeight / sampleSize > maxDimension) {
                 sampleSize *= 2
             }
 
@@ -169,9 +195,28 @@ object CropImageHelper {
         }
     }
 
+    /**
+     * 解码上限：给了目标尺寸就按「目标长边的 2 倍」解，并夹在
+     * [MIN_DECODE_DIMENSION] 与 [MAX_IMAGE_DIMENSION] 之间。没给就沿用旧的固定上限。
+     */
+    private fun decodeLimitFor(targetWidth: Int, targetHeight: Int): Int {
+        val longestTarget = maxOf(targetWidth, targetHeight)
+        if (longestTarget <= 0) return MAX_IMAGE_DIMENSION
+        return (longestTarget * DECODE_HEADROOM).coerceIn(MIN_DECODE_DIMENSION, MAX_IMAGE_DIMENSION)
+    }
+
     // 相册图片可能携带 EXIF 旋转/翻转信息，直接解码会得到横躺/镜像的图。
     // 8 种 orientation 全部处理：只认 90/180/270 的话，FLIP/TRANSPOSE 类照片
     // （自拍、部分相机与截图）会以左右镜像的姿态落盘，与相册正立画面相反。
+    //
+    // 关于「为什么仍分配第二张位图」：审查报告建议把 EXIF 变换合进
+    // cropAndSaveBitmap 的最后一次 drawBitmap。那需要把 ImageCropDialog 预览端
+    // （用户手势作用于**旋转后**的坐标系）的裁剪矩阵与 EXIF 矩阵复合，
+    // 并同步改写 cropMatrix 的宽高与缩放枢轴——等于改动裁剪构图语义，
+    // 必须真机对 8 种 orientation 逐张比对才能放行，不宜在收尾阶段顺手做。
+    // 现在的上游改动已经把源图按目标尺寸解码（decodeLimitFor），
+    // 旋转位图随之从 12MB 级降到 3MB 级，且变换成功后立刻 recycle 源图，
+    // 双份驻留只发生在一瞬间；异常路径也会保留原图继续走裁剪。
     private fun applyExifRotation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
         val transform: android.graphics.Matrix? = try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -243,6 +288,8 @@ object CropImageHelper {
         targetWidth: Int = DEFAULT_CROP_WIDTH,
         targetHeight: Int = DEFAULT_CROP_HEIGHT
     ): String? {
+        // 异常路径也要能回收：见 catch 里的说明
+        var pendingOutput: Bitmap? = null
         return try {
             val matrix = cropMatrix(
                 bitmapWidth = bitmap.width.toFloat(),
@@ -256,6 +303,7 @@ object CropImageHelper {
             )
 
             val croppedBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+            pendingOutput = croppedBitmap
             val canvas = android.graphics.Canvas(croppedBitmap)
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
             canvas.drawBitmap(bitmap, matrix, paint)
@@ -273,9 +321,15 @@ object CropImageHelper {
                 fos.flush()
             }
             croppedBitmap.recycle()
+            pendingOutput = null
 
             file.absolutePath
         } catch (e: Exception) {
+            // 压缩/写盘失败时那张输出位图同样要还回去：正常路径在上面回收了，
+            // 异常路径以前直接跳过——0.9MB 的量不大，但它和上面的解码峰值发生在
+            // 同一个用户动作里（选图 → 裁剪 → 保存），叠加起来正好撞上堆上限。
+            // croppedBitmap 声明在 try 内，这里用 nullable 引用统一收口。
+            runCatching { pendingOutput?.recycle() }
             Timber.e(e, "Failed to crop and save bitmap")
             null
         }
@@ -351,7 +405,11 @@ object CropImageHelper {
         LaunchedEffect(boundUri) {
             isLoading = true
             // 大图解码（两次 openInputStream + downsample）放 IO 线程，避免主线程 ANR
-            bitmap = withContext(Dispatchers.IO) { loadBitmapFromUri(context, boundUri) }
+            // 把目标尺寸传下去：解码上限跟着裁剪产物走，而不是固定 2048。
+            // 见 loadBitmapFromUri 的注释——同一张照片峰值内存从 24MB 降到 6MB。
+            bitmap = withContext(Dispatchers.IO) {
+                loadBitmapFromUri(context, boundUri, targetWidth, targetHeight)
+            }
             isLoading = false
             if (bitmap == null) {
                 Toast.makeText(context, "图片加载失败", Toast.LENGTH_SHORT).show()

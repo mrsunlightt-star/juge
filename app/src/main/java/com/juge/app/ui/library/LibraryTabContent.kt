@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,12 +99,14 @@ fun LibraryTabContent(
     var renameSaveError by remember { mutableStateOf<String?>(null) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showAddReminderDialog by remember { mutableStateOf(false) }
-    var newCategoryName by remember { mutableStateOf("") }
-    var newReminderContent by remember { mutableStateOf("") }
+    // 输入草稿用 rememberSaveable：旋转/折叠屏/改字号会重建 Activity，
+    // 用 remember 的话用户打到一半的分类名、金句、重命名会当场清空。
+    var newCategoryName by rememberSaveable { mutableStateOf("") }
+    var newReminderContent by rememberSaveable { mutableStateOf("") }
     var selectedCatForReminder by remember { mutableStateOf<Category?>(categories.firstOrNull()) }
 
     // 纯文本及分类修改对话框的控制状态
-    var editContentField by remember { mutableStateOf("") }
+    var editContentField by rememberSaveable { mutableStateOf("") }
     var deletingCategory by remember { mutableStateOf<Category?>(null) }
     var deletingReminder by remember { mutableStateOf<Reminder?>(null) }
     var editCategorySelection by remember { mutableStateOf<Category?>(null) }
@@ -111,7 +114,7 @@ fun LibraryTabContent(
     // 分类管理中心对话框控制状态
     var showCategoryManagerDialog by remember { mutableStateOf(false) }
     var renamingCategory by remember { mutableStateOf<Category?>(null) }
-    var renameCategoryNewName by remember { mutableStateOf("") }
+    var renameCategoryNewName by rememberSaveable { mutableStateOf("") }
 
     // 长按上下文菜单：金句卡片与分类 chip 共用一个浮层（编辑/删除、重命名/删除）
     var quoteMenuFor by remember { mutableStateOf<Reminder?>(null) }
@@ -184,6 +187,7 @@ fun LibraryTabContent(
                 reminders = filteredReminders,
                 categories = categories,
                 isLoaded = isLoaded,
+                selectedCategoryId = selectedCategory?.id,
                 onReminderClick = onReminderClick,
                 onEditRequest = onEditReminderRequest,
                 onDeleteRequest = { deletingReminder = it },

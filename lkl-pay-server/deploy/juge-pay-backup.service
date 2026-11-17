@@ -1,0 +1,21 @@
+# 句阁订单库每日备份（由 juge-pay-backup.timer 触发）
+#
+# scripts/backup-db.sh 质量没问题（H2 热备 + 14 天保留），但仓库里一直没有
+# 挂载它的 cron / timer —— 等于没有备份。这里补上 systemd timer。
+#
+#   sudo install -m 644 deploy/juge-pay-backup.service /etc/systemd/system/
+#   sudo install -m 644 deploy/juge-pay-backup.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now juge-pay-backup.timer
+#   systemctl list-timers juge-pay-backup.timer
+#
+# 定期把备份文件拉回本地另存一份：服务器整盘丢失时同一台机器上的备份没有意义。
+
+[Unit]
+Description=Backup Juge pay H2 database
+After=juge-pay.service
+
+[Service]
+Type=oneshot
+User=juge
+Group=juge
+ExecStart=/opt/juge/lkl-pay-server/scripts/backup-db.sh

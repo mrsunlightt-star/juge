@@ -2,6 +2,7 @@ package com.juge.app.ui.theme
 
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -10,13 +11,22 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.juge.app.ui.theme.AppMotion.StandardMs
+import com.juge.app.ui.theme.AppMotion.ThemeMs
 
 /** 当前是否夜间模式：给需要「模式」本身（而非某个颜色）的场景用，如英雄区压暗、状态栏图标 */
 val LocalAppDarkTheme = staticCompositionLocalOf { false }
+
+/**
+ * 日夜切换的实际动画进度：0 = 完全日间，1 = 完全夜间。
+ *
+ * [LocalAppDarkTheme] 是目标模式，切换瞬间就会翻转；颜色不能直接依赖它，否则会在
+ * 色板动画之外突然跳到终态。需要按模式插值颜色或透明度的场景应使用本进度。
+ */
+val LocalAppDarkThemeProgress = staticCompositionLocalOf { 0f }
 
 // Material colorScheme 从调色板接线，保证弹窗等吃主题色的组件与自绘令牌同源（日夜都是）。
 private fun lightMaterialScheme(p: AppPalette) = lightColorScheme(
@@ -64,12 +74,18 @@ fun MyApplicationTheme(
     content: @Composable () -> Unit
 ) {
     val target = if (darkTheme) AppPalette.Dark else AppPalette.Light
-    // 日/夜切换的过渡：调色板颜色逐项插值（tween 220ms），单棵界面树不动。
+    val darkThemeProgress by animateFloatAsState(
+        targetValue = if (darkTheme) 1f else 0f,
+        animationSpec = tween(ThemeMs, easing = AppMotion.easing),
+        label = "darkThemeProgress",
+    )
+    // 日/夜切换的过渡：调色板颜色逐项插值（tween 420ms），单棵界面树不动。
     // 不用 Crossfade 包内容——那会让新主题的树枝重新 remember，主界面选中项/页签/弹窗状态全丢。
     val palette = animatedPalette(target)
     CompositionLocalProvider(
         LocalAppPalette provides palette,
         LocalAppDarkTheme provides darkTheme,
+        LocalAppDarkThemeProgress provides darkThemeProgress,
         // 夜色字重：整体 -40%（FontWeight × 0.6）。日间为 1f，等价于不缩放。
         LocalAppFontWeightScale provides if (darkTheme) AppType.DarkWeightScale else 1f,
     ) {
@@ -92,16 +108,15 @@ fun MyApplicationTheme(
 }
 
 /**
- * 把目标调色板的每个颜色包成 220ms 的动画值：日夜切换时全 app 颜色平滑过渡。
+ * 把目标调色板的每个颜色包成 420ms 的动画值：日夜切换时全 app 颜色平滑过渡。
  * 37 个 animateColorAsState 只在值变化时运行；静止时它们只是读缓存，无开销。
  */
 @Composable
 private fun animatedPalette(target: AppPalette): AppPalette {
     @Composable
     fun anim(c: Color, label: String) =
-        animateColorAsState(c, tween(StandardMs, easing = AppMotion.easing), label = label).value
+        animateColorAsState(c, tween(ThemeMs, easing = AppMotion.easing), label = label).value
 
-    val ms = StandardMs
     return AppPalette(
         darkBg = anim(target.darkBg, "darkBg"),
         panelTrack = anim(target.panelTrack, "panelTrack"),

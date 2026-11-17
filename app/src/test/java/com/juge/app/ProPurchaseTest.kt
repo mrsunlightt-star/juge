@@ -7,9 +7,11 @@ import android.content.SharedPreferences
 import android.content.pm.Signature
 import android.os.Looper
 import com.juge.app.data.TrialManager
+import com.juge.app.net.ServerClient
 import com.juge.app.pay.AlipayPay
 import com.juge.app.pay.AlipayPayApi
 import com.juge.app.pay.ProPurchase
+import java.io.File
 import java.util.Collections
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +22,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -29,7 +32,14 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** 只注入本地 API/收银台替身；实际使用 TrialManager 与队列的 SharedPreferences 提交路径。 */
+/**
+ * 只注入本地 API/收银台替身；实际使用 TrialManager 与队列的 SharedPreferences 提交路径。
+ *
+ * v3 之后「已支付」还要求服务端凭证：查单替身返回的 [AlipayPayApi.OrderStatus]
+ * 必须带一段用测试密钥签出来的 credential，否则激活会被 [TrialManager] 拒掉。
+ * 这本身是一条有价值的回归——它保证「只把 trade_status 改成 TRADE_SUCCESS」
+ * 骗不过去。
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27])
 class ProPurchaseTest {
@@ -61,7 +71,13 @@ class ProPurchaseTest {
         activity = object : Activity() {
             override fun getApplicationContext(): Context = context
         }
+        TestEntitlements.installTestPublicKey()
         trial = newTrialManager()
+    }
+
+    @After
+    fun tearDown() {
+        TestEntitlements.clearTestPublicKey()
     }
 
     @Test
@@ -156,7 +172,7 @@ class ProPurchaseTest {
                     else -> Result.failure(IllegalStateException("offline"))
                 }
             },
-            activate = { error("终态未付款单不得激活") },
+            activate = { _, _ -> error("终态未付款单不得激活") },
         )
 
         assertEquals(ProPurchase.Outcome.Unpaid(""), ProPurchase.recoverPending(context, deps))
@@ -225,7 +241,9 @@ class ProPurchaseTest {
     }
 
     @Test
-    fun `并发追加订单不覆盖其他未支付订单`() = runBlocking {
+    fun `并发追加订单不覆盖其他未支付订单且受容量上限约束`() = runBlocking {
+        // 24 个并发购买：互斥后串行执行，队列不应串号或丢写；
+        // 但队列有条数上限，最终保留的是最后写入的那批。
         (1..24).map { index ->
             async(Dispatchers.Default) {
                 ProPurchase.purchase(activity, dependencies().copy(createOrder = { _ ->
@@ -234,16 +252,82 @@ class ProPurchaseTest {
             }
         }.awaitAll()
 
-        assertEquals((1..24).map { "order-$it" }.toSet(), orders().toSet())
-        assertEquals(24, orders().size)
+        val kept = orders()
+        assertEquals("队列必须被上限截住，否则 prefs 会无限增长", ProPurchase.MAX_PENDING_ORDERS, kept.size)
+        assertTrue("留在队列里的必须是真实下过的单号", (1..24).map { "order-$it" }.toSet().containsAll(kept))
+        assertEquals("不能有重复条目", kept.size, kept.toSet().size)
+    }
+
+    @Test
+    fun `互斥保证同一时刻只有一次购买在跑`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val concurrent = java.util.concurrent.atomic.AtomicInteger(0)
+        val maxConcurrent = java.util.concurrent.atomic.AtomicInteger(0)
+        var first = true
+
+        val deps = dependencies().copy(
+            pay = { _, _ ->
+                val now = concurrent.incrementAndGet()
+                maxConcurrent.updateAndGet { maxOf(it, now) }
+                if (first) {
+                    first = false
+                    gate.complete(Unit)
+                }
+                concurrent.decrementAndGet()
+                AlipayPay.STATUS_CANCELED
+            },
+        )
+        val a = async(Dispatchers.Default) { ProPurchase.purchase(activity, deps) }
+        val b = async(Dispatchers.Default) { ProPurchase.purchase(activity, deps) }
+        gate.await()
+        a.await(); b.await()
+
+        assertEquals("两次购买必须串行，否则会生成两个订单并让用户付两次", 1, maxConcurrent.get())
+    }
+
+    @Test
+    fun `过期的待查订单在读取时被丢弃`() = runBlocking {
+        // 写入一条 30 小时前的订单（超过 24 小时 TTL）与一条刚写入的
+        val stale = System.currentTimeMillis() - 30L * 60 * 60 * 1000
+        val fresh = System.currentTimeMillis() - 60_000L
+        pending.backing.edit()
+            .putString("pending_order_no", "veryold:$stale,recent:$fresh")
+            .commit()
+        val queried = mutableListOf<String>()
+        val deps = dependencies().copy(queryOrder = { order ->
+            queried.add(order)
+            Result.success(status(order, "WAIT_BUYER_PAY"))
+        })
+
+        ProPurchase.recoverPending(context, deps)
+
+        assertEquals("过期订单不该再占一次查单配额", listOf("recent"), queried)
+        assertEquals(listOf("recent"), orders())
+    }
+
+    @Test
+    fun `旧格式队列条目不会被误判为过期`() = runBlocking {
+        // 升级安装：prefs 里是裸单号，没有时间戳。不能当成 0 从而立刻清掉。
+        seed("legacy")
+        val queried = mutableListOf<String>()
+        val deps = dependencies().copy(queryOrder = { order ->
+            queried.add(order)
+            Result.success(status(order, "WAIT_BUYER_PAY"))
+        })
+
+        ProPurchase.recoverPending(context, deps)
+
+        assertEquals(listOf("legacy"), queried)
+        assertEquals(listOf("legacy"), orders())
     }
 
     @Test
     fun `业务核验失败即使包含成功交易字段也不能解析为已付`() {
-        val response = JSONObject()
-            .put("success", false)
-            .put("code", "INVALID_ORDER")
-            .put("data", JSONObject().put("trade_status", "TRADE_SUCCESS"))
+        val response = json(200,
+            JSONObject()
+                .put("success", false)
+                .put("code", "INVALID_ORDER")
+                .put("data", JSONObject().put("trade_status", "TRADE_SUCCESS")))
 
         val result = runCatching { AlipayPayApi.parseOrderStatus("paid", response) }
 
@@ -253,48 +337,122 @@ class ProPurchaseTest {
     @Test
     fun `解析查单响应保留限流业务码`() {
         val result = runCatching {
-            AlipayPayApi.parseOrderStatus("pending", JSONObject()
-                .put("success", false)
-                .put("code", "RATE_LIMITED")
-                .put("message", "操作过于频繁"))
+            AlipayPayApi.parseOrderStatus("pending", json(429,
+                JSONObject()
+                    .put("success", false)
+                    .put("code", "RATE_LIMITED")
+                    .put("message", "操作过于频繁")))
         }
 
         assertTrue((result.exceptionOrNull() as? AlipayPayApi.ApiException)?.isRateLimited == true)
     }
 
+    /**
+     * 回归：HTTP 429 但响应体是空的（例如错误页被 nginx 换成 HTML）时，
+     * 仍要能从状态码识别出「被限流」，而不是笼统报「查单失败」。
+     * 原实现只解析响应体、丢掉状态码，这一整类信息都不可见。
+     */
+    @Test
+    fun `响应体为空时按 HTTP 状态码还原失败语义`() {
+        val rateLimited = runCatching { AlipayPayApi.parseOrderStatus("x", json(429, JSONObject())) }
+            .exceptionOrNull()
+        assertTrue((rateLimited as AlipayPayApi.ApiException).isRateLimited)
+
+        val unavailable = runCatching { AlipayPayApi.parseOrderStatus("x", json(503, JSONObject())) }
+            .exceptionOrNull()
+        assertTrue((unavailable as AlipayPayApi.ApiException).isConfigUnavailable)
+
+        val missing = runCatching { AlipayPayApi.parseOrderStatus("x", json(404, JSONObject())) }
+            .exceptionOrNull()
+        assertEquals(AlipayPayApi.CODE_ORDER_MISSING, (missing as AlipayPayApi.ApiException).code)
+    }
+
     @Test
     fun `关闭状态与支付状态明确区分且保留已有查询字段契约`() {
-        val closed = AlipayPayApi.parseOrderStatus("closed", JSONObject()
+        val closed = AlipayPayApi.parseOrderStatus("closed", json(200, JSONObject()
             .put("success", true)
-            .put("data", JSONObject().put("trade_status", "TRADE_CLOSED")))
+            .put("data", JSONObject().put("trade_status", "TRADE_CLOSED"))))
         assertTrue(closed.isClosed)
         assertFalse(closed.isPaid)
         assertFalse(closed.isNotExist)
         for (tradeStatus in listOf("TRADE_SUCCESS", "TRADE_FINISHED")) {
-            val paid = AlipayPayApi.parseOrderStatus("paid", JSONObject()
+            val paid = AlipayPayApi.parseOrderStatus("paid", json(200, JSONObject()
                 .put("success", true)
-                .put("data", JSONObject().put("trade_status", tradeStatus)))
+                .put("data", JSONObject().put("trade_status", tradeStatus))))
             assertTrue(paid.isPaid)
             assertFalse(paid.isClosed)
         }
+    }
+
+    /**
+     * P1-2：展示价是客户端常量、扣款价是服务端配置，两者之间原本没有任何自动校验。
+     * 项目历史上真的改过一次价（￥1.99 → ￥3.99），漏改展示价的后果是应用商店
+     * 判定「标价与实际支付金额不符」。单测跑在仓库内，直接把两份值对齐。
+     */
+    @Test
+    fun `应用内展示价必须与服务端 amount-fen 一致`() {
+        // Gradle 单测的工作目录可能是仓库根或 :app 模块目录，逐级向上找
+        val yml = listOf(
+            File("lkl-pay-server/src/main/resources/application.yml"),
+            File("../lkl-pay-server/src/main/resources/application.yml"),
+            File("../../lkl-pay-server/src/main/resources/application.yml"),
+        ).firstOrNull { it.isFile }
+            ?: error("找不到服务端 application.yml；当前工作目录=${File(".").absolutePath}")
+
+        val amountFen = Regex("""amount-fen:\s*(\d+)""")
+            .find(yml.readText())?.groupValues?.get(1)?.toLong()
+            ?: error("application.yml 中缺少 amount-fen")
+
+        val shown = Regex("""(\d+)\.(\d{2})""").find(ProPurchase.PRICE_TEXT)
+            ?: error("PRICE_TEXT 不是 ￥x.yy 形式: ${ProPurchase.PRICE_TEXT}")
+        val shownFen = shown.groupValues[1].toLong() * 100 + shown.groupValues[2].toLong()
+
+        assertEquals(
+            "展示价 ${ProPurchase.PRICE_TEXT} 与服务端定价 $amountFen 分不一致，" +
+                "改价时必须同时改 ProPurchase.PRICE_TEXT 与 application.yml",
+            amountFen,
+            shownFen,
+        )
     }
 
     private fun dependencies() = ProPurchase.Dependencies(
         createOrder = { _ -> Result.success(AlipayPayApi.OrderCreated("paid", "test-order")) },
         queryOrder = { order -> Result.success(status(order)) },
         pay = { _, _ -> AlipayPay.STATUS_CANCELED },
-        activate = { trial.activate(TrialManager.PAY_METHOD_ALIPAY) },
+        activate = { _, credential ->
+            trial.activateWithEntitlement(credential, TrialManager.PAY_METHOD_ALIPAY)
+        },
     )
 
-    private fun status(order: String, tradeStatus: String = "TRADE_SUCCESS") =
-        AlipayPayApi.OrderStatus(order, tradeStatus, "1.99", "10000", "")
+    /**
+     * 已支付的查单结果。
+     *
+     * credential 只在「真正已支付」时才该有——这里按 tradeStatus 判断，
+     * 未付款/关闭的单不带凭证，避免测试替身比生产实现更宽松。
+     */
+    private fun status(
+        order: String,
+        tradeStatus: String = "TRADE_SUCCESS",
+        credential: String? = if (tradeStatus == "TRADE_SUCCESS" || tradeStatus == "TRADE_FINISHED") {
+            TestEntitlements.sign()
+        } else {
+            null
+        },
+    ) = AlipayPayApi.OrderStatus(order, tradeStatus, "3.99", "10000", "", credential)
 
     private fun seed(vararg orders: String) {
         pending.backing.edit().putString("pending_order_no", orders.joinToString(",")).commit()
     }
 
+    /** 读出队列里的单号（剥掉条目里的写入时间戳）。 */
     private fun orders(): List<String> = pending.getString("pending_order_no", null)
-        ?.split(',')?.filter { it.isNotEmpty() }.orEmpty()
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?.map { it.substringBefore(':') }
+        .orEmpty()
+
+    private fun json(status: Int, body: JSONObject) = ServerClient.Response(status, body)
 
     // 独立实例模拟重新读取持久化记录，不修改生产单例或全局依赖。
     private fun newTrialManager(): TrialManager = TrialManager::class.java

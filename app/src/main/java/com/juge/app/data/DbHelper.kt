@@ -214,13 +214,62 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
     }
 
     private fun createIndexes(db: SQLiteDatabase) {
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_reminders_category_id ON reminders(category_id)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_reminders_created_at ON reminders(created_at)")
+        // onOpen 里也会跑一遍（给从旧版本升上来的库补索引），而历史库里不一定每张表都在：
+        // v7 及更早的库在测试与部分升级路径里可能没有 widget_config。索引缺失只是慢，
+        // 建索引时撞上 "no such table" 却会让 getReadableDatabase 直接抛异常、整个 App 起不来。
+        fun indexIfTableExists(sql: String, table: String) {
+            if (!tableExists(db, table)) return
+            db.execSQL(sql)
+        }
+
+        indexIfTableExists(
+            "CREATE INDEX IF NOT EXISTS idx_reminders_category_id ON reminders(category_id)",
+            "reminders",
+        )
+        indexIfTableExists(
+            "CREATE INDEX IF NOT EXISTS idx_reminders_created_at ON reminders(created_at)",
+            "reminders",
+        )
+        // 列表主查询是 `ORDER BY sort_order ASC, created_at DESC`，两个排序键都要进索引，
+        // 否则行数上去以后每次进列表都是一次全表扫描 + 内存排序。
+        indexIfTableExists(
+            "CREATE INDEX IF NOT EXISTS idx_reminders_sort ON reminders(sort_order, created_at)",
+            "reminders",
+        )
+        // widget_config 从来没有任何索引：Provider 每次绑定/清理都要 getAllWidgetConfigs()，
+        // 组件数一多就是高频全表扫。auto_created 是 pruneOrphanAutoConfigs 的过滤条件。
+        indexIfTableExists(
+            "CREATE INDEX IF NOT EXISTS idx_widget_config_auto_created ON widget_config(auto_created)",
+            "widget_config",
+        )
+        indexIfTableExists(
+            "CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order)",
+            "categories",
+        )
     }
+
+    private fun tableExists(db: SQLiteDatabase, table: String): Boolean =
+        db.rawQuery(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arrayOf(table)
+        ).use { it.moveToFirst() }
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.setForeignKeyConstraintsEnabled(true)
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        // WAL：写不挡读。组件渲染线程会在后台反复读 widget_config / reminders，
+        // 主线程同时在写样式（persistStyle 的 400ms 防抖落库），默认的 rollback journal
+        // 下两者互斥，后台读会卡住主线程的写。
+        // 注意：必须在 onOpen 而不是 onConfigure 里开，且需要 API 16+（本工程 minSdk 24）。
+        if (!db.isReadOnly && !db.enableWriteAheadLogging()) {
+            Timber.w("DbHelper: enableWriteAheadLogging 未生效，回落到默认 journal 模式")
+        }
+        // 旧库升级上来时没有新索引（createIndexes 只在 onCreate / 版本迁移里跑过一次）
+        createIndexes(db)
     }
 
     // --- 分类 CRUD ---
@@ -230,19 +279,29 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         require(name.length <= 100) { "分类名称过长，最多100个字符" }
 
         val db = writableDatabase
-        var maxOrder = 0
-        db.rawQuery("SELECT MAX(sort_order) FROM categories", null).use { cursor ->
-            if (cursor.moveToFirst()) {
-                maxOrder = cursor.getInt(0)
+        // 「读 MAX(sort_order) → 插一行」必须在同一个事务里：
+        // 否则两个并发插入会读到同一个 MAX，写出两行相同序号，
+        // 之后 ORDER BY sort_order 的顺序就成了随机结果。
+        db.beginTransaction()
+        try {
+            var maxOrder = 0
+            db.rawQuery("SELECT MAX(sort_order) FROM categories", null).use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                    maxOrder = cursor.getInt(0)
+                }
             }
-        }
 
-        val values = ContentValues().apply {
-            put("name", name)
-            put("sort_order", maxOrder + 1)
-            put("created_at", System.currentTimeMillis())
+            val values = ContentValues().apply {
+                put("name", name)
+                put("sort_order", maxOrder + 1)
+                put("created_at", System.currentTimeMillis())
+            }
+            val id = db.insert("categories", null, values)
+            db.setTransactionSuccessful()
+            return id
+        } finally {
+            db.endTransaction()
         }
-        return db.insert("categories", null, values)
     }
 
     fun getAllCategories(): List<Category> {
@@ -310,22 +369,30 @@ class DbHelper private constructor(context: Context) : SQLiteOpenHelper(context,
         require(content.length <= 500) { "提醒内容过长，最多500个字符" }
 
         val db = writableDatabase
-        // 新句排在最顶：取当前最小序号再减一。首次插入时 MIN 为空，取 0 即可（空库唯一一行）。
-        var minOrder = 0
-        db.rawQuery("SELECT MIN(sort_order) FROM reminders", null).use { cursor ->
-            if (cursor.moveToFirst() && !cursor.isNull(0)) {
-                minOrder = cursor.getInt(0)
+        // 同 insertCategory：先读 MIN(sort_order) 再减一插入，两步必须在同一事务里才算对。
+        db.beginTransaction()
+        try {
+            // 新句排在最顶：取当前最小序号再减一。首次插入时 MIN 为空，取 0 即可（空库唯一一行）。
+            var minOrder = 0
+            db.rawQuery("SELECT MIN(sort_order) FROM reminders", null).use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                    minOrder = cursor.getInt(0)
+                }
             }
+            val values = ContentValues().apply {
+                put("content", content)
+                put("category_id", categoryId)
+                put("is_favorite", if (isFavorite) 1 else 0)
+                put("style_json", styleJson)
+                put("sort_order", minOrder - 1)
+                put("created_at", System.currentTimeMillis())
+            }
+            val id = db.insert("reminders", null, values)
+            db.setTransactionSuccessful()
+            return id
+        } finally {
+            db.endTransaction()
         }
-        val values = ContentValues().apply {
-            put("content", content)
-            put("category_id", categoryId)
-            put("is_favorite", if (isFavorite) 1 else 0)
-            put("style_json", styleJson)
-            put("sort_order", minOrder - 1)
-            put("created_at", System.currentTimeMillis())
-        }
-        return db.insert("reminders", null, values)
     }
 
     fun getAllReminders(): List<Reminder> {

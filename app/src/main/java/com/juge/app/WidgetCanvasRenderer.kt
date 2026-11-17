@@ -98,20 +98,34 @@ object WidgetCanvasRenderer {
 
         val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
 
-        // 1. 形状裁切路径：随 RenderScene 一起算定
-        val scene = RenderScene(context, content, style, scale, densityScale, targetWidth, targetHeight, bitmap)
-        // 2. 整卡投影与底色
-        WidgetRenderPipeline.drawCardBackground(scene)
-        // 3. 背景图（自定义路径 / 内置预设插画）
-        WidgetRenderPipeline.drawBackgroundImage(scene)
-        // 4. 家族装饰（明信片文字区 / 抠图明信片 / 便签 / 书架 / 盒子 / 画框）
-        WidgetRenderPipeline.drawFamilyChrome(scene)
-        // 5. 纸张纹理与卡片描边
-        WidgetRenderPipeline.drawTextureAndBorder(scene)
-        // 6. 正文
-        CardTextRenderer.drawContent(scene)
-        // 7. 压在正文之上的叠加层（CRT / 手账胶带）
-        WidgetRenderPipeline.drawTopOverlays(scene)
+        // 任何一个绘制阶段失败都必须把这张位图还回去：一张 4×4 组件位图约 5~12MB，
+        // 漏掉一次就是一次可观测的内存泄漏；而渲染链跑在 `widget-render` 这个
+        // daemon 线程上（见 ReminderWidgetProvider.renderExecutor），
+        // 该线程没有 UncaughtExceptionHandler，OOM 会直接带走整个进程。
+        try {
+            // 1. 形状裁切路径：随 RenderScene 一起算定
+            val scene = RenderScene(context, content, style, scale, densityScale, targetWidth, targetHeight, bitmap)
+            // 2. 整卡投影与底色
+            WidgetRenderPipeline.drawCardBackground(scene)
+            // 3. 背景图（自定义路径 / 内置预设插画）
+            WidgetRenderPipeline.drawBackgroundImage(scene)
+            // 4. 家族装饰（明信片文字区 / 抠图明信片 / 便签 / 书架 / 盒子 / 画框）
+            WidgetRenderPipeline.drawFamilyChrome(scene)
+            // 5. 纸张纹理与卡片描边
+            WidgetRenderPipeline.drawTextureAndBorder(scene)
+            // 6. 正文
+            CardTextRenderer.drawContent(scene)
+            // 7. 压在正文之上的叠加层（CRT / 手账胶带）
+            WidgetRenderPipeline.drawTopOverlays(scene)
+        } catch (t: Throwable) {
+            // 半成品不能留在桌面：先回收再抛给调用方。
+            // 调用方 ReminderWidgetProvider 的 onUpdate / onAppWidgetOptionsChanged /
+            // dispatchAsync / updateAppWidgetAsync / triggerUpdateAllWidgets 现在统一
+            // 按 Throwable 兜底（含 OOM 这类 Error），不会再落到 daemon 线程的默认处理器上；
+            // 渲染失败时桌面维持上一帧，不会显示半张卡。
+            runCatching { bitmap.recycle() }
+            throw t
+        }
 
         return bitmap
     }
@@ -123,11 +137,16 @@ object WidgetCanvasRenderer {
     //
     // 缩略图统一外框 180×96，实际画布按 4×2 / 4×4 比例约 180×79 或 96×96，
     // 26 张合计约 2MB，远小于下面的容量上限，
-    // 因此**永远不会触发 LruCache 的淘汰**。这不是巧合而是刻意设计：
+    // 因此**实际使用中不会触发 LruCache 的淘汰**。这不是巧合而是刻意设计：
     // 缩略图行位于 LazyColumn 内，滑出视口会销毁 composition、回来时 produceState 重跑，
     // 只要缓存还在就是秒命中，不会再等 1~2 秒。
-    // 正因为条目不会被淘汰，才可以把缓存里的 Bitmap **原图**直接交给调用方（无需 copy），
-    // 避免滚动时反复分配副本被 GC 回收。
+    // 之所以可以把缓存里的 Bitmap **原图**直接交给调用方（无需 copy），靠的是另一件事：
+    // LruCache 淘汰条目时**只把它从 map 里摘掉，不会 recycle 位图**（本类没有覆写
+    // `entryRemoved`，默认实现就是空操作）。于是"缓存里还有"与"位图还活着"是两件事——
+    // 调用方手里的引用不会因为淘汰而变成已回收对象。
+    // 早先这里写着「关闭了 LruCache 的条目回收（entryRemoved=false）」，那是错的：
+    // 根本没有 entryRemoved=false 这种开关，LruCache 也照样会按 sizeOf 淘汰。
+    // 结论没错，论证错了——现在按真实行为写。
     // 上限只是安全阀：实际条目 ≈ 预设数 × 3 种缩略图尺寸 × 约 50~115KB，远达不到这里。
     // 真到 32MB 说明 key 设计出了问题（例如把样式哈希混进了 key），届时淘汰反而是保护。
     private val thumbnailCache = object : android.util.LruCache<String, Bitmap>(32 * 1024 * 1024) {
@@ -222,6 +241,39 @@ object WidgetCanvasRenderer {
         synchronized(thumbnailCache) { thumbnailCache.evictAll() }
     }
 
+    /**
+     * 系统内存吃紧时主动让位。
+     *
+     * 之前全仓没有 `onTrimMemory` / `onLowMemory` 的实现：两块 LruCache
+     * （本类的 32MB 缩略图 + WidgetRenderKernel 的 24MB 预设插画）只会等系统
+     * 直接杀进程，而杀进程前那一下正是桌面重画组件、最需要内存的时刻。
+     *
+     * 清空是安全的：LruCache 淘汰条目时不会 recycle 位图（本类没有覆写
+     * `entryRemoved`），已经交出引用的调用方手里那张仍然完好；
+     * 磁盘二级缓存还在，下次进界面按毫秒级 PNG 解码补回来。
+     *
+     * @param level `ComponentCallbacks2` 的 trim 级别
+     */
+    fun trimMemory(level: Int) {
+        when {
+            // 后台进程 / 界面不可见：内存随时可能被收回，先放手
+            level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
+                synchronized(thumbnailCache) { thumbnailCache.evictAll() }
+                com.juge.app.render.WidgetRenderKernel.presetImageCache.evictAll()
+                Timber.i("WidgetCanvasRenderer: 系统内存压力 %d，已清空缩略图与预设插画缓存", level)
+            }
+            // 前台但内存偏低（TRIM_MEMORY_RUNNING_LOW / CRITICAL）：只丢不常用的那一半，
+            // 避免用户正滑着列表时缓存被整体清空导致重新渲染
+            level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                synchronized(thumbnailCache) { thumbnailCache.trimToSize(thumbnailCache.maxSize() / 2) }
+                com.juge.app.render.WidgetRenderKernel.presetImageCache.trimToSize(
+                    com.juge.app.render.WidgetRenderKernel.presetImageCache.maxSize() / 2
+                )
+                Timber.i("WidgetCanvasRenderer: 系统内存偏低 %d，缓存已收缩到一半", level)
+            }
+        }
+    }
+
     // 仅供单元测试：统计真实 Canvas 渲染次数，用于区分「磁盘命中」与「重渲染」
     @androidx.annotation.VisibleForTesting
     internal var thumbnailRenderCountForTest: Int = 0
@@ -232,9 +284,9 @@ object WidgetCanvasRenderer {
      * **直接返回缓存里的原图，不做 copy()**：
      * 缩略图外框 180×96，单张约 50~115KB，26 张合计约 2MB；每次命中都 copy 一份的话，
      * 列表滚动时会不断分配新位图、旧的被 GC 回收，表现为"滑走再滑回来又要等 1~2 秒"。
-     * 之所以敢直接给原图，是因为本缓存**关闭了 LruCache 的条目回收**
-     * （entryRemoved=false，见 thumbnailCache 定义）：条目只增不减、不会被淘汰，
-     * 原图一旦创建就一直在，调用方持有的引用始终有效。
+     * 之所以敢直接给原图：LruCache 淘汰条目时不会 recycle 位图（本类没有覆写
+     * `entryRemoved`），被淘汰的位图仍然完好，调用方手里的引用始终可用；
+     * 而稳态下 26 张 ≈ 2MB，离 32MB 上限很远，几乎不会被淘汰。
      * 代价是这约 2MB 常驻，换来滚动零重渲染。
      *
      * **锁只保护缓存的读写，绝不能把 producer（真正的 Canvas 渲染）也圈进去**：
@@ -343,11 +395,12 @@ object WidgetCanvasRenderer {
         File(File(context.applicationContext.cacheDir, PREVIEW_DISK_DIR), "$key.png")
 
     /**
-     * 只查缓存、不触发渲染。供 UI 侧作为 `produceState` 的 initialValue：
-     * 命中时该预览首帧就有图（冷启动与切换组件都不再空一屏），未命中返回 null。
+     * 只查磁盘缓存、不触发渲染：命中时返回已解码的预览位图，未命中返回 null。
      *
-     * 注意这是**同步**解码，调用方应放进 `remember(key)` 里按 key 求值一次，
-     * 直接写在 composable 函数体里会在每次重组时重复读盘。
+     * 注意这是**同步**解码（磁盘读 + PNG 解码），不要在组合线程上直接调用。
+     * 当前调用方 `WidgetPreviewPager` 把整个调用包在 `produceState` 的
+     * `withContext(Dispatchers.IO)` 里，拿到结果后再在 `Dispatchers.Default` 上重渲染，
+     * 翻页不会再卡主线程。
      */
     fun cachedPreview(
         context: Context,

@@ -1,6 +1,7 @@
 package com.juge.app
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -113,6 +114,32 @@ class MainUiBaselineTest {
         compose.onNodeWithText("取消").performClick()
         compose.onAllNodesWithText("删除这条金句？").assertCountEquals(0)
     }
+
+    /**
+     * 分类快速切换后回到「全部」，三张金句都必须直接可见。
+     *
+     * 回归背景：卡片曾包在逐项的 AnimatedVisibility 里。从「文学」切回「全部」时，
+     * LazyColumn 保留旧条目的滚动位置、入场状态又可能停在不可见帧，结果第一张卡片
+     * 被推到视口外或中间卡片只剩占位空洞。文案节点是否存在比截图像素更稳定，
+     * 因此这里逐个断言三条正文都在屏上。
+     */
+    @Test
+    fun `切回全部后所有金句仍然可见`() {
+        categoryChip("文学").performClick()
+        categoryChip("诗歌").performClick()
+        categoryChip("激励").performClick()
+        categoryChip("文学").performClick()
+        categoryChip("全部").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("life is hard", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("断章", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("三体", substring = true).assertIsDisplayed()
+    }
+
+    private fun categoryChip(name: String) = compose.onNode(
+        hasText(name) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)
+    )
 
     /** 纵向可滚动容器（LazyColumn）。横向的 ScrollRow 也带滚动动作，必须区分开 */
     private val verticalScrollable =

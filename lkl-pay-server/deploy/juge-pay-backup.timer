@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily backup of Juge pay database (03:00 local time)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# 避免与其它定时任务整点撞车
+RandomizedDelaySec=15m
+# 机器休眠/关机错过窗口时，开机后补跑一次
+Persistent=true
+Unit=juge-pay-backup.service
+
+[Install]
+WantedBy=timers.target

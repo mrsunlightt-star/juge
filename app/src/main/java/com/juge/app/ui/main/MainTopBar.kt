@@ -1,8 +1,11 @@
 package com.juge.app.ui.main
 
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -45,18 +49,17 @@ import com.juge.app.data.Reminder
 import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
 import com.juge.app.pay.ProPurchase
+import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppPalette
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppType
-import com.juge.app.ui.theme.LocalAppDarkTheme
-import com.juge.app.ui.theme.brandInkSoft
+import com.juge.app.ui.theme.LocalAppDarkThemeProgress
 import com.juge.app.ui.theme.premiumGold
 import com.juge.app.ui.theme.premiumGoldEnd
 import com.juge.app.ui.theme.premiumGoldInk
 import com.juge.app.ui.theme.rememberAppHaptics
-import com.juge.app.ui.theme.surfaceRaised
-import com.juge.app.ui.theme.textWhite
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -79,8 +82,8 @@ private val HeroTextShadow = Shadow(
  *   买断之后 PRO 徽章不再提供任何动作，用户真正需要的是会员状态与账号操作。
  *
  * 三颗圆钮（刷新 / 日夜 / 我的）的底色与图标色跟随 App 主题：
- * - 日间：白圆 + 墨绿图标——英雄区是亮天空，白圆与白色卡片同一套明度语言；
- * - 夜间：`surfaceRaised` 暗色浮起面 + 霜白图标——英雄区整体压暗 52%~64%，
+ * - 日间：白圆 + `selectBlue` 浅蓝图标——与页签、筛选胶囊和主按钮同一套选中色；
+ * - 夜间：`surfaceRaised` 暗色浮起面 + 夜间 `selectBlue`——英雄区整体压暗 52%~64%，
  *   再摆三块纯白圆就成了全屏最亮的东西，与「真正的暗黑背景」主题冲突。
  *
  * 从 MainAppScreen 原样搬出（第 3/3 步拆 MainActivity），只把内联闭包改成入参：
@@ -102,9 +105,21 @@ fun MainTopBar(
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
     var isRefreshing by remember { mutableStateOf(false) }
-    // 顶栏圆钮的底色/图标色随主题：日间白圆墨绿（原有设计），夜间暗色浮起面 + 霜白
-    val circleSurface = if (LocalAppDarkTheme.current) surfaceRaised else Color.White
-    val circleTint = if (LocalAppDarkTheme.current) textWhite else brandInkSoft
+    // 48dp 热区保留，但不再画默认圆形 Ripple；按钮反馈由触感和图标状态承担。
+    val refreshInteraction = remember { MutableInteractionSource() }
+    val themeInteraction = remember { MutableInteractionSource() }
+    // 顶栏圆钮的底色/图标色随主题动画插值：前景统一为全局浅蓝选中色。
+    val themeProgress = LocalAppDarkThemeProgress.current
+    val circleSurface = lerp(
+        AppPalette.Light.surfaceRaised,
+        AppPalette.Dark.surfaceRaised,
+        themeProgress,
+    )
+    val circleTint = lerp(
+        AppPalette.Light.selectBlue,
+        AppPalette.Dark.selectBlue,
+        themeProgress,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -134,6 +149,8 @@ fun MainTopBar(
                     .size(48.dp)
                     .clip(CircleShape)
                     .clickable(
+                        interactionSource = refreshInteraction,
+                        indication = null,
                         enabled = !isRefreshing,
                         onClickLabel = "刷新数据",
                         role = Role.Button,
@@ -199,6 +216,8 @@ fun MainTopBar(
                     .size(48.dp)
                     .clip(CircleShape)
                     .clickable(
+                        interactionSource = themeInteraction,
+                        indication = null,
                         onClickLabel = if (isDarkTheme) "切换为日间模式" else "切换为夜间模式",
                         role = Role.Button,
                     ) {
@@ -221,12 +240,18 @@ fun MainTopBar(
                         .background(circleSurface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                        contentDescription = if (isDarkTheme) "切换为日间模式" else "切换为夜间模式",
-                        tint = circleTint,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Crossfade(
+                        targetState = isDarkTheme,
+                        animationSpec = tween(AppMotion.ThemeMs),
+                        label = "themeIconCrossfade",
+                    ) { dark ->
+                        Icon(
+                            imageVector = if (dark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                            contentDescription = if (dark) "切换为日间模式" else "切换为夜间模式",
+                            tint = circleTint,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
@@ -324,7 +349,8 @@ fun MainTopBar(
                     activated = isActivated,
                     onToggle = { checked ->
                         if (checked) {
-                            trialManager.activate(TrialManager.PAY_METHOD_DEV)
+                            // 只有 debug 包才能这么激活；release 里 activateDebug() 直接返回 false
+                            trialManager.activateDebug()
                         } else {
                             trialManager.resetActivation()
                         }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,24 +55,43 @@ internal object SwipeBackControlUsage {
  * 不记，观察者可以把这次右滑当翻页。
  */
 @Composable
-internal fun Modifier.horizontalControlUsage(state: ScrollState): Modifier {
-    val usageModifier = remember(state) {
-        Modifier.pointerInput(state) {
+internal fun Modifier.horizontalControlUsage(state: ScrollState): Modifier =
+    horizontalControlUsage(key = state) { state.value }
+
+/**
+ * 同上，给 `LazyRow` 用的重载。
+ *
+ * `LazyListState` 没有单一的 `value`：滚动位置是「首个可见项索引 + 该项内的像素偏移」。
+ * 把它折成一个单调量（索引 * 一个足够大的步长 + 偏移）就能复用同一套「有没有动过」判定。
+ * 步长取 10_000：项内偏移永远不会到这个量级（一行最宽也就几千 px），不会互相污染。
+ */
+@Composable
+internal fun Modifier.horizontalControlUsage(state: LazyListState): Modifier =
+    horizontalControlUsage(key = state) {
+        state.firstVisibleItemIndex * 10_000 + state.firstVisibleItemScrollOffset
+    }
+
+@Composable
+private fun Modifier.horizontalControlUsage(key: Any, value: () -> Int): Modifier {
+    val currentValue by rememberUpdatedState(value)
+    val usageModifier = remember(key) {
+        Modifier.pointerInput(key) {
             awaitPointerEventScope {
                 var wasPressed = false
-                var valueAtDragStart = state.value
+                var valueAtDragStart = currentValue()
                 while (true) {
                     // Initial 阶段早于行的 scrollable 处理本次事件；
                     // 上一帧滚出来的新 value 在这里一定已经写回，能及时打点
                     val pressed = awaitPointerEvent(PointerEventPass.Initial)
                         .changes.any { it.pressed }
                     if (pressed) {
+                        val now = currentValue()
                         if (!wasPressed) {
                             SwipeBackControlUsage.downCount++
-                            valueAtDragStart = state.value
-                        } else if (state.value != valueAtDragStart) {
+                            valueAtDragStart = now
+                        } else if (now != valueAtDragStart) {
                             SwipeBackControlUsage.valueChangeCount++
-                            valueAtDragStart = state.value
+                            valueAtDragStart = now
                         }
                     }
                     wasPressed = pressed

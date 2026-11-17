@@ -1,5 +1,6 @@
 package com.juge.lklpay.service
 
+import com.juge.lklpay.config.PayProperties
 import com.juge.lklpay.domain.PayOrder
 import com.juge.lklpay.repository.PayOrderRepository
 import org.slf4j.LoggerFactory
@@ -20,6 +21,7 @@ import java.math.BigDecimal
 @Service
 class PayOrderService(
     private val orders: PayOrderRepository,
+    private val payProperties: PayProperties,
 ) {
 
     private val log = LoggerFactory.getLogger(PayOrderService::class.java)
@@ -46,11 +48,26 @@ class PayOrderService(
     /**
      * 找回入口：按支付宝用户号反查其已支付订单。
      *
-     * 只返回 PAID：CREATED / CLOSED 都不能用来恢复权益，
-     * 否则用户凭一个「创建过但没付钱」的订单号就能骗到 PRO。
+     * 三重过滤，缺一不可：
+     *   1. 只返回 PAID —— CREATED / CLOSED 不能用来恢复权益，
+     *      否则用户凭一个「创建过但没付钱」的订单号就能骗到 PRO
+     *   2. 只认 productId == [PRODUCT_ID] —— 之前不筛商品：
+     *      只要这个 user_id 买过任何东西（哪怕是将来上架的 1 元小商品），
+     *      都能凭它解锁 PRO。产品目录一旦不止一个 SKU，这就是资损口子
+     *   3. 只认 amountFen == 该商品的目录价 —— 历史遗留的错价单（曾按 1.99 售出）
+     *      不能顺手升级成 3.99 的权益判定依据，也让「金额被改过的异常单」无法恢复权益
+     *
+     * 三者都是内存里对已取回的集合做 filter。集合本身由 buyer_user_id 索引收窄，
+     * 单用户的历史订单量是常数级，不值得再往 SQL 里塞条件。
      */
-    fun findPaidByBuyer(buyerUserId: String): List<PayOrder> =
-        orders.findByBuyerUserId(buyerUserId).filter { it.status == PayOrder.STATUS_PAID }
+    fun findPaidByBuyer(buyerUserId: String): List<PayOrder> {
+        val expectedFen = payProperties.products[PRODUCT_ID]?.amountFen
+        return orders.findByBuyerUserId(buyerUserId).filter { order ->
+            order.status == PayOrder.STATUS_PAID &&
+                order.productId == PRODUCT_ID &&
+                (expectedFen == null || order.amountFen == expectedFen)
+        }
+    }
 
     /**
      * 幂等地把订单置为已支付。异步通知与主动查单共用此入口。
@@ -60,7 +77,7 @@ class PayOrderService(
      *      且可能并发到达；只有 affected rows = 1 的那次才真正完成流转
      *   2. 金额核对——下单金额由服务端商品目录决定，客户端无法篡改；
      *      金额不符只可能是自身缺陷或伪造通知，一律拒绝置为已支付
-     *   3. 买家标识只在首次流转时写入，重投不会覆盖
+     *   3. 买家标识只在首次流转时写入，重投不会覆盖；且 [buyerLogonId] 入库前脱敏
      */
     @Transactional
     fun markPaid(
@@ -80,14 +97,14 @@ class PayOrderService(
             // 金额缺失/解析失败时绝不放行：防改价是最后一道闸，没有「跳过核对」的安全分支
             log.error(
                 "支付结果缺少可解析金额，拒绝置为已支付 outTradeNo={} totalAmount={}",
-                outTradeNo, paidAmountYuan,
+                Sensitive.safeLog(outTradeNo), Sensitive.safeLog(paidAmountYuan),
             )
             return MarkPaidOutcome.AmountMissing
         }
         if (paidFen != order.amountFen) {
             log.error(
                 "支付金额与订单不符，拒绝置为已支付 outTradeNo={} 订单={}分 实付={}分",
-                outTradeNo, order.amountFen, paidFen,
+                Sensitive.safeLog(outTradeNo), order.amountFen, paidFen,
             )
             return MarkPaidOutcome.AmountMismatch
         }
@@ -103,8 +120,9 @@ class PayOrderService(
             paidAt = System.currentTimeMillis(),
             tradeNo = tradeNo?.takeIf { it.isNotBlank() } ?: order.tradeNo,
             buyerUserId = buyerUserId?.takeIf { it.isNotBlank() } ?: order.buyerUserId,
-            buyerLogonId = buyerLogonId?.takeIf { it.isNotBlank() } ?: order.buyerLogonId,
-            notifyRaw = notifyRaw?.takeIf { it.isNotBlank() }?.take(4000) ?: order.notifyRaw,
+            // 脱敏只在写入这一处做，两个调用方（notify / query）都覆盖到了
+            buyerLogonId = Sensitive.maskLogonId(buyerLogonId) ?: order.buyerLogonId,
+            notifyRaw = notifyRaw?.let { Sensitive.maskNotifyRaw(it).take(4000) } ?: order.notifyRaw,
         )
         if (affected == 0) {
             // CAS 失败也可能是 CLOSED 或订单已删除，只有重新确认 PAID 才算幂等成功。
@@ -129,6 +147,22 @@ class PayOrderService(
         if (affected == 0) return unchangedOutcome(outTradeNo)
         log.info("订单已置为已关闭 outTradeNo={}", outTradeNo)
         return MarkPaidOutcome.Marked
+    }
+
+    /**
+     * 清理长期未支付的僵尸订单。
+     *
+     * 之前 `recordCreated` 只写不删：每来一次下单请求就多一行 CREATED，
+     * 且没有任何清理任务。一个被刷的下单接口可以在几小时内把这个表撑到几十万行，
+     * 而其中绝大多数永远不会变成 PAID。
+     *
+     * @return 删除行数
+     */
+    @Transactional
+    fun cleanupStaleCreated(olderThanMillis: Long): Int {
+        val removed = orders.deleteStaleCreated(PayOrder.STATUS_CREATED, System.currentTimeMillis() - olderThanMillis)
+        if (removed > 0) log.info("已清理 {} 笔长期未支付的僵尸订单", removed)
+        return removed
     }
 
     /** 只能在清理过旧实体的 CAS 之后调用，避免把并发闭单误报为付款成功。 */
@@ -161,5 +195,10 @@ class PayOrderService(
 
         /** 支付结果缺少可解析金额，需人工介入 */
         AmountMissing,
+    }
+
+    companion object {
+        /** 唯一的 PRO 商品 ID，与 application.yml 的 pay.products 键一致 */
+        const val PRODUCT_ID = "pro_permanent"
     }
 }

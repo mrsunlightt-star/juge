@@ -62,7 +62,7 @@ private val LEGAL_ENTRIES = listOf(
 private val SUMMARY_ITEMS = listOf(
     "您的金句内容、分类、样式与背景图片全部保存在设备本地，本应用不收集、不上传，也未接入广告或统计分析 SDK。",
     "自定义背景图通过系统图片选择器挑选，仅在您主动选择确认后才会导入，未经选择不会读取相册中的任何内容。",
-    "账号（可选）：仅用于换机找回会员权益。注册/登录会通过 HTTPS 向我们的服务器传输您设置的用户名与口令，口令加盐派生后保存，不保存明文。",
+    "本应用不设账号：不需要注册、不登录、不收集手机号。为支持换机找回已购权益，仅当您主动点击「找回」时才会向我们的服务器发送一段支付宝授权码，服务器据此查询订单归属，不保存任何口令或登录令牌。",
     "支付由支付宝完成，本应用不接触您的银行卡号、支付密码或支付宝账号；支付宝 SDK 仅在您主动点击支付时启动，详见《隐私政策》第六节第 3 项。",
     "撤回同意：随时在系统设置中清除应用数据或卸载本应用即可，撤回后需重新同意才能继续使用。",
 )
@@ -70,10 +70,13 @@ private val SUMMARY_ITEMS = listOf(
 /**
  * 首启隐私弹窗：先告知、后同意。
  *
- * 正文摘要必须如实覆盖**全部**个人信息处理场景（本地存储 / 相册选择 / 可选账号 /
- * 支付宝支付 / 撤回同意），不能只说「纯本地」——账号与支付确实会把信息交给
+ * 正文摘要必须如实覆盖**全部**个人信息处理场景（本地存储 / 相册选择 / 支付宝身份核验 /
+ * 支付宝支付 / 撤回同意），不能只说「纯本地」——支付与找回确实会把信息交给
  * 我们的服务器与支付宝 SDK，摘要里不写就等于没告知。改代码里的数据实践时，
  * 这里与 [LegalDocs.PRIVACY_POLICY] 必须同步更新。
+ *
+ * 本应用**没有账号体系**（不注册、不登录、不收集手机号），因此摘要里不再有
+ * 「账号（可选）」这一条——旧版留着它，与正文「不设账号」自相矛盾。
  */
 @Composable
 fun PrivacyPolicyDialog(show: Boolean, onAgree: () -> Unit, onReject: () -> Unit) {
@@ -195,7 +198,7 @@ fun PrivacyPolicyDialog(show: Boolean, onAgree: () -> Unit, onReject: () -> Unit
                     AppText(
                         text = "运营主体：${LegalDocs.ENTITY}\n" +
                             "备案号：${LegalDocs.ICP_LICENSE}\n" +
-                            "如有疑问或需注销账号，请联系 ${LegalDocs.EMAIL}",
+                            "如有疑问或需删除服务端订单信息，请联系 ${LegalDocs.EMAIL}",
                         role = AppTextRole.micro,
                         textAlign = TextAlign.Center,
                         modifier = Modifier

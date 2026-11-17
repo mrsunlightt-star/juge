@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.juge.app.ui.legal.PrivacyPolicyDialog
 import com.juge.app.ui.main.MainAppScreen
 import com.juge.app.ui.theme.AppPalette
+import com.juge.app.ui.theme.LocalAppDarkThemeProgress
 import com.juge.app.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,8 +52,8 @@ class MainActivity : ComponentActivity() {
         // 清理上次编辑残留的临时背景图（超 24h 未提交的），避免孤儿文件长期堆积
         lifecycleScope.launch(Dispatchers.IO) { CropImageHelper.cleanupTempBackgrounds(this@MainActivity) }
 
-        // 夜色模式冷启动防闪：Compose 接管前先按持久化偏好铺窗口底
-        applyWindowBackground(AppPrefs.isDarkTheme(this))
+        // 夜色模式冷启动防闪：Compose 接管前先按持久化偏好铺窗口底和系统栏图标
+        applySettledTheme(AppPrefs.isDarkTheme(this))
 
         val goToActivate = intent.getBooleanExtra("go_to_activate", false)
         val editConfigId = intent.getLongExtra("config_id", -1L)
@@ -69,14 +70,15 @@ class MainActivity : ComponentActivity() {
                 val next = !isDarkTheme
                 isDarkTheme = next
                 AppPrefs.setDarkTheme(this@MainActivity, next)
-                applyWindowBackground(next)
             }
 
             MyApplicationTheme(darkTheme = isDarkTheme) {
-                // 状态栏图标明暗随夜色切换（日间暗图标、夜间亮图标）
-                SideEffect {
-                    WindowCompat.getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = !isDarkTheme
+                // 窗口底色和系统栏图标无法参与 Compose 的逐帧颜色动画。等调色板进度真正到终点后再同步，
+                // 避免它们先跳到目标模式、内容层仍在渐变而出现一次明暗闪烁。
+                val themeProgress = LocalAppDarkThemeProgress.current
+                val targetProgress = if (isDarkTheme) 1f else 0f
+                LaunchedEffect(isDarkTheme, themeProgress) {
+                    if (themeProgress == targetProgress) applySettledTheme(isDarkTheme)
                 }
 
                 var isPrivacyAccepted by remember {
@@ -112,11 +114,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 窗口底随夜色偏好走：兜住冷启动首帧与过滚露出的背景（themes.xml 的 windowBackground 是日间值） */
-    private fun applyWindowBackground(dark: Boolean) {
+    /** 等主题过渡结束后同步窗口底和系统栏（themes.xml 的 windowBackground 是日间值） */
+    private fun applySettledTheme(dark: Boolean) {
         window.setBackgroundDrawable(
             ColorDrawable((if (dark) AppPalette.Dark else AppPalette.Light).darkBg.toArgb())
         )
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = !dark
     }
 
     override fun onResume() {

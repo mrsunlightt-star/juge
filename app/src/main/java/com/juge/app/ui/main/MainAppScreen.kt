@@ -10,6 +10,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -123,10 +124,8 @@ fun MainAppScreen(
         }
     }
     var isActivatedState by remember { mutableStateOf(trialManager.isActivated()) }
-    // 支付进行中：用于按钮置忙，避免重复拉起收银台
-    var isPaying by remember { mutableStateOf(false) }
-    // 找回进行中：支付宝授权页关闭前不重复拉起
-    var isRecovering by remember { mutableStateOf(false) }
+    // 支付 / 找回的「进行中」不在这里保存：那是进程级状态（见 PayFlow），
+    // 存在 composition 里的话，旋转重建会让按钮在两个流程都还在跑的时候重新可点。
     // 会员状态卡：点顶栏 PRO 徽章打开。激活记录只在打开时读一次 prefs，不在组合期反复读
     var showStatusDialog by remember { mutableStateOf(false) }
     val activationRecord = remember(showStatusDialog, isActivatedState) {
@@ -195,6 +194,21 @@ fun MainAppScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // 预览 Pager 每页的「绑定关系 + 组件级样式 + 正文」快照。
+    // 这三个值原先都在组合函数体里现算（synchronized + 读 prefs + 解析 29 字段 JSON），
+    // 而 Pager 的 content lambda 每重组一次、每滑一页都会跑一遍——等于把磁盘/锁的开销
+    // 摊到每一帧上。改成在 IO 上一次性拍好，组合阶段只做下标查表（见 WidgetPageSnapshot）。
+    // key 带 widgetConfigs：配置行写库后要重新拍，否则预览停在旧内容上。
+    val widgetPages by produceState(
+        initialValue = emptyList<WidgetPage>(),
+        appWidgetIds,
+        widgetConfigs
+    ) {
+        value = withContext(Dispatchers.IO) {
+            buildWidgetPages(context, appWidgetIds, widgetConfigs)
+        }
+    }
+
     var selectedWidgetId by remember(appWidgetIds) {
         mutableStateOf(appWidgetIds.firstOrNull() ?: -1)
     }
@@ -225,8 +239,12 @@ fun MainAppScreen(
         val target = pendingTargetConfigId
         if (target == -1L) return@LaunchedEffect
         pendingTargetConfigId = -1L
-        val index = appWidgetIds.indexOfFirst {
-            ReminderWidgetProvider.getBoundConfigId(context, it) == target
+        // 反查要走 bindingLock + 读 prefs，放到 IO 上做：这是一次性定位请求，
+        // 但没必要让主线程在启动首帧等它（组件多时就是 N 次锁 + N 次 prefs 读）
+        val index = withContext(Dispatchers.IO) {
+            appWidgetIds.indexOfFirst {
+                ReminderWidgetProvider.getBoundConfigId(context, it) == target
+            }
         }
         if (index >= 0) {
             selectedWidgetId = appWidgetIds[index]
@@ -237,6 +255,13 @@ fun MainAppScreen(
         scope.launch { subTabPagerState.animateScrollToPage(1) }
     }
 
+    // 这两处仍在组合期同步读 prefs（getBoundConfigId / getWidgetStyle），是有意保留：
+    // remember/rememberSaveable 的 key 门控让它们只在「切换组件 / 配置写库」时各跑一次，
+    // 不是每帧执行。P1-11 真正每帧付代价的那部分（Pager 每页 content lambda 里
+    // 现算绑定 + 解析 29 字段 JSON）已由上面的 widgetPages 快照挪到 IO。
+    // 若把这里也改成异步派生，首帧 selectedConfig / selectedConfig?.id 会先给出兜底值
+    // 再跳变，而 textContentState 与 currentStyleJson 都以 selectedConfig?.id 为
+    // rememberSaveable 的 key —— 跳变会重置用户正在编辑的草稿，得不偿失。
     val selectedConfigId = remember(selectedWidgetId, widgetConfigs) {
         if (selectedWidgetId != -1) {
             ReminderWidgetProvider.getBoundConfigId(context, selectedWidgetId)
@@ -254,31 +279,33 @@ fun MainAppScreen(
 
     // key 使用 config.id 而非对象本身：写库后刷新 configs 会产生新实例，
     // 若以对象为 key 会把用户正在编辑的样式重置回数据库旧值
-    var currentStyle by remember(selectedWidgetId, selectedConfig?.id) {
+    // 样式草稿同样要跨重建存活：见上面 textContentState 的说明。
+    // 存 JSON 而不是 WidgetStyle 本身：rememberSaveable 只认 Bundle 能装的东西。
+    var currentStyleJson by rememberSaveable(selectedWidgetId, selectedConfig?.id) {
         mutableStateOf(
             if (selectedWidgetId != -1) {
-                ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, selectedConfig?.styleJson)
+                ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, selectedConfig?.styleJson).toJsonString()
             } else {
-                WidgetStyle.fromJsonString(selectedConfig?.styleJson)
+                WidgetStyle.fromJsonString(selectedConfig?.styleJson).toJsonString()
             }
         )
+    }
+    var currentStyle by remember(currentStyleJson) {
+        mutableStateOf(WidgetStyle.fromJsonString(currentStyleJson))
+    }
+    fun updateCurrentStyle(newStyle: WidgetStyle) {
+        currentStyle = newStyle
+        currentStyleJson = newStyle.toJsonString()
     }
 
     // 预览区高度随**当前风格的最佳显示尺寸**自适应：4×2 的卡片矮，盒内下方自然留白；
     // 但显示盒本身高度固定（见 PreviewMetrics.previewBoxHeightDp）——切换 4×2/4×4 时
     // 标签行、抽屉和背景图都不再跟着上下跳（用户反馈的「页面晃动」）。
     // 下限保住最小可见高度，封顶到盒高避免 4×4 页内容溢出预览盒。
-    fun previewHeightForPage(page: Int): Int {
-        val wid = if (appWidgetIds.isNotEmpty()) appWidgetIds[page.coerceIn(0, appWidgetIds.size - 1)] else -1
-        val cid = if (wid != -1) ReminderWidgetProvider.getBoundConfigId(context, wid) else -1L
-        val cfg = if (cid != -1L) {
-            widgetConfigs.find { it.id == cid } ?: widgetConfigs.firstOrNull()
-        } else {
-            widgetConfigs.firstOrNull()
-        }
-        val style = if (wid == selectedWidgetId) currentStyle
-            else if (wid != -1) ReminderWidgetProvider.getWidgetStyle(context, wid, cfg?.styleJson)
-            else WidgetStyle.fromJsonString(cfg?.styleJson)
+    // 只做纯计算：样式由调用方给（Pager 页内已经拿到快照，外层传 currentStyle）。
+    // 之前这个函数自己去读 getBoundConfigId / getWidgetStyle，等于每次重组都要
+    // 拿锁 + 读 prefs + 解析 JSON —— 见 WidgetPageSnapshot 里的说明。
+    fun previewHeightForPage(@Suppress("UNUSED_PARAMETER") page: Int, style: WidgetStyle): Int {
         // 高度取风格的**最佳显示尺寸**（每款风格在 WidgetStyle.bestDisplaySize 上声明：
         // 4×4 款 250×250、4×2 款 250×110），与 WidgetPreviewPager 的出图尺寸同一来源，
         // 预览图与显示盒不会各算一套。
@@ -294,7 +321,7 @@ fun MainAppScreen(
     // 显示盒高度固定 244dp（用户确认的视觉高度）：预览位图按真实比例等比渲染后
     // 以 ContentScale.Fit 贴顶显示在盒内，4×2 时卡片约 155dp 高、下方自然留白。
     // 渲染比例正确的前提下，盒子只提供"预览区域"的视觉高度，不影响卡片形状。
-    val previewBoxHeightDp = PreviewMetrics.previewBoxHeightDp(previewHeightForPage(pagerState.currentPage))
+    val previewBoxHeightDp = PreviewMetrics.previewBoxHeightDp(previewHeightForPage(pagerState.currentPage, currentStyle))
 
     // 抽屉上沿在 root 坐标中的位置（px）：顶部海滩图按它精确收边，图片下缘正好落在抽屉上沿，
     // 两者之间不再露出一条底色缝；抽屉圆角下面也由底板的 darkBg 兜底。
@@ -308,7 +335,12 @@ fun MainAppScreen(
         previewBoxHeightDp.dp + 140.dp
     }
 
-    var textContentState by remember(selectedConfig?.id) {
+    // rememberSaveable 而不是 remember：Manifest 里没有 android:configChanges，
+    // 旋转 / 折叠屏展开 / 改系统字号都会重建 Activity。用 remember 的话
+    // 用户刚敲的一半文案会当场消失，而 currentStyle 又会从库里重读旧 JSON，
+    // 表现为「刚调好的字号和背景自己回滚了」。
+    // key 仍带 selectedConfig?.id：切换到另一个组件时必须换一份草稿。
+    var textContentState by rememberSaveable(selectedConfig?.id) {
         mutableStateOf(selectedConfig?.content ?: "")
     }
 
@@ -330,7 +362,7 @@ fun MainAppScreen(
             val config = widgetConfigs.find { it.id == boundConfigId } ?: widgetConfigs.firstOrNull()
             textContentState = config?.content ?: ""
             val loadedStyle = ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, config?.styleJson)
-            currentStyle = loadedStyle
+            updateCurrentStyle(loadedStyle)
             lastPersistedBestSize = loadedStyle.bestDisplaySize
         }
     }
@@ -372,7 +404,7 @@ fun MainAppScreen(
         } else style
         if (committedPath != style.backgroundImagePath && widgetId == selectedWidgetId) {
             // 路径已变更，同步内存态，避免预览继续引用已被移走的临时文件
-            currentStyle = finalStyle
+            updateCurrentStyle(finalStyle)
         }
         if (widgetId != -1) {
             ReminderWidgetProvider.saveWidgetStyle(context, widgetId, finalStyle)
@@ -455,12 +487,8 @@ fun MainAppScreen(
     MainOverlays(
         showProDialog = showProDialog,
         isActivated = isActivatedState,
-        isPaying = isPaying,
-        isRecovering = isRecovering,
         activity = activity,
         onActivatedChange = { isActivatedState = it },
-        onPayingChange = { isPaying = it },
-        onRecoveringChange = { isRecovering = it },
         onProDialogDismiss = { showProDialog = false },
         onRequestOpenPro = { showProDialog = true },
         showStatusDialog = showStatusDialog,
@@ -519,6 +547,7 @@ fun MainAppScreen(
                 WidgetPreviewPager(
                     pagerState = pagerState,
                     appWidgetIds = appWidgetIds,
+                    widgetPages = widgetPages,
                     widgetConfigs = widgetConfigs,
                     selectedWidgetId = selectedWidgetId,
                     currentStyle = currentStyle,
@@ -680,10 +709,10 @@ fun MainAppScreen(
                                 selectedReminderId = selectedReminder?.id ?: -1L,
                                 selectedStyle = currentStyle,
                                 selectedContent = textContentState,
-                                onStyleStateChange = { currentStyle = it },
+                                onStyleStateChange = { updateCurrentStyle(it) },
                                 onContentStateChange = { textContentState = it },
                                 onSelectPreset = { wId, rId, newStyle ->
-                                    currentStyle = newStyle
+                                    updateCurrentStyle(newStyle)
                                     onStyleChange(wId, rId, textContentState, newStyle)
                                 },
                                 onStyleChange = { wId, rId, text, newStyle ->

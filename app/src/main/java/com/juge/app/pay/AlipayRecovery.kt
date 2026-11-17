@@ -17,7 +17,8 @@ import java.net.URLDecoder
  * 全流程只有两步，没有任何账号概念：
  *   1. 向自己的服务端取一段签好名的 authInfo（应用私钥只在服务端）
  *   2. 交给支付宝 SDK 拉起授权，拿回 auth_code 再交回服务端换 user_id
- * 服务端用 user_id 反查订单，命中即返回 found=true，本地随即激活。
+ * 服务端用 user_id 反查订单，命中即**签发一段权益凭证**（见 [com.juge.app.data.EntitlementVerifier]），
+ * App 验签通过才写入本地激活状态。
  *
  * 这条路能成立的前提：付款时支付宝会把买家 user_id 带进支付结果，
  * 服务端已把它存进订单（PayOrder.buyerUserId）。
@@ -47,15 +48,29 @@ object AlipayRecovery {
      * [paidAt] 是**当初付款的时间**（服务端取该支付宝账号最早一笔已支付订单），
      * 不是本次找回的时间。换机找回时要把它写进本地记录，
      * 否则会员卡会显示成「今天刚开通」，用户会以为买的是新的。
+     *
+     * [credential] 是服务端签名的权益凭证。它是「能不能落本地」的唯一依据：
+     * 服务端说 found=true 只代表「这个支付宝账号买过」，凭证才代表
+     * 「服务端愿意把这份权益授予这台设备」，而凭证伪造不了。
+     * 服务端凭证密钥不可用时这里是 null —— 那种情况下不激活，让用户看到提示，
+     * 好过给一个「查得到但用不了」的假成功。
      */
-    internal data class PurchaseRecord(val found: Boolean, val paidAt: Long?)
+    internal data class PurchaseRecord(
+        val found: Boolean,
+        val paidAt: Long?,
+        val credential: String?,
+    )
 
     internal data class Dependencies(
         val fetchAuthInfo: suspend () -> Result<String> = ::fetchAuthInfo,
         val authorize: (Activity, String) -> String? = ::authorize,
         val confirmPurchase: suspend (String) -> Result<PurchaseRecord> = ::confirmPurchase,
-        val activate: (Context, Long) -> Boolean = { context, paidAt ->
-            TrialManager.getInstance(context).activate(TrialManager.PAY_METHOD_RECOVER, paidAt)
+        val activate: (Context, Long, String) -> Boolean = { context, paidAt, credential ->
+            TrialManager.getInstance(context).activateWithEntitlement(
+                credential = credential,
+                payMethod = TrialManager.PAY_METHOD_RECOVER,
+                activatedAt = paidAt,
+            )
         },
     )
 
@@ -83,11 +98,20 @@ object AlipayRecovery {
         }
         if (!record.found) return Outcome.NotFound
 
+        val credential = record.credential
+        if (credential.isNullOrBlank()) {
+            // 服务端确实查到了订单，但没有带凭证：只可能是服务端凭证私钥没配好。
+            // 这时不能「先放行再说」—— 本地状态一旦写下去，下次启动仍然会被判未激活，
+            // 用户看到的是「找回成功但会员没生效」，比直接报错更难排查。
+            Timber.w("AlipayRecovery: 服务端返回 found=true 但未带权益凭证")
+            return Outcome.Failed("权益已确认但服务端暂时无法签发凭证，请稍后重试或联系客服")
+        }
+
         // 服务端没给购买时间（老订单或字段缺失）时退回当前时间：
         // 宁可显示"今天开通"，也不能把 1970 写进会员卡。
         val paidAt = record.paidAt ?: System.currentTimeMillis()
         return withContext(Dispatchers.IO) {
-            if (dependencies.activate(activity, paidAt)) Outcome.Restored
+            if (dependencies.activate(activity, paidAt, credential)) Outcome.Restored
             else Outcome.Failed("权益已确认，但本地保存失败，请检查存储空间后重试")
         }
     }
@@ -97,13 +121,11 @@ object AlipayRecovery {
     private suspend fun fetchAuthInfo(): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val resp = ServerClient.post("/api/alipay/auth-info", JSONObject())
-            if (!resp.optBoolean("success")) {
-                throw AlipayPayApi.ApiException(
-                    resp.optString("message").ifBlank { "找回服务暂时不可用" },
-                    resp.optString("code"),
-                )
+            if (!resp.isOk) {
+                // 503 RECOVERY_UNAVAILABLE 时 message 已经是「找回功能暂不可用，请联系客服」
+                throw AlipayPayApi.failure(resp, "找回服务暂时不可用")
             }
-            resp.getJSONObject("data").getString("auth_info")
+            resp.body.getJSONObject("data").getString("auth_info")
         }
     }
 
@@ -111,18 +133,14 @@ object AlipayRecovery {
         runCatching {
             val body = JSONObject().apply { put("authCode", authCode) }
             val resp = ServerClient.post("/api/alipay/recover", body)
-            if (!resp.optBoolean("success")) {
-                throw AlipayPayApi.ApiException(
-                    resp.optString("message").ifBlank { "核验失败，请稍后重试" },
-                    resp.optString("code"),
-                )
-            }
-            val data = resp.getJSONObject("data")
+            if (!resp.isOk) throw AlipayPayApi.failure(resp, "核验失败，请稍后重试")
+            val data = resp.body.getJSONObject("data")
             PurchaseRecord(
                 found = data.optBoolean("found", false),
                 // 服务端没给或给了 null 时保持 null，由 activate 用当前时间兜底
                 paidAt = if (data.isNull("paid_at")) null
                 else data.optLong("paid_at", 0L).takeIf { it > 0L },
+                credential = data.optString("credential", "").takeIf { it.isNotBlank() },
             )
         }
     }

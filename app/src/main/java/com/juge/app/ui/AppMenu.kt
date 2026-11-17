@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,16 +48,15 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.juge.app.ui.theme.AppMotion
+import com.juge.app.ui.theme.AppPalette
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppShadows
 import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.AppTextRole
-import com.juge.app.ui.theme.LocalAppDarkTheme
+import com.juge.app.ui.theme.LocalAppDarkThemeProgress
 import com.juge.app.ui.theme.TextRole
-import com.juge.app.ui.theme.cardBg
 import com.juge.app.ui.theme.rememberAppHaptics
 import com.juge.app.ui.theme.surfaceRaised
-import com.juge.app.ui.theme.surfaceSubtle
 
 /**
  * 全 App 浮动菜单（iOS 式）的统一实现：**一颗卡片 + 一种行**，长按菜单和 ⋮ 溢出菜单共用。
@@ -69,10 +69,9 @@ import com.juge.app.ui.theme.surfaceSubtle
  * 现在两处菜单共用 [AppMenuCard]（`surfaceRaised` + `AppShape.menu` 14dp + `AppShadows.dialog`
  * 弥散阴影 + 上下 4dp 内边距）与 [AppMenuItemRow]（44dp 行高、20dp 图标、16dp 行内边距、
  * 无波纹按压高亮、带触感）。区别只在**怎么浮出来**：
- * - 长按菜单：同窗口整页压暗浮层（`ContextMenuOverlay`，指尖弹出，弹出后手指继续拖动
+ * - 长按菜单：同窗口透明交互浮层（`ContextMenuOverlay`，指尖弹出，弹出后手指继续拖动
  *   要能取消菜单进入排序，Dialog/Popup 收不到这根手指的后续事件）；
- * - ⋮ 溢出菜单：贴在按钮下方的 `Popup`（[AppDropdownMenu]），**不再压暗**——它本来就
- *   弹在已经压暗的弹窗之上，再压一层会把弹窗压灰，反而和别的页面对不上。
+ * - ⋮ 溢出菜单：贴在按钮下方的 `Popup`（[AppDropdownMenu]），同样不压暗背景。
  */
 @Immutable
 internal data class AppMenuItem(
@@ -155,10 +154,12 @@ internal fun AppMenuItemRow(
     val haptics = rememberAppHaptics()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    // 按压高亮要相对菜单卡片「压下一层」：日间菜单是纯白，用控件面 surfaceSubtle（浅灰蓝）；
-    // 夜间菜单是 surfaceRaised(#262626)，surfaceSubtle(#242424) 只差 2 个灰阶，按下去看不出，
-    // 改用下一层的 cardBg(#191919)。日间 cardBg 是纯白，压在白卡上也看不出来，所以必须分模式。
-    val pressedColor = if (LocalAppDarkTheme.current) cardBg else surfaceSubtle
+    // 按压高亮要相对菜单卡片「压下一层」：日夜两端用不同令牌，中间随主题动画连续插值。
+    val pressedColor = lerp(
+        AppPalette.Light.surfaceSubtle,
+        AppPalette.Dark.cardBg,
+        LocalAppDarkThemeProgress.current,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -207,7 +208,7 @@ internal fun AppMenuItemRow(
  * 行为与 iOS/Material 溢出菜单一致：卡片右边缘贴按钮右边缘、向下 4dp；下方放不下就翻到上方；
  * 左右上下都钳在父窗口内留 8dp（钳制按**卡片**算，阴影留白可能探出窗口，属预期）；
  * 点空白处或返回键关闭（`focusable` 的 Popup 自带）；点任一菜单项后自动收起。
- * 不压暗背景：它弹在已经压暗的弹窗之上，再压一层会把自己所在的弹窗压灰。
+ * 不压暗背景：菜单卡自身用底色、圆角与阴影建立层级。
  */
 @Composable
 internal fun AppDropdownMenu(

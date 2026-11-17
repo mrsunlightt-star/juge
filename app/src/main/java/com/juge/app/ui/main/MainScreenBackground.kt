@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -33,8 +34,9 @@ import androidx.compose.ui.unit.dp
 import com.juge.app.R
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import com.juge.app.ui.theme.AppPalette
 import com.juge.app.ui.theme.AppShape
-import com.juge.app.ui.theme.LocalAppDarkTheme
+import com.juge.app.ui.theme.LocalAppDarkThemeProgress
 import com.juge.app.ui.theme.auroraMint
 import com.juge.app.ui.theme.auroraMist
 import com.juge.app.ui.theme.auroraSky
@@ -82,10 +84,9 @@ fun MainScreenBackground(
         val auroraFade = auroraMist.copy(alpha = 0.50f) // 晨露浅青
         val pageBg = darkBg
         val grid = gridLine
-        // 暗色模式不画方格网：gridLine 是 accentBlue 12%，夜间 accentBlue 是明亮的月光天蓝，
-        // 12% 叠在纯黑上会泛出一层冷蓝底纹，与「中性纯黑」直接冲突。这段网格本来也只
-        // 在首帧/无图时兜底露出，夜间直接跳过还能省掉一遍逐线绘制。
-        val drawGrid = !LocalAppDarkTheme.current
+        val darkThemeProgress = LocalAppDarkThemeProgress.current
+        // 网格随主题进度淡出，不能在布尔模式翻转时瞬间出现/消失。
+        val gridAlpha = (1f - darkThemeProgress).coerceIn(0f, 1f)
         Box(modifier = Modifier.fillMaxSize()) {
             // 背景层单独作为 hazeSource：它必须是抽屉的兄弟而不是祖先。
             // Haze 只采样「zIndex 低于最近祖先 source」的区域；source 作为祖先时
@@ -116,18 +117,19 @@ fun MainScreenBackground(
                         // heroPx 始终要算：下一段「抽屉上沿以下铺平底色」也用它，
                         // 所以放在 if 外面，不能跟着网格一起被跳过。
                         val heroPx = heroHeight.toPx().coerceIn(0f, size.height)
-                        if (drawGrid) {
+                        if (gridAlpha > 0f) {
                             val stroke = 1.dp.toPx()
                             val gridSize = 24.dp.toPx()
+                            val animatedGrid = grid.copy(alpha = grid.alpha * gridAlpha)
 
                             var x = 0f
                             while (x < size.width) {
-                                drawLine(grid, Offset(x, 0f), Offset(x, heroPx), stroke)
+                                drawLine(animatedGrid, Offset(x, 0f), Offset(x, heroPx), stroke)
                                 x += gridSize
                             }
                             var y = 0f
                             while (y < heroPx) {
-                                drawLine(grid, Offset(0f, y), Offset(size.width, y), stroke)
+                                drawLine(animatedGrid, Offset(0f, y), Offset(size.width, y), stroke)
                                 y += gridSize
                             }
                         }
@@ -243,27 +245,19 @@ private fun HeroBackdrop(
             // 夜间模式同一张海滩图整体加深压暗：顶栏白字本就带阴影，压暗后依然可读；
             // 画面变夜色海滩，同时与深色抽屉玻璃的接缝落差也保持住。
             //
-            // 压暗色取当前的页面底色（夜间 #1A1A1A）而不是纯黑：纯黑会把照片压成没有层次的黑块，
-            // 和上移后的中性色阶放在一起显得更沉；用页面底做veil，压暗后的天空与抽屉、
-            // 圆钮落在同一套中性灰里。日间仍用纯黑——那是亮天空上的中性投影，不涉及「底色」。
-            val dimInk = if (LocalAppDarkTheme.current) darkBg else Color.Black
-            val heroDimStops = if (LocalAppDarkTheme.current) {
-                listOf(
-                    0.00f to dimInk.copy(alpha = 0.64f),
-                    0.16f to dimInk.copy(alpha = 0.52f),
-                    0.32f to dimInk.copy(alpha = 0.40f),
-                    0.90f to dimInk.copy(alpha = 0.40f),
-                    1.00f to dimInk.copy(alpha = 0.48f),
-                )
-            } else {
-                listOf(
-                    0.00f to dimInk.copy(alpha = 0.38f),
-                    0.16f to dimInk.copy(alpha = 0.20f),
-                    0.32f to Color.Transparent,
-                    0.90f to Color.Transparent,
-                    1.00f to dimInk.copy(alpha = 0.20f),
-                )
-            }
+            // 这里必须按主题动画进度插值，不能直接读 LocalAppDarkTheme：
+            // 布尔值在点击瞬间翻转，会让整块英雄图先跳到终态，而抽屉仍在渐变，
+            // 用户看到的就是页面闪一下。压暗色从日间纯黑过渡到夜间页面底 #1A1A1A。
+            val progress = LocalAppDarkThemeProgress.current.coerceIn(0f, 1f)
+            val dimInk = lerp(Color.Black, AppPalette.Dark.darkBg, progress)
+            fun alpha(light: Float, dark: Float): Float = light + (dark - light) * progress
+            val heroDimStops = listOf(
+                0.00f to dimInk.copy(alpha = alpha(0.38f, 0.64f)),
+                0.16f to dimInk.copy(alpha = alpha(0.20f, 0.52f)),
+                0.32f to dimInk.copy(alpha = alpha(0f, 0.40f)),
+                0.90f to dimInk.copy(alpha = alpha(0f, 0.40f)),
+                1.00f to dimInk.copy(alpha = alpha(0.20f, 0.48f)),
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
