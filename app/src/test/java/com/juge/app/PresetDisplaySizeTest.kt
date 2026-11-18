@@ -50,6 +50,13 @@ class PresetDisplaySizeTest {
             "p_pet_park" to WidgetDisplaySize.SQUARE_4X4,
             // 产品点名：小霸王游戏机改为 4:4（方形下模型更大、屏幕放得下两行正文）
             "p_subor_console" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：三款新增萌宠花框均使用 2048×2048 透明素材，默认 4:4
+            "p_spring_arrival" to WidgetDisplaySize.SQUARE_4X4,
+            "p_space_dog" to WidgetDisplaySize.SQUARE_4X4,
+            "p_q_pirate_crew" to WidgetDisplaySize.SQUARE_4X4,
+            // 产品点名：中华田园犬 / 熊猫宝宝归类萌宠风格，素材原生 2176×1088，默认 4:2
+            "p_chinese_rural_dog" to WidgetDisplaySize.WIDE_4X2,
+            "p_panda_baby" to WidgetDisplaySize.WIDE_4X2,
         )
         for ((presetId, size) in expected) {
             assertEquals("$presetId 的最佳显示尺寸与既定依据不符", size, sizeOf(presetId))

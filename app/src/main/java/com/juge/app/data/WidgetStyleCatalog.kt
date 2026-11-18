@@ -3,7 +3,7 @@ package com.juge.app.data
 import android.graphics.Color
 
 /**
- * 内置风格目录：34 款预设，以及围绕它们的分类视图与付费判定。
+ * 内置风格目录：36 款预设，以及围绕它们的分类视图与付费判定。
  *
  * 原先是 [WidgetStyle] 的 companion 成员，模型、序列化、商品目录、付费判定挤在同一个
  * 1500 行文件里：改一款预设的配色要滚过序列化代码，改序列化又要滚过 900 行素材定义。
@@ -596,6 +596,81 @@ internal object WidgetStyleCatalog {
             presetImageResName = "hurdle_boy",
             authorSignature = "—— 跨栏小子"
         ), // 69. 跨栏小子 (PRO)
+        // 春天到了 (PRO)：2048×2048 真透明萌宠花框，中央自带浅色卡面。
+        WidgetStyle(
+            presetId = "p_spring_arrival",
+            bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4:4
+            shape = WidgetShape.SPRING_ARRIVAL,
+            cornerRadiusDp = 0f,
+            backgroundColor = android.graphics.Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#2F5C3C"),
+            textAlign = "CENTER",
+            presetImageResName = "spring_arrival",
+            authorSignature = "—— 春天到了"
+        ),
+        // 太空小狗 (PRO)：2048×2048 真透明萌宠花框，中央透明窗口由代码补浅色承托。
+        WidgetStyle(
+            presetId = "p_space_dog",
+            bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4:4
+            shape = WidgetShape.SPACE_DOG,
+            cornerRadiusDp = 0f,
+            backgroundColor = android.graphics.Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#46516B"),
+            textAlign = "CENTER",
+            presetImageResName = "space_dog",
+            authorSignature = "—— 太空小狗"
+        ),
+        // Q萌海盗团 (PRO)：2048×2048 真透明萌宠花框，中央透明窗口由代码补浅色承托。
+        WidgetStyle(
+            presetId = "p_q_pirate_crew",
+            bestDisplaySize = WidgetDisplaySize.SQUARE_4X4, // 产品要求：默认 4:4
+            shape = WidgetShape.Q_PIRATE_CREW,
+            cornerRadiusDp = 0f,
+            backgroundColor = android.graphics.Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#4A3027"),
+            textAlign = "CENTER",
+            presetImageResName = "q_pirate_crew",
+            authorSignature = "—— Q萌海盗团"
+        ),
+        // 中华田园犬 (PRO)：2176×1088 真透明萌宠花框，中央透明窗口直接透出壁纸。
+        WidgetStyle(
+            presetId = "p_chinese_rural_dog",
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
+            shape = WidgetShape.CHINESE_RURAL_DOG,
+            cornerRadiusDp = 0f,
+            backgroundColor = android.graphics.Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#5A3B1F"),
+            textAlign = "CENTER",
+            presetImageResName = "chinese_rural_dog",
+            authorSignature = "—— 中华田园犬"
+        ),
+        // 熊猫宝宝 (PRO)：2176×1088 真透明萌宠花框，竹框内自带米色纸面。
+        WidgetStyle(
+            presetId = "p_panda_baby",
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
+            shape = WidgetShape.PANDA_BABY,
+            cornerRadiusDp = 0f,
+            backgroundColor = android.graphics.Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#3F4E2F"),
+            textAlign = "CENTER",
+            presetImageResName = "panda_baby",
+            authorSignature = "—— 熊猫宝宝"
+        ),
     )
 
     /**
@@ -640,7 +715,14 @@ internal object WidgetStyleCatalog {
         // 可爱Doro：角色与留言板是整张抠图，上方透明；铺底色会把透明区域填掉
         WidgetShape.CUTE_DORO,
         // 蓝色鲸鱼：浅灰卡面与蓝色描边都烘在素材里，铺底色会填掉卡外四角
-        WidgetShape.BLUE_WHALE
+        WidgetShape.BLUE_WHALE,
+        // 方版萌宠花框：角色与装饰周围是透明区，铺底色会变成方形色块
+        WidgetShape.SPRING_ARRIVAL,
+        WidgetShape.SPACE_DOG,
+        WidgetShape.Q_PIRATE_CREW,
+        // 中华田园犬 / 熊猫宝宝：外框与中央窗口都在素材里，铺底色会填掉透明区域
+        WidgetShape.CHINESE_RURAL_DOG,
+        WidgetShape.PANDA_BABY
     )
 
     /** 该形状是否支持设置背景色 */
@@ -759,6 +841,11 @@ internal object WidgetStyleCatalog {
         "毛绒森林" to (PRESETS.firstOrNull { it.shape == WidgetShape.PLUSH_FOREST } ?: PRESETS[0]),
         "萌宠乐园" to (PRESETS.firstOrNull { it.presetId == "p_pet_park" } ?: PRESETS[0]),
         "可爱Doro" to (PRESETS.firstOrNull { it.presetId == "p_cute_doro" } ?: PRESETS[0]),
-        "蓝色鲸鱼" to (PRESETS.firstOrNull { it.presetId == "p_blue_whale" } ?: PRESETS[0])
+        "蓝色鲸鱼" to (PRESETS.firstOrNull { it.presetId == "p_blue_whale" } ?: PRESETS[0]),
+        "春天到了" to (PRESETS.firstOrNull { it.presetId == "p_spring_arrival" } ?: PRESETS[0]),
+        "太空小狗" to (PRESETS.firstOrNull { it.presetId == "p_space_dog" } ?: PRESETS[0]),
+        "Q萌海盗团" to (PRESETS.firstOrNull { it.presetId == "p_q_pirate_crew" } ?: PRESETS[0]),
+        "中华田园犬" to (PRESETS.firstOrNull { it.presetId == "p_chinese_rural_dog" } ?: PRESETS[0]),
+        "熊猫宝宝" to (PRESETS.firstOrNull { it.presetId == "p_panda_baby" } ?: PRESETS[0])
     )
 }

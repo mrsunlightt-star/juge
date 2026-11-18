@@ -31,6 +31,9 @@ internal enum class ShapeFamily {
     /** 抠图明信片：上半是透明抠图，下半是代码绘制的正文面板（背景色可调） */
     CUTOUT_POSTCARD,
 
+    /** 萌宠花框：外框由素材提供，透明窗口可补代码绘制的正文承托层 */
+    PET_FRAME,
+
     /** 蓝色便签：顶部 NOTE 区 + 底部米白签条 */
     BLUE_NOTE,
 
@@ -154,16 +157,30 @@ private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.CRAYON_FRAME,
     // 蓝色鲸鱼：浅灰卡面与 #4998CD 描边本身的圆角都在素材里，管线再裁圆角会切到描边
     WidgetShape.BLUE_WHALE,
+    // 方版萌宠花框：外框四角都有角色、花枝或船饰，裁圆角会直接切掉素材
+    WidgetShape.SPRING_ARRIVAL,
+    WidgetShape.SPACE_DOG,
+    WidgetShape.Q_PIRATE_CREW,
+    // 中华田园犬 / 熊猫宝宝：边框和角色都贴到素材边缘，圆角会切掉骨头、爪印与竹节
+    WidgetShape.CHINESE_RURAL_DOG,
+    WidgetShape.PANDA_BABY,
 )
 
 /**
  * 整幅透明底：背景色只作用于各自的文本框 / 文字栏。
  *
- * 当前**没有形状在用**。名单与
- * [ShapeTraits.transparentCard] 一并保留，是留给这一类形状的扩展位——新形状归入时加一行即可，
- * 管线里「不铺整卡底色」「投影跟着文本框走」两条分支不用重写。
+ * 萌宠花框都在用这份名单：素材外框之外没有整卡底色，投影也不应包住整个组件。
+ * [ShapeTraits.transparentCard] 与这份名单一并保留，方便后续同类透明素材复用。
  */
-private val TRANSPARENT_CARD_SHAPES = emptySet<WidgetShape>()
+private val TRANSPARENT_CARD_SHAPES = setOf(
+    // 方版萌宠花框都是真透明素材，外框之外没有整卡底色，投影不应包住整个组件
+    WidgetShape.SPRING_ARRIVAL,
+    WidgetShape.SPACE_DOG,
+    WidgetShape.Q_PIRATE_CREW,
+    // 中华田园犬中央透明、熊猫宝宝框外透明，背景色都不能铺到整卡
+    WidgetShape.CHINESE_RURAL_DOG,
+    WidgetShape.PANDA_BABY,
+)
 
 /** 素材由家族自己摆放的形状：整卡铺图会与家族布局打架 */
 private val OWN_BACKGROUND_SHAPES = setOf(
@@ -231,6 +248,13 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.CUTE_DORO,
     // 蓝色鲸鱼：浅灰卡面 + 蓝描边 + 右下鲸鱼全在素材里，装饰由素材提供
     WidgetShape.BLUE_WHALE -> ShapeFamily.ROUND_RECT
+
+    // 萌宠花框：外框与角色都在素材里；需要时由家族在透明窗口补正文承托
+    WidgetShape.SPRING_ARRIVAL,
+    WidgetShape.SPACE_DOG,
+    WidgetShape.Q_PIRATE_CREW,
+    WidgetShape.CHINESE_RURAL_DOG,
+    WidgetShape.PANDA_BABY -> ShapeFamily.PET_FRAME
 
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER

@@ -306,6 +306,12 @@ internal object WidgetRenderPipeline {
             }
         }
 
+        // 萌宠花框的透明窗口先铺正文承托，再把素材压在最上层：
+        // 这样太空小狗的脚、海盗的旗杆与手臂等伸进窗口边缘的装饰不会被浅色面板盖住。
+        if (traits.family == ShapeFamily.PET_FRAME) {
+            PetFrameRenderer.drawTextBacking(scene)
+        }
+
         // 绘制背景图片（若有）。
         // 天气盒子 / 画框卡片族的素材由家族绘制单独摆放，不走这里的整卡铺图
         val bg = scene.bgBitmap
@@ -362,7 +368,8 @@ internal object WidgetRenderPipeline {
             ShapeFamily.TORN_PAPER,
             ShapeFamily.FEATHER_LETTER,
             ShapeFamily.ELLIPSE,
-            ShapeFamily.HANDBOOK_TAPE -> Unit
+            ShapeFamily.HANDBOOK_TAPE,
+            ShapeFamily.PET_FRAME -> Unit
         }
     }
 

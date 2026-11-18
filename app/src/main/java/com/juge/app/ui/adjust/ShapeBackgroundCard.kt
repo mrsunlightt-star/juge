@@ -1,8 +1,6 @@
 package com.juge.app.ui.adjust
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Wallpaper
@@ -24,7 +22,6 @@ import com.juge.app.ui.AppText
 import com.juge.app.ui.AppTextButton
 import com.juge.app.ui.SaveOutcome
 import com.juge.app.ui.theme.AppTextRole
-import com.juge.app.ui.theme.AppSpacing
 import com.juge.app.ui.theme.accentBlue
 import com.juge.app.ui.theme.dangerRed
 import kotlin.math.roundToInt
@@ -40,7 +37,6 @@ internal fun ShapeBackgroundCard(
     onStyleStateChange: (WidgetStyle) -> Unit,
     onStyleChange: (Int, Long, String, WidgetStyle) -> SaveOutcome,
     onPickImage: () -> Unit,
-    onCropImage: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val hasImage = !selectedStyle.backgroundImagePath.isNullOrEmpty()
@@ -98,24 +94,11 @@ internal fun ShapeBackgroundCard(
                 contentColor = accentBlue
             )
         } else {
-            // 图片操作分两层：常用操作并排，破坏性操作单独放在下方，
-            // 避免三个等宽按钮挤成一行，也降低误触「清除」的机会。
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.itemGap),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppSecondaryButton(
-                    text = "更换图片",
-                    onClick = { onPickImage() },
-                    modifier = Modifier.weight(1f)
-                )
-                AppSecondaryButton(
-                    text = "调整裁切",
-                    onClick = { selectedStyle.backgroundImagePath?.let(onCropImage) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            AppSecondaryButton(
+                text = "更换图片",
+                onClick = onPickImage,
+                modifier = Modifier.fillMaxWidth()
+            )
             AppTextButton(
                 text = "清除背景图",
                 onClick = {
@@ -134,14 +117,15 @@ internal fun ShapeBackgroundCard(
 }
 
 /**
- * 裁切结果统一按平铺方式显示。
+ * 裁切结果已经包含用户选择的完整画面，直接铺满组件即可。
  *
- * 自定义背景不再暴露填充模式：用户只需要选择图片区域，后续显示方式由裁切结果决定。
+ * 不能用 [ImageScaleMode.TILE]：平铺按位图原始像素尺寸重复绘制，而桌面渲染画布会
+ * 按设备密度和像素预算重新放大，导致裁切框里的一块画面在组件上只显示左上局部并重复。
  */
 internal fun WidgetStyle.withCroppedBackgroundImage(path: String): WidgetStyle =
     copy(
         backgroundImagePath = path,
-        bgImageScaleMode = ImageScaleMode.TILE,
+        bgImageScaleMode = ImageScaleMode.STRETCH,
     )
 
 /**
@@ -169,4 +153,10 @@ internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
         shape != WidgetShape.PET_PARK &&
         shape != WidgetShape.CUTE_FOUR_KIDS &&
         // 素材里的浅灰卡面与蓝色描边自带圆角，管线再裁会切到描边
-        shape != WidgetShape.BLUE_WHALE
+        shape != WidgetShape.BLUE_WHALE &&
+        shape != WidgetShape.SPRING_ARRIVAL &&
+        shape != WidgetShape.SPACE_DOG &&
+        shape != WidgetShape.Q_PIRATE_CREW &&
+        // 横版萌宠花框：骨头、爪印与竹节贴着圆角，裁圆角会切掉素材
+        shape != WidgetShape.CHINESE_RURAL_DOG &&
+        shape != WidgetShape.PANDA_BABY

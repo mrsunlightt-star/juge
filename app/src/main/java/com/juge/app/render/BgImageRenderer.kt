@@ -102,11 +102,18 @@ internal object BgImageRenderer {
                 canvas.drawBitmap(processedBitmap, srcRect, rectF, paint)
             }
             ImageScaleMode.TILE -> {
-                val shader = BitmapShader(processedBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-                tilePaint.shader = shader
-                tilePaint.alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
-                canvas.drawRect(rectF, tilePaint)
+                if (!style.backgroundImagePath.isNullOrEmpty()) {
+                    // 2026-11-17 的裁切流程曾把所有自定义背景写成 TILE。裁切产物本身
+                    // 就是用户选中的完整区域，再按原始像素平铺会把画面重复多份；这里
+                    // 兼容旧存档，直接铺满目标区域，用户无需重新裁图。
+                    canvas.drawBitmap(processedBitmap, null, rectF, paint)
+                } else {
+                    val shader = BitmapShader(processedBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                    tilePaint.shader = shader
+                    tilePaint.alpha = (style.backgroundOpacity * 255).toInt().coerceIn(0, 255)
+                    canvas.drawRect(rectF, tilePaint)
+                }
             }
         }
 

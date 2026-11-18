@@ -41,7 +41,6 @@ import com.juge.app.data.QuoteMarkdownExporter
 import com.juge.app.data.Reminder
 import com.juge.app.data.TrialManager
 import com.juge.app.data.WidgetConfig
-import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetStyle
 import com.juge.app.pay.ProPurchase
 import com.juge.app.ui.AppText
@@ -359,10 +358,6 @@ fun MainAppScreen(
     // 换了配置就各自独立排队，避免互相取消丢编辑
     var pendingPersistConfigId by remember { mutableStateOf<Long?>(null) }
 
-    // 上次真正落库的风格尺寸：只在「风格尺寸发生变化」时提示手动拉伸，
-    // 改文字/颜色等细节不会再弹提示
-    var lastPersistedBestSize by remember { mutableStateOf<WidgetDisplaySize?>(null) }
-
     LaunchedEffect(selectedWidgetId) {
         if (selectedWidgetId != -1) {
             // 等待 400ms 防抖写入落库后再读取，避免切换组件时读到数据库旧值覆盖用户草稿
@@ -372,7 +367,6 @@ fun MainAppScreen(
             textContentState = config?.content ?: ""
             val loadedStyle = ReminderWidgetProvider.getWidgetStyle(context, selectedWidgetId, config?.styleJson)
             updateCurrentStyle(loadedStyle)
-            lastPersistedBestSize = loadedStyle.bestDisplaySize
         }
     }
 
@@ -408,20 +402,8 @@ fun MainAppScreen(
         }
     }
 
-    var sizeHint by remember { mutableStateOf<WidgetSizeHint?>(null) }
-
-    // 尺寸不匹配提示：只提醒，不阻断保存。桌面组件的实际大小由 launcher 控制，
-    // App 没有强制 resize 的 API，所以引导用户直接在桌面长按拖动边缘。
-    val maybeShowSizeHint: (Int, WidgetStyle) -> Unit = { widgetId, style ->
-        if (widgetId != -1) {
-            widgetSizeHintFor(
-                style,
-                ReminderWidgetProvider.getWidgetSizeString(context, widgetId)
-            )?.let { sizeHint = it }
-        }
-    }
-
     // 编辑/预览期真正落库。调用前已经判断过付费权限。
+    // 尺寸提示不放这里：风格切换也会走这条保存路径，提前弹窗会打断用户比较风格。
     val persistStyle: (Int, Long, String, WidgetStyle) -> SaveOutcome = persist@{ widgetId, configId, newContent, style ->
         val target = try {
             if (widgetId != -1) {
@@ -453,8 +435,7 @@ fun MainAppScreen(
             persistJob?.cancel()
         }
         // 用进程级 scope 而非 lifecycleScope：Activity 销毁（返回键/最近任务划掉）
-        // 正常会取消 lifecycleScope 的 delay(400)，与防抖机制的本意背道而驰；
-        // 组件实际尺寸变化提示仍在这里做
+        // 正常会取消 lifecycleScope 的 delay(400)，与防抖机制的本意背道而驰。
         pendingPersistConfigId = target.id
         persistJob = (context.applicationContext as JugeApplication).appScope.launch {
             kotlinx.coroutines.delay(400)
@@ -489,11 +470,6 @@ fun MainAppScreen(
                     Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
-        if (widgetId != -1) {
-            val sizeChanged = lastPersistedBestSize != style.bestDisplaySize
-            lastPersistedBestSize = style.bestDisplaySize
-            if (sizeChanged) maybeShowSizeHint(widgetId, style)
         }
         SaveOutcome.SAVED
     }
@@ -556,8 +532,6 @@ fun MainAppScreen(
         legalDoc = showLegalDoc,
         onLegalDismiss = { showLegalDoc = null }
     )
-
-    WidgetSizeHintDialog(show = sizeHint != null, hint = sizeHint) { sizeHint = null }
 
     // 抽屉毛玻璃：背景源在 MainScreenBackground（极光/海滩图），
     // 面板本体在这里做实时模糊采样。

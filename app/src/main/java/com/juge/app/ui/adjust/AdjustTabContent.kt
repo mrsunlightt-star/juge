@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.juge.app.CropImageHelper
+import com.juge.app.ReminderWidgetProvider
 import com.juge.app.data.AppBackgroundPreset
 import com.juge.app.data.UserColorPresets
 import com.juge.app.data.WidgetStyle
@@ -43,8 +44,11 @@ import com.juge.app.ui.BackgroundColorBlockedDialog
 import com.juge.app.ui.ColorPickerDialog
 import com.juge.app.ui.DeleteColorPresetDialog
 import com.juge.app.ui.SaveOutcome
-import com.juge.app.ui.swipeBackToPage
 import com.juge.app.ui.legal.LegalFooter
+import com.juge.app.ui.main.WidgetSizeHint
+import com.juge.app.ui.main.WidgetSizeHintDialog
+import com.juge.app.ui.main.widgetSizeHintFor
+import com.juge.app.ui.swipeBackToPage
 import com.juge.app.ui.theme.AppTextRole
 import com.juge.app.ui.theme.AppShape
 import com.juge.app.ui.theme.AppMotion
@@ -60,7 +64,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.delay
-import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -112,6 +115,7 @@ fun AdjustTabContent(
     var pendingDeleteFontColor by remember { mutableStateOf<Int?>(null) }
     var pendingDeleteBackgroundColor by remember { mutableStateOf<Int?>(null) }
     var showBackgroundColorBlockedTip by remember { mutableStateOf(false) }
+    var sizeHint by remember { mutableStateOf<WidgetSizeHint?>(null) }
 
     // 首屏入场编排：每张分区卡只在前 3 个里各播一次（滚走再滚回不重播）。
     // 只在首帧触发、滚动进入视口不触发——避免"滚动时条目不断弹入"的噪声。
@@ -235,9 +239,6 @@ fun AdjustTabContent(
                 onStyleStateChange = onStyleStateChange,
                 onStyleChange = onStyleChange,
                 onPickImage = { selectImageLauncher.launch("image/*") },
-                onCropImage = { path ->
-                    pendingCropUri = Uri.fromFile(File(path))
-                }
             )
         }
 
@@ -248,6 +249,12 @@ fun AdjustTabContent(
                 onClick = {
                     val outcome = onApplyToDesktop(selectedWidgetId, selectedReminderId, selectedContent, selectedStyle)
                     if (outcome == SaveOutcome.SAVED) {
+                        if (selectedWidgetId != -1) {
+                            widgetSizeHintFor(
+                                selectedStyle,
+                                ReminderWidgetProvider.getWidgetSizeString(context, selectedWidgetId)
+                            )?.let { sizeHint = it }
+                        }
                         Toast.makeText(context, "✨ 样式已成功保存并同步至手机桌面！", Toast.LENGTH_SHORT).show()
                     }
                 },
@@ -302,6 +309,9 @@ fun AdjustTabContent(
         show = showBackgroundColorBlockedTip,
         onDismiss = { showBackgroundColorBlockedTip = false }
     )
+
+    // 只在用户最终点击「保存并应用到桌面小组件」后提示尺寸偏差，风格切换不打断。
+    WidgetSizeHintDialog(show = sizeHint != null, hint = sizeHint) { sizeHint = null }
 
     // 删除确认：dismiss 即把色值置 null，组件内部用末次快照保退出动画
     val delFontColor = pendingDeleteFontColor

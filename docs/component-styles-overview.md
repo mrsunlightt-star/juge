@@ -1,13 +1,13 @@
 # 组件风格总览与实现方案
 
 > 这份文档回答两件事：
-> 1. **现有 31 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
+> 1. **现有 36 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
 > 2. **新增一个风格要动哪些地方** —— 一份可照着做的改动清单。
 >
 > 配套文档：`docs/component-style-guide.md`（图片处理脚本 `tools/process_component_image.py` 的用法与踩坑）。
 >
-> **与代码对齐核对：2026-11-17** —— `PRESETS` 31 条、`WidgetShape` 30 个取值、
-> `ShapeFamily` 12 个家族、免费预设 2 款（纯色圆角 / 青年雕塑）。
+> **与代码对齐核对：2026-11-18** —— `PRESETS` 36 条、`WidgetShape` 32 个取值、
+> `ShapeFamily` 13 个家族、免费预设 2 款（纯色圆角 / 青年雕塑）。
 > §4 / §5 的清单是**用脚本从 `WidgetStyle.kt` / `ShapeTraits.kt` 反查生成**的，不要手抄；
 > 改动预设或形状后请重跑核对脚本（在 `.scratch/style-doc-drift/issues/01-resync-style-overview.md`），
 > 并更新这一行的日期。
@@ -109,6 +109,11 @@
 | 跨栏小子 **（4×4 专属）** | `HURDLE_BOY` | `hurdle_boy` | 明信片：素材原生 **1536×1536**——上半是跨栏少年 + 栏杆的**真透明抠图**（alpha=0 约 55.6%，人物/栏杆以外透出壁纸，沿人物边缘呈不规则形状），下半是素材自带的白色记分牌正文框（牌面 x 186~1356 / y 670~1405，牌角自带圆角）。卡面/牌面都烘在素材里，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）；牌角本身是圆角，**不强制直角**、圆角步进器可用。上半透明所以 `transparentTop=true`、跳过整卡投影。产品要求归类为明信片风格、默认 **4×4**，**不出 4×2 版**；4×2 上横向拉约 97% 是已知且接受的。**不要**给它补横版素材 |
 | 可爱Doro **（4×4 专属）** | `CUTE_DORO` | `cute_doro` | 萌宠：设计师新出的**原生 2048×2048 方形构图**（2026-10-22 由 1536 升到 2048 高清版，构图不变）——粉发毛绒角色在上、奶油色留言板占下方约 42%~94%，四周透明；不再裁切/放大，留言板圆角完整保留。素材本身就是设计好的角色+板子，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）。产品要求归类为萌宠风格、默认 **4×4**，**不出 4×2 版**；4×2 上横向拉约 97% 是已知且接受的 |
 | 蓝色鲸鱼 **（4×2 专属）** | `BLUE_WHALE` | `blue_whale` | 萌宠卡：浅灰圆角卡 + #4998CD 描边 + 右下角小鲸鱼。设计稿 250×110（2.27:1），按 4×2 画布渲染成 2048×1024（横向压缩约 12%，圆角和鲸鱼几乎看不出）。卡面、描边、鲸鱼都烘在素材里，不铺背景色（加入 `SHAPES_WITHOUT_BACKGROUND_COLOR`）；浅灰卡与描边自带 9.5 圆角，渲染时**强制 0 圆角**（加入 `SQUARE_CORNER_SHAPES`）避免管线再切一刀。正文落在鲸鱼上方的留白区。产品要求归类为萌宠风格、默认 **4×2** |
+| 春天到了 **（4×4）** | `SPRING_ARRIVAL` | `spring_arrival` | 萌宠方框：2048×2048 真透明素材，松鼠、花枝、蝴蝶与藤蔓围绕浅色卡面；素材自带正文卡面，不铺背景色。入库已裁透明外圈并按原比例居中补方，正文安全区同步映射到新画布，归类萌宠、默认 **4×4** |
+| 太空小狗 **（4×4）** | `SPACE_DOG` | `space_dog` | 萌宠方框：2048×2048 真透明素材，太空犬与宇航员围绕透明窗口；代码在窗口内先铺浅色承托层，再把素材压在最上层，保证角色边缘完整且文字可读。入库已裁透明外圈并补方，避免 4×4 下整体显得比其他方卡小一圈。归类萌宠、默认 **4×4** |
+| Q萌海盗团 **（4×4）** | `Q_PIRATE_CREW` | `q_pirate_crew` | 萌宠方框：2048×2048 真透明素材，海盗角色、船与宝箱围绕透明窗口；同样由代码在窗口内补浅色承托层。入库已裁透明外圈并补方，正文安全区同步放大。归类萌宠、默认 **4×4** |
+| 中华田园犬 **（4×2）** | `CHINESE_RURAL_DOG` | `chinese_rural_dog` | 萌宠横框：2176×1088 真透明素材，黄色骨头/爪印边框 + 顶部探头小狗；中央透明窗口直接透出壁纸，不铺底色、不补承托层，正文避开边框落在中央区域。归类萌宠、默认 **4×2** |
+| 熊猫宝宝 **（4×2）** | `PANDA_BABY` | `panda_baby` | 萌宠横框：2176×1088 真透明素材，竹节边框 + 顶部趴着的熊猫，框内自带米色纸面；不铺底色，正文落在纸面内并避开竹节与熊猫。归类萌宠、默认 **4×2** |
 | 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
 | 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充）。四款点缀分别是 `winter_branch` 950×360、`deepsea_whale` 915×405、`summersea_accent` 950×360、`lotus_accent` 938×398，**全部是真透明抠图**，不得带矩形卡纸底 |
 | 可爱四小只 **（4×2 专属）** | `CUTE_FOUR_KIDS` | `cute_four_kids` | 2026-10-07 改版：四个头像横排在左下角，素材是透明底的「头像条」，压在背景色铺出的卡面上。设计稿就是 1824×912（2:1），**按产品决定不出 4×4 版**，4×4 上的拉伸是已知且接受的。旧存档（左右分割卡 + 等比完整显示）读档时按 `PRESET_LEGACY_LOOKS` 自动迁移到本形状与拉伸铺满，不必重新套用预设 |
@@ -139,7 +144,7 @@
 
 > ⚠️ 明信片类的 `backgroundColor` 是**文字区底色**，不是整卡底色。图区单独铺图，两处不能各写一遍矩形（共用 `splitImageRect()`）。
 
-## 4. 全部 31 个风格清单
+## 4. 全部 36 个风格清单
 
 `PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。名称取自 §4.1 的六份分类清单，
 完整清单由脚本从 `WidgetStyle.kt` 反查生成，不要手抄。
@@ -177,6 +182,11 @@
 | 28 |可爱Doro | `p_cute_doro` | CUTE_DORO | B | `cute_doro` | PRO |
 | 29 |蓝色鲸鱼 | `p_blue_whale` | BLUE_WHALE | B | `blue_whale` | PRO |
 | 30 |跨栏小子 | `p_hurdle_boy` | HURDLE_BOY | B | `hurdle_boy` | PRO |
+| 31 |春天到了 | `p_spring_arrival` | SPRING_ARRIVAL | B | `spring_arrival` | PRO |
+| 32 |太空小狗 | `p_space_dog` | SPACE_DOG | B | `space_dog` | PRO |
+| 33 |Q萌海盗团 | `p_q_pirate_crew` | Q_PIRATE_CREW | B | `q_pirate_crew` | PRO |
+| 34 |中华田园犬 | `p_chinese_rural_dog` | CHINESE_RURAL_DOG | B | `chinese_rural_dog` | PRO |
+| 35 |熊猫宝宝 | `p_panda_baby` | PANDA_BABY | B | `panda_baby` | PRO |
 
 ### 4.1 界面上怎么分组展示
 
@@ -185,13 +195,13 @@
 | 列表 | 界面标题 | 内容（当前） |
 | --- | --- | --- |
 | `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框（11 条） |
-| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、毛绒小狗、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼（7 条） |
+| `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、毛绒小狗、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼、春天到了、太空小狗、Q萌海盗团、中华田园犬、熊猫宝宝（12 条） |
 | `POSTCARD_LEADING_PRESETS` | 明信片风格（**行首**的整幅贴图） | 青年雕塑（1 条） |
 | `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 书香书架（1 条） |
 | `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、跨栏小子（6 条） |
 | `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 5 张插图的 `资源名 → 展示名` 映射 |
 
-> 六份清单合计覆盖**全部 31 条**预设。
+> 六份清单合计覆盖**全部 36 条**预设。
 
 > **界面上的尺寸（2026-10-08 起）**：三行风格标题都**不带尺寸后缀**（原先「经典风格 · 4×2」的
 > 后缀取的是选中组件的入口尺寸，与各款风格自己的设计尺寸并不相干）。每款风格的最佳显示尺寸
@@ -209,7 +219,7 @@
 
 ## 5. 形状清单（`WidgetShape`）
 
-29 个取值（其中 28 个被预设实际使用），**`ELLIPSE` 是历史遗留，没有任何预设使用**。
+32 个取值（其中 31 个被预设实际使用），**`ELLIPSE` 是历史遗留，没有任何预设使用**。
 「可内缩」列直接对应 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`；其他开关
 （强制直角 / 整幅透明底 / 素材自己摆放 / 只铺下半面板 / 上半透明）见 §7 与 `ShapeTraits.kt` 的对应名单。
 
@@ -242,6 +252,11 @@
 | `HURDLE_BOY` | 圆角矩形 | ❌ | 上半跨栏少年/栏杆真透明抠图 + 下半白色记分牌都在素材里；牌角自带圆角，不铺背景色、不强制直角 |
 | `CUTE_DORO` | 圆角矩形 | ❌ | 原生 2048×2048 方形构图：角色在上 + 奶油色留言板在下，四周透明；不铺背景色 |
 | `BLUE_WHALE` | 圆角矩形（**强制 0 圆角**） | ❌ | 浅灰卡面 + #4998CD 描边 + 右下角鲸鱼都在素材里；卡面/描边自带圆角，不铺背景色 |
+| `SPRING_ARRIVAL` | 圆角矩形（**强制 0 圆角**） | ❌ | 2048×2048 真透明萌宠花框，中央自带浅色卡面；不铺背景色 |
+| `SPACE_DOG` | 圆角矩形（**强制 0 圆角**） | ❌ | 2048×2048 真透明萌宠花框，中央透明窗口由 `PetFrameRenderer` 补正文承托 |
+| `Q_PIRATE_CREW` | 圆角矩形（**强制 0 圆角**） | ❌ | 2048×2048 真透明萌宠花框，中央透明窗口由 `PetFrameRenderer` 补正文承托 |
+| `CHINESE_RURAL_DOG` | 圆角矩形（**强制 0 圆角**） | ❌ | 2176×1088 真透明萌宠横框，中央透明窗口直接透壁纸；正文几何复用 `PetFrameRenderer`，不补承托 |
+| `PANDA_BABY` | 圆角矩形（**强制 0 圆角**） | ❌ | 2176×1088 真透明萌宠横框，框内自带米色纸面；正文几何复用 `PetFrameRenderer` |
 
 **「可内缩」（`CARD_INSET_DP = 4dp`）**：名单在 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX` / `YOUTH_SCULPTURE`。
 
@@ -282,6 +297,11 @@
 | HURDLE_BOY | 49% | 高 37% | 16% | 84% | 白色记分牌内（素材 1536×1536：牌面 x 186~1356 / y 670~1405，距牌边左右约 10dp、上下约 13dp，不贴牌边与内沿） |
 | CUTE_DORO | 50% | 高 40% | 9% | 91% | 奶油留言板内（板约 y 42%~94%，正文从 50% 起、到 90% 止，避开角色与圆角） |
 | BLUE_WHALE | 18% | 高 52% | 8% | 92% | 鲸鱼上方的留白区（素材 2048×1024：鲸鱼占 x 80%~100% / y 72.7%~100%，正文底部到 70% 为止） |
+| SPRING_ARRIVAL | 23.4% | 高 64.0% | 17.4% | 84.8% | 松鼠花框内的浅色卡面（透明外圈裁除后重新映射） |
+| SPACE_DOG | 28.7% | 高 53.8% | 17.5% | 77.2% | 太空犬与宇航员之间的透明窗口；代码补承托层 |
+| Q_PIRATE_CREW | 29.2% | 高 56.8% | 15.6% | 77.6% | 海盗角色与船饰之间的透明窗口；正文区与承托层对齐画框中心，代码补承托层 |
+| CHINESE_RURAL_DOG | 30% | 高 56% | 9% | 91% | 黄色骨头/爪印框中央透明窗口；正文避开顶部小狗与四周边框 |
+| PANDA_BABY | 30% | 高 56% | 10% | 90% | 竹框内米色纸面；正文避开顶部熊猫与四周竹节 |
 | CRAYON_FRAME | 17.5% | 高 67% | 14.5% | 12.5% | 蜡笔框内的白纸面（素材 1826×627：纸面 x 0.052~0.952 / y 0.137~0.861），左避红爱心（右沿 x 0.133）、右避黄气球（左沿 x 0.890） |
 | SUBOR_CONSOLE | 屏幕内 + 4dp | 屏幕内 − 4dp | 屏幕内 + 6dp | 屏幕内 − 6dp | 屏幕矩形相对 `CENTER_FIT` 模型算 |
 | WEATHER_BOX | 腔体下沿 + 8dp | 盒底 − 8dp | 16dp | 16dp | 腔体下方的白留白区，组件变高只加文字不加腔体 |
@@ -299,7 +319,7 @@
 
 主体四周透明、插画不铺满整幅位图 —— 设了背景色会在主体外围露出一圈圆角卡片。
 
-`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`
+`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
 
 > 判定入口是 `WidgetStyle.supportsBackgroundColor(shape)`；渲染时也会强制按透明处理，所以**旧组件不用重新保存**也不会露出包裹卡片。
 
@@ -307,7 +327,7 @@
 
 在 `ui/adjust/ShapeBackgroundCard.kt` 一处维护（桌面快捷面板已移除，不再有需要同步的第二处）：
 
-`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`
+`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
 
 步进器**永远渲染**（只是置灰，右侧显示「此形状无需调整」），避免切换形状时控件消失导致列表高度突变、页面自动上滑。
 
@@ -319,7 +339,7 @@
 
 ### 7.3 渲染层强制外框圆角为 0 的形状
 
-`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`
+`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
 
 原因：整幅贴图类的角上压着的就是**素材自己画的东西**，裁圆角等于"作品被切角"；
 而套用预设时圆角是**继承**上一个风格的（`StylePresetCard` 里 `preset.copy(cornerRadiusDp = …)`），
@@ -377,6 +397,10 @@
 
 特殊到套不进 A/B/C 的（整幅透明底、多元素分层、有独立文本框）→ 在
 `WidgetRenderPipeline.drawFamilyChrome` 里新增一个家族分支；若这类形状还要共享一张「形状 → 参数」表，照 `FramedCardRenderer.specFor` 的写法办。
+
+如果透明窗口需要在素材前后插入承托层（如 `SPACE_DOG` / `Q_PIRATE_CREW`），承托层应在
+`drawBackgroundImage` 铺素材之前绘制，避免盖住伸进窗口的角色边缘；文字安全区仍由
+`PetFrameRenderer.textRect` 统一提供，绘制与排版共用同一份几何。
 
 ### 8.2 改动点（4 个文件）
 

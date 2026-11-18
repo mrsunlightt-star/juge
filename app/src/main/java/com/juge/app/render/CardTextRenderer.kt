@@ -210,6 +210,16 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.18f, targetHeight * 0.52f)
             }
+            WidgetShape.SPRING_ARRIVAL,
+            WidgetShape.SPACE_DOG,
+            WidgetShape.Q_PIRATE_CREW,
+            WidgetShape.CHINESE_RURAL_DOG,
+            WidgetShape.PANDA_BABY -> {
+                // 萌宠花框共用 PetFrameRenderer 的窗口几何；素材按 STRETCH 铺满，
+                // 因此 4×2、4×4 与桌面上的其他比例都能保持正文与外框的相对位置一致。
+                val rect = PetFrameRenderer.textRect(style.shape, outerRect)
+                TextBox(rect.left, rect.width(), rect.top, rect.height())
+            }
             WidgetShape.SUBOR_CONSOLE -> {
                 // 小霸王游戏机：素材按 CENTER_FIT 等比完整显示，正文只落在机身屏幕的玻璃区域内。
                 // 屏幕矩形由素材内测得的相对位置换算，组件是 4×3 还是 4×4 文字都始终贴在屏幕上
