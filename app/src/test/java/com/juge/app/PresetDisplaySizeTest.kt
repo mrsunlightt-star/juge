@@ -57,6 +57,10 @@ class PresetDisplaySizeTest {
             // 产品点名：中华田园犬 / 熊猫宝宝归类萌宠风格，素材原生 2176×1088，默认 4:2
             "p_chinese_rural_dog" to WidgetDisplaySize.WIDE_4X2,
             "p_panda_baby" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：极速归类经典风格，素材原生 2176×1088，默认 4:2
+            "p_speed" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：极速机车归类经典风格，素材原生 2172×1086，默认 4:2
+            "p_speed_motorcycle" to WidgetDisplaySize.WIDE_4X2,
         )
         for ((presetId, size) in expected) {
             assertEquals("$presetId 的最佳显示尺寸与既定依据不符", size, sizeOf(presetId))

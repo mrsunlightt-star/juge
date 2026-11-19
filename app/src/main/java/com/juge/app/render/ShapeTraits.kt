@@ -164,6 +164,8 @@ private val SQUARE_CORNER_SHAPES = setOf(
     // 中华田园犬 / 熊猫宝宝：边框和角色都贴到素材边缘，圆角会切掉骨头、爪印与竹节
     WidgetShape.CHINESE_RURAL_DOG,
     WidgetShape.PANDA_BABY,
+    // 极速：赛车仪表框四角都在素材里，圆角会切掉碳纤维边框
+    WidgetShape.SPEED,
 )
 
 /**
@@ -180,6 +182,8 @@ private val TRANSPARENT_CARD_SHAPES = setOf(
     // 中华田园犬中央透明、熊猫宝宝框外透明，背景色都不能铺到整卡
     WidgetShape.CHINESE_RURAL_DOG,
     WidgetShape.PANDA_BABY,
+    // 极速：整幅透明赛车仪表框，框外没有整卡底色
+    WidgetShape.SPEED,
 )
 
 /** 素材由家族自己摆放的形状：整卡铺图会与家族布局打架 */
@@ -246,6 +250,8 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.HURDLE_BOY,
     // 可爱Doro：毛绒角色 + 奶油色留言板全在素材里，装饰由素材提供
     WidgetShape.CUTE_DORO,
+    // 极速：赛车仪表框、车模、方向盘与车手全在素材里，装饰由素材提供
+    WidgetShape.SPEED,
     // 蓝色鲸鱼：浅灰卡面 + 蓝描边 + 右下鲸鱼全在素材里，装饰由素材提供
     WidgetShape.BLUE_WHALE -> ShapeFamily.ROUND_RECT
 

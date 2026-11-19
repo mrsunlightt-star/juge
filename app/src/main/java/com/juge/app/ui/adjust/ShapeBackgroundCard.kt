@@ -159,4 +159,6 @@ internal fun canAdjustCardCorner(shape: WidgetShape): Boolean =
         shape != WidgetShape.Q_PIRATE_CREW &&
         // 横版萌宠花框：骨头、爪印与竹节贴着圆角，裁圆角会切掉素材
         shape != WidgetShape.CHINESE_RURAL_DOG &&
-        shape != WidgetShape.PANDA_BABY
+        shape != WidgetShape.PANDA_BABY &&
+        // 极速：赛车仪表框四角自带碳纤维边框，裁圆角会切掉素材
+        shape != WidgetShape.SPEED

@@ -3,7 +3,7 @@ package com.juge.app.data
 import android.graphics.Color
 
 /**
- * 内置风格目录：36 款预设，以及围绕它们的分类视图与付费判定。
+ * 内置风格目录：38 款预设，以及围绕它们的分类视图与付费判定。
  *
  * 原先是 [WidgetStyle] 的 companion 成员，模型、序列化、商品目录、付费判定挤在同一个
  * 1500 行文件里：改一款预设的配色要滚过序列化代码，改序列化又要滚过 900 行素材定义。
@@ -671,6 +671,44 @@ internal object WidgetStyleCatalog {
             presetImageResName = "panda_baby",
             authorSignature = "—— 熊猫宝宝"
         ),
+        // 极速 (PRO)：2176×1088 真透明赛车仪表框，顶部车模/方向盘与右下角车手都在素材里；
+        // 中央浅色面板承载正文，默认 4×2。
+        WidgetStyle(
+            presetId = "p_speed",
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
+            shape = WidgetShape.SPEED,
+            cornerRadiusDp = 0f,
+            backgroundColor = Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.SOURCE_HAN_SANS,
+            fontSizeSp = 18f,
+            fontBold = true,
+            fontColor = Color.parseColor("#202833"),
+            textAlign = "CENTER",
+            showCardShadow = false,
+            cardBorderWidthDp = 0f,
+            presetImageResName = "speed",
+            authorSignature = "—— 极速"
+        ),
+        // 极速机车 (PRO)：2172×1086 真透明摩托车仪表框，顶部奖杯/摩托车与四周赛车装饰都在素材里；
+        // 与极速共用仪表框文字安全区，默认 4×2。
+        WidgetStyle(
+            presetId = "p_speed_motorcycle",
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2,
+            shape = WidgetShape.SPEED,
+            cornerRadiusDp = 0f,
+            backgroundColor = Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.SOURCE_HAN_SANS,
+            fontSizeSp = 18f,
+            fontBold = true,
+            fontColor = Color.parseColor("#202833"),
+            textAlign = "CENTER",
+            showCardShadow = false,
+            cardBorderWidthDp = 0f,
+            presetImageResName = "speed_motorcycle",
+            authorSignature = "—— 极速机车"
+        ),
     )
 
     /**
@@ -722,7 +760,9 @@ internal object WidgetStyleCatalog {
         WidgetShape.Q_PIRATE_CREW,
         // 中华田园犬 / 熊猫宝宝：外框与中央窗口都在素材里，铺底色会填掉透明区域
         WidgetShape.CHINESE_RURAL_DOG,
-        WidgetShape.PANDA_BABY
+        WidgetShape.PANDA_BABY,
+        // 极速：赛车仪表框外已抠透明，铺底色会在轮廓外露出一圈方角
+        WidgetShape.SPEED
     )
 
     /** 该形状是否支持设置背景色 */
@@ -805,6 +845,8 @@ internal object WidgetStyleCatalog {
         "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
         "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
         "蜡笔彩虹框" to (PRESETS.firstOrNull { it.presetId == "p_crayon_frame" } ?: PRESETS[0]),
+        "极速" to (PRESETS.firstOrNull { it.presetId == "p_speed" } ?: PRESETS[0]),
+        "极速机车" to (PRESETS.firstOrNull { it.presetId == "p_speed_motorcycle" } ?: PRESETS[0]),
     )
 
     // 明信片行**首位**的整幅贴图预设：按产品要求排在明信片风格第一个。

@@ -1,12 +1,12 @@
 # 组件风格总览与实现方案
 
 > 这份文档回答两件事：
-> 1. **现有 36 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
+> 1. **现有 38 个组件风格各自是怎么实现的** —— 方便你对照着描述新风格。
 > 2. **新增一个风格要动哪些地方** —— 一份可照着做的改动清单。
 >
 > 配套文档：`docs/component-style-guide.md`（图片处理脚本 `tools/process_component_image.py` 的用法与踩坑）。
 >
-> **与代码对齐核对：2026-11-18** —— `PRESETS` 36 条、`WidgetShape` 32 个取值、
+> **与代码对齐核对：2026-11-19** —— `PRESETS` 38 条、`WidgetShape` 33 个取值、
 > `ShapeFamily` 13 个家族、免费预设 2 款（纯色圆角 / 青年雕塑）。
 > §4 / §5 的清单是**用脚本从 `WidgetStyle.kt` / `ShapeTraits.kt` 反查生成**的，不要手抄；
 > 改动预设或形状后请重跑核对脚本（在 `.scratch/style-doc-drift/issues/01-resync-style-overview.md`），
@@ -21,7 +21,7 @@
 | 要素 | 说明 | 取值 |
 | --- | --- | --- |
 | **① 路线** | 这个风格靠什么画出来 | A 纯代码卡片 / B 整卡贴图 / C 图文明信片（见 §3） |
-| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 32 个取值之一（见 §5） |
+| **② 形状** | 组件的外轮廓 | `WidgetShape` 的 33 个取值之一（见 §5） |
 | **③ 素材** | 有没有图、图的透明处理方式 | 无素材 / 整幅抠图 / 实景照片不抠 |
 | **④ 文字落点** | 正文压在哪个区域 | 留白区、避开装饰（见 §6） |
 
@@ -114,6 +114,8 @@
 | Q萌海盗团 **（4×4）** | `Q_PIRATE_CREW` | `q_pirate_crew` | 萌宠方框：2048×2048 真透明素材，海盗角色、船与宝箱围绕透明窗口；同样由代码在窗口内补浅色承托层。入库已裁透明外圈并补方，正文安全区同步放大。归类萌宠、默认 **4×4** |
 | 中华田园犬 **（4×2）** | `CHINESE_RURAL_DOG` | `chinese_rural_dog` | 萌宠横框：2176×1088 真透明素材，黄色骨头/爪印边框 + 顶部探头小狗；中央透明窗口直接透出壁纸，不铺底色、不补承托层，正文避开边框落在中央区域。归类萌宠、默认 **4×2** |
 | 熊猫宝宝 **（4×2）** | `PANDA_BABY` | `panda_baby` | 萌宠横框：2176×1088 真透明素材，竹节边框 + 顶部趴着的熊猫，框内自带米色纸面；不铺底色，正文落在纸面内并避开竹节与熊猫。归类萌宠、默认 **4×2** |
+| 极速 **（4×2 专属）** | `SPEED` | `speed` | 经典：2176×1088 真透明赛车仪表框，顶部黄色车模/方向盘与右下角车手都在素材里；中央浅色面板承载正文，不铺底色、强制直角，避免方角裁到碳纤维边框。产品要求归类经典风格、默认 **4×2** |
+| 极速机车 **（4×2 专属）** | `SPEED` | `speed_motorcycle` | 经典：2172×1086 真透明摩托车仪表框，顶部奖杯/摩托车与四周赛车装饰都在素材里；复用极速的中央浅色面板文字安全区，不铺底色、强制直角。产品要求归类经典风格、默认 **4×2** |
 | 天气盒子 | `WEATHER_BOX` | `weather_box_cavity` | 白盒 + 内凹腔体；腔体几何由 `WeatherBoxRenderer` 按尺寸现算，只用 `CENTER_FIT` 摆腔底素材 |
 | 雪落宫墙 / 深海鲸歌 / 夏天的海 / 夏日荷花 | `WINTER_PALACE` / `DEEP_SEA` / `SUMMER_SEA` / `SUMMER_LOTUS` | `winter_frame` / `deepsea_frame` / `summersea_frame` / `lotus_frame` | 「画框卡片」族：卡纸 + 相框 + 角落点缀，素材由 `FramedCardRenderer` 自己摆（见 §3 补充）。四款点缀分别是 `winter_branch` 950×360、`deepsea_whale` 915×405、`summersea_accent` 950×360、`lotus_accent` 938×398，**全部是真透明抠图**，不得带矩形卡纸底 |
 | 可爱四小只 **（4×2 专属）** | `CUTE_FOUR_KIDS` | `cute_four_kids` | 2026-10-07 改版：四个头像横排在左下角，素材是透明底的「头像条」，压在背景色铺出的卡面上。设计稿就是 1824×912（2:1），**按产品决定不出 4×4 版**，4×4 上的拉伸是已知且接受的。旧存档（左右分割卡 + 等比完整显示）读档时按 `PRESET_LEGACY_LOOKS` 自动迁移到本形状与拉伸铺满，不必重新套用预设 |
@@ -144,7 +146,7 @@
 
 > ⚠️ 明信片类的 `backgroundColor` 是**文字区底色**，不是整卡底色。图区单独铺图，两处不能各写一遍矩形（共用 `splitImageRect()`）。
 
-## 4. 全部 36 个风格清单
+## 4. 全部 38 个风格清单
 
 `PRESETS` 的顺序**就是**下表下标（新增只能追加到末尾）。名称取自 §4.1 的六份分类清单，
 完整清单由脚本从 `WidgetStyle.kt` 反查生成，不要手抄。
@@ -187,6 +189,8 @@
 | 33 |Q萌海盗团 | `p_q_pirate_crew` | Q_PIRATE_CREW | B | `q_pirate_crew` | PRO |
 | 34 |中华田园犬 | `p_chinese_rural_dog` | CHINESE_RURAL_DOG | B | `chinese_rural_dog` | PRO |
 | 35 |熊猫宝宝 | `p_panda_baby` | PANDA_BABY | B | `panda_baby` | PRO |
+| 36 |极速 | `p_speed` | SPEED | B | `speed` | PRO |
+| 37 |极速机车 | `p_speed_motorcycle` | SPEED | B | `speed_motorcycle` | PRO |
 
 ### 4.1 界面上怎么分组展示
 
@@ -194,14 +198,14 @@
 
 | 列表 | 界面标题 | 内容（当前） |
 | --- | --- | --- |
-| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框（11 条） |
+| `CLASSIC_PRESETS` | 经典风格 | 纯色圆角、拟物撕纸、复古手账、羽毛信纸、复古像素、蓝色便签、撕边牛皮手账、教室黑板、小霸王游戏机、春天与小狗、蜡笔彩虹框、极速、极速机车（13 条） |
 | `PET_PRESETS` | 萌宠风格 · 会员专属 | 得意doro、毛绒小狗、可爱四小只、毛绒森林、萌宠乐园、可爱Doro、蓝色鲸鱼、春天到了、太空小狗、Q萌海盗团、中华田园犬、熊猫宝宝（12 条） |
 | `POSTCARD_LEADING_PRESETS` | 明信片风格（**行首**的整幅贴图） | 青年雕塑（1 条） |
 | `POSTCARD_CODE_PRESETS` | 明信片风格（代码绘制的大卡） | 书香书架（1 条） |
 | `POSTCARD_RENDERED_PRESETS` | 明信片风格（按真实渲染的场景卡） | 天气盒子、雪落宫墙、深海鲸歌、夏天的海、夏日荷花、跨栏小子（6 条） |
 | `ILLUSTRATION_PRESETS` | 明信片风格（插图素材） | 5 张插图的 `资源名 → 展示名` 映射 |
 
-> 六份清单合计覆盖**全部 36 条**预设。
+> 六份清单合计覆盖**全部 38 条**预设。
 
 > **界面上的尺寸（2026-10-08 起）**：三行风格标题都**不带尺寸后缀**（原先「经典风格 · 4×2」的
 > 后缀取的是选中组件的入口尺寸，与各款风格自己的设计尺寸并不相干）。每款风格的最佳显示尺寸
@@ -219,7 +223,7 @@
 
 ## 5. 形状清单（`WidgetShape`）
 
-32 个取值（其中 31 个被预设实际使用），**`ELLIPSE` 是历史遗留，没有任何预设使用**。
+33 个取值（其中 32 个被预设实际使用），**`ELLIPSE` 是历史遗留，没有任何预设使用**。
 「可内缩」列直接对应 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`；其他开关
 （强制直角 / 整幅透明底 / 素材自己摆放 / 只铺下半面板 / 上半透明）见 §7 与 `ShapeTraits.kt` 的对应名单。
 
@@ -257,6 +261,7 @@
 | `Q_PIRATE_CREW` | 圆角矩形（**强制 0 圆角**） | ❌ | 2048×2048 真透明萌宠花框，中央透明窗口由 `PetFrameRenderer` 补正文承托 |
 | `CHINESE_RURAL_DOG` | 圆角矩形（**强制 0 圆角**） | ❌ | 2176×1088 真透明萌宠横框，中央透明窗口直接透壁纸；正文几何复用 `PetFrameRenderer`，不补承托 |
 | `PANDA_BABY` | 圆角矩形（**强制 0 圆角**） | ❌ | 2176×1088 真透明萌宠横框，框内自带米色纸面；正文几何复用 `PetFrameRenderer` |
+| `SPEED` | 圆角矩形（**强制 0 圆角**） | ❌ | 真透明赛车 / 摩托车仪表框，中央浅色面板承载正文；不铺背景色 |
 
 **「可内缩」（`CARD_INSET_DP = 4dp`）**：名单在 `ShapeTraits.kt` 的 `INSET_CAPABLE_SHAPES`——`RECTANGLE` / `HANDBOOK_TAPE` / `SPLIT_CARD` / `SPLIT_CARD_HORIZONTAL` / `WEATHER_BOX` / `YOUTH_SCULPTURE`。
 
@@ -302,6 +307,7 @@
 | Q_PIRATE_CREW | 29.2% | 高 56.8% | 15.6% | 77.6% | 海盗角色与船饰之间的透明窗口；正文区与承托层对齐画框中心，代码补承托层 |
 | CHINESE_RURAL_DOG | 30% | 高 56% | 9% | 91% | 黄色骨头/爪印框中央透明窗口；正文避开顶部小狗与四周边框 |
 | PANDA_BABY | 30% | 高 56% | 10% | 90% | 竹框内米色纸面；正文避开顶部熊猫与四周竹节 |
+| SPEED | 30% | 高 48% | 16% | 83% | 赛车 / 摩托车仪表框中央浅色面板；右侧避开边框装饰 |
 | CRAYON_FRAME | 17.5% | 高 67% | 14.5% | 12.5% | 蜡笔框内的白纸面（素材 1826×627：纸面 x 0.052~0.952 / y 0.137~0.861），左避红爱心（右沿 x 0.133）、右避黄气球（左沿 x 0.890） |
 | SUBOR_CONSOLE | 屏幕内 + 4dp | 屏幕内 − 4dp | 屏幕内 + 6dp | 屏幕内 − 6dp | 屏幕矩形相对 `CENTER_FIT` 模型算 |
 | WEATHER_BOX | 腔体下沿 + 8dp | 盒底 − 8dp | 16dp | 16dp | 腔体下方的白留白区，组件变高只加文字不加腔体 |
@@ -319,7 +325,7 @@
 
 主体四周透明、插画不铺满整幅位图 —— 设了背景色会在主体外围露出一圈圆角卡片。
 
-`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
+`FEATHER_LETTER`、`NIUPI_SHOUZHANG`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`PET_PARK`、`CRAYON_FRAME`、`HURDLE_BOY`、`CUTE_DORO`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`、`SPEED`
 
 > 判定入口是 `WidgetStyle.supportsBackgroundColor(shape)`；渲染时也会强制按透明处理，所以**旧组件不用重新保存**也不会露出包裹卡片。
 
@@ -327,7 +333,7 @@
 
 在 `ui/adjust/ShapeBackgroundCard.kt` 一处维护（桌面快捷面板已移除，不再有需要同步的第二处）：
 
-`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
+`ELLIPSE`、`TORN_PAPER`、`BOOKSHELF`、`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`、`SPEED`
 
 步进器**永远渲染**（只是置灰，右侧显示「此形状无需调整」），避免切换形状时控件消失导致列表高度突变、页面自动上滑。
 
@@ -339,7 +345,7 @@
 
 ### 7.3 渲染层强制外框圆角为 0 的形状
 
-`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`
+`PLUSH_FOREST`、`SUBOR_CONSOLE`、`SPRING_DOG`、`CRAYON_FRAME`、`PET_PARK`、`CUTE_FOUR_KIDS`、`BLUE_WHALE`、`SPRING_ARRIVAL`、`SPACE_DOG`、`Q_PIRATE_CREW`、`CHINESE_RURAL_DOG`、`PANDA_BABY`、`SPEED`
 
 原因：整幅贴图类的角上压着的就是**素材自己画的东西**，裁圆角等于"作品被切角"；
 而套用预设时圆角是**继承**上一个风格的（`StylePresetCard` 里 `preset.copy(cornerRadiusDp = …)`），

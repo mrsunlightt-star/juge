@@ -210,6 +210,14 @@ internal object CardTextRenderer {
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
                 TextBox(paddingLeft, textWidth, targetHeight * 0.18f, targetHeight * 0.52f)
             }
+            WidgetShape.SPEED -> {
+                // 极速：赛车仪表框中央浅色面板约 x 14%~84% / y 30%~78%，
+                // 右侧再避开坐在边框上的车手；素材按 STRETCH 铺满，比例与组件尺寸无关
+                val paddingLeft = targetWidth * 0.16f
+                val paddingRight = targetWidth * 0.83f
+                val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.30f, targetHeight * 0.48f)
+            }
             WidgetShape.SPRING_ARRIVAL,
             WidgetShape.SPACE_DOG,
             WidgetShape.Q_PIRATE_CREW,

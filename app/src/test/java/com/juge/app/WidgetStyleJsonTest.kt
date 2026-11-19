@@ -1,6 +1,7 @@
 package com.juge.app
 
 import com.juge.app.data.TextShadow
+import com.juge.app.data.WidgetDisplaySize
 import com.juge.app.data.WidgetFont
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
@@ -353,5 +354,26 @@ class WidgetStyleJsonTest {
                 assertTrue("推荐项 $name 的资源名未在 PRESETS 中找到", matched)
             }
         }
+    }
+
+    @Test
+    fun `极速归入经典风格并使用透明赛车仪表素材`() {
+        val (name, style) = WidgetStyle.CLASSIC_PRESETS.single { it.first == "极速" }
+        assertEquals("p_speed", style.presetId)
+        assertEquals(WidgetShape.SPEED, style.shape)
+        assertEquals("speed", style.presetImageResName)
+        assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
+        assertEquals(listOf("极速", "极速机车"), WidgetStyle.CLASSIC_PRESETS.takeLast(2).map { it.first })
+    }
+
+    @Test
+    fun `极速机车归入经典风格并使用透明摩托车仪表素材`() {
+        val (name, style) = WidgetStyle.CLASSIC_PRESETS.single { it.first == "极速机车" }
+        assertEquals("p_speed_motorcycle", style.presetId)
+        assertEquals(WidgetShape.SPEED, style.shape)
+        assertEquals("speed_motorcycle", style.presetImageResName)
+        assertEquals(WidgetDisplaySize.WIDE_4X2, style.bestDisplaySize)
+        assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
+        assertEquals(name, WidgetStyle.CLASSIC_PRESETS.last().first)
     }
 }
