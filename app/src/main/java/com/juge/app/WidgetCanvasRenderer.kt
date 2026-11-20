@@ -165,8 +165,8 @@ object WidgetCanvasRenderer {
     // +1 THUMB_DISK_VERSION**：磁盘文件按「版本号 + presetId + 尺寸」寻址，
     // 版本不变就会继续沿用旧图。不把样式 JSON 哈希进 key，是因为 org.json 的
     // key 顺序跨进程不稳定，哈希不可靠。
-    // v19：新增中华田园犬 / 熊猫宝宝横版萌宠花框，清掉旧缩略图缓存
-    private const val THUMB_DISK_VERSION = 19
+    // v20：极速 / 极速机车裁掉透明外圈并放大正文区，清掉旧缩略图缓存
+    private const val THUMB_DISK_VERSION = 20
     private const val THUMB_DISK_DIR = "widget_thumbs"
 
     private fun thumbDiskFile(context: Context, ramKey: String): File =
@@ -378,8 +378,8 @@ object WidgetCanvasRenderer {
     // 界面看起来就是"改了没生效"（今天就踩到了：WATER 衔接改了接缝，App 内预览仍显示旧图）。
     // 所以文件名前缀必须带版本号，**改动绘制逻辑 / 预设视觉定义 / 素材后 +1** ——
     // 与缩略图缓存那条 THUMB_DISK_VERSION 是同一个规矩。
-    // v19：新增中华田园犬 / 熊猫宝宝横版萌宠花框，清掉旧预览缓存
-    private const val PREVIEW_DISK_VERSION = 19
+    // v20：极速 / 极速机车裁掉透明外圈并放大正文区，清掉旧预览缓存
+    private const val PREVIEW_DISK_VERSION = 20
     private const val PREVIEW_DISK_DIR = "widget_previews"
     private const val PREVIEW_DISK_MAX_FILES = 16
 

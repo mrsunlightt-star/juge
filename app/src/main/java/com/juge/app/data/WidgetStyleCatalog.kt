@@ -671,8 +671,8 @@ internal object WidgetStyleCatalog {
             presetImageResName = "panda_baby",
             authorSignature = "—— 熊猫宝宝"
         ),
-        // 极速 (PRO)：2176×1088 真透明赛车仪表框，顶部车模/方向盘与右下角车手都在素材里；
-        // 中央浅色面板承载正文，默认 4×2。
+        // 极速 (PRO)：1872×878 真透明赛车仪表框（已裁掉原画布透明外圈，避免桌面主体偏小），
+        // 顶部车模/方向盘与右下角车手都在素材里；中央浅色面板承载正文，默认 4×2。
         WidgetStyle(
             presetId = "p_speed",
             bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
@@ -690,8 +690,8 @@ internal object WidgetStyleCatalog {
             presetImageResName = "speed",
             authorSignature = "—— 极速"
         ),
-        // 极速机车 (PRO)：2172×1086 真透明摩托车仪表框，顶部奖杯/摩托车与四周赛车装饰都在素材里；
-        // 与极速共用仪表框文字安全区，默认 4×2。
+        // 极速机车 (PRO)：1715×862 真透明摩托车仪表框（同样裁掉透明外圈），
+        // 顶部奖杯/摩托车与四周赛车装饰都在素材里；与极速共用仪表框文字安全区，默认 4×2。
         WidgetStyle(
             presetId = "p_speed_motorcycle",
             bestDisplaySize = WidgetDisplaySize.WIDE_4X2,

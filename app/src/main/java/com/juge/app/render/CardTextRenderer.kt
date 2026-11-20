@@ -211,12 +211,14 @@ internal object CardTextRenderer {
                 TextBox(paddingLeft, textWidth, targetHeight * 0.18f, targetHeight * 0.52f)
             }
             WidgetShape.SPEED -> {
-                // 极速：赛车仪表框中央浅色面板约 x 14%~84% / y 30%~78%，
-                // 右侧再避开坐在边框上的车手；素材按 STRETCH 铺满，比例与组件尺寸无关
-                val paddingLeft = targetWidth * 0.16f
-                val paddingRight = targetWidth * 0.83f
+                // 极速 / 极速机车：透明外圈已在入库时裁掉，仪表框会铺满整卡。
+                // 文字落在两张素材共同的中央面板内：左侧避开碳纤维/赛车边框，
+                // 右侧避开极速里的车手；纵向从奖杯/摩托车下方落到下边框上方。
+                // 素材按 STRETCH 铺满，因此比例与组件尺寸无关。
+                val paddingLeft = targetWidth * 0.08f
+                val paddingRight = targetWidth * 0.85f
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.30f, targetHeight * 0.48f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.29f, targetHeight * 0.59f)
             }
             WidgetShape.SPRING_ARRIVAL,
             WidgetShape.SPACE_DOG,
