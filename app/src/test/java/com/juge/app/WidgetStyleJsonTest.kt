@@ -357,13 +357,60 @@ class WidgetStyleJsonTest {
     }
 
     @Test
+    fun `经典与萌宠风格都按四比二在前四比四在后排序`() {
+        listOf(
+            "经典风格" to WidgetStyle.CLASSIC_PRESETS,
+            "萌宠风格" to WidgetStyle.PET_PRESETS,
+        ).forEach { (label, presets) ->
+            val sizes = presets.map { it.second.bestDisplaySize }
+            val firstSquare = sizes.indexOf(WidgetDisplaySize.SQUARE_4X4)
+            if (firstSquare >= 0) {
+                assertTrue(
+                    "$label 的 4×4 风格没有全部排在 4×2 风格之后：$sizes",
+                    sizes.drop(firstSquare).all { it == WidgetDisplaySize.SQUARE_4X4 },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `春天与小狗归入萌宠风格并使用新版四比二透明素材`() {
+        val (name, style) = WidgetStyle.PET_PRESETS.single { it.first == "春天与小狗" }
+        assertEquals("春天与小狗", name)
+        assertEquals("p_spring_dog", style.presetId)
+        assertEquals(WidgetShape.SPRING_DOG, style.shape)
+        assertEquals("spring_dog", style.presetImageResName)
+        assertEquals(WidgetDisplaySize.WIDE_4X2, style.bestDisplaySize)
+        assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
+        assertTrue(
+            "旧版春天与小狗不应继续留在经典风格",
+            WidgetStyle.CLASSIC_PRESETS.none { it.first == "春天与小狗" },
+        )
+    }
+
+    @Test
+    fun `大眼猫咪归入萌宠风格并使用四比二透明素材`() {
+        val (name, style) = WidgetStyle.PET_PRESETS.single { it.first == "大眼猫咪" }
+        assertEquals("大眼猫咪", name)
+        assertEquals("p_big_eye_cat", style.presetId)
+        assertEquals(WidgetShape.BIG_EYE_CAT, style.shape)
+        assertEquals("big_eye_cat", style.presetImageResName)
+        assertEquals(WidgetDisplaySize.WIDE_4X2, style.bestDisplaySize)
+        assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
+    }
+
+    @Test
     fun `极速归入经典风格并使用透明赛车仪表素材`() {
         val (name, style) = WidgetStyle.CLASSIC_PRESETS.single { it.first == "极速" }
         assertEquals("p_speed", style.presetId)
         assertEquals(WidgetShape.SPEED, style.shape)
         assertEquals("speed", style.presetImageResName)
         assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
-        assertEquals(listOf("极速", "极速机车"), WidgetStyle.CLASSIC_PRESETS.takeLast(2).map { it.first })
+        assertTrue(
+            "极速应排在 4×4 的小霸王游戏机之前",
+            WidgetStyle.CLASSIC_PRESETS.indexOfFirst { it.first == "极速" } <
+                WidgetStyle.CLASSIC_PRESETS.indexOfFirst { it.first == "小霸王游戏机" },
+        )
     }
 
     @Test
@@ -374,6 +421,10 @@ class WidgetStyleJsonTest {
         assertEquals("speed_motorcycle", style.presetImageResName)
         assertEquals(WidgetDisplaySize.WIDE_4X2, style.bestDisplaySize)
         assertFalse("透明框外不能再铺整卡背景色", WidgetStyle.supportsBackgroundColor(style.shape))
-        assertEquals(name, WidgetStyle.CLASSIC_PRESETS.last().first)
+        assertTrue(
+            "$name 应排在 4×4 的小霸王游戏机之前",
+            WidgetStyle.CLASSIC_PRESETS.indexOfFirst { it.first == name } <
+                WidgetStyle.CLASSIC_PRESETS.indexOfFirst { it.first == "小霸王游戏机" },
+        )
     }
 }

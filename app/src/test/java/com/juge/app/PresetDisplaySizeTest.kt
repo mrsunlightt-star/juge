@@ -57,6 +57,10 @@ class PresetDisplaySizeTest {
             // 产品点名：中华田园犬 / 熊猫宝宝归类萌宠风格，素材原生 2176×1088，默认 4:2
             "p_chinese_rural_dog" to WidgetDisplaySize.WIDE_4X2,
             "p_panda_baby" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：新版春天与小狗归类萌宠风格，素材原生 2176×1088，默认 4:2
+            "p_spring_dog" to WidgetDisplaySize.WIDE_4X2,
+            // 产品点名：大眼猫咪归类萌宠风格，素材原生 2176×1088，默认 4:2
+            "p_big_eye_cat" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：极速归类经典风格，素材原生 2176×1088，默认 4:2
             "p_speed" to WidgetDisplaySize.WIDE_4X2,
             // 产品点名：极速机车归类经典风格，素材原生 2172×1086，默认 4:2

@@ -2,6 +2,8 @@ package com.juge.app.ui
 
 import com.juge.app.data.WidgetShape
 import com.juge.app.data.WidgetStyle
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * 预览区高度映射。
@@ -69,4 +71,37 @@ object PreviewMetrics {
      */
     fun previewHeightForStyle(style: WidgetStyle): Int =
         previewHeightDp(style.shape, spanYForHeightDp(style.bestDisplaySize.heightDp))
+
+    /**
+     * 预览位图实际被 `ContentScale.Fit` 显示出来的 dp 尺寸。
+     *
+     * 位图必须按这个尺寸出图，而不是按风格的声明尺寸出图：宽版声明宽度 250dp，
+     * 但预览页在常见手机上约有 288dp 可用宽度，固定 250dp 出图再放大 15% 会让正文
+     * 明显大于桌面组件。按最终显示尺寸出图后，Canvas 里的字号与桌面保持同一缩放基准。
+     */
+    fun fittedPreviewSizeDp(
+        availableWidthDp: Float,
+        availableHeightDp: Float,
+        sourceWidthDp: Int,
+        sourceHeightDp: Int,
+    ): PreviewRenderSize {
+        val sourceWidth = sourceWidthDp.coerceAtLeast(1)
+        val sourceHeight = sourceHeightDp.coerceAtLeast(1)
+        if (!availableWidthDp.isFinite() || !availableHeightDp.isFinite() ||
+            availableWidthDp <= 0f || availableHeightDp <= 0f
+        ) {
+            return PreviewRenderSize(sourceWidth, sourceHeight)
+        }
+
+        val fitScale = min(
+            availableWidthDp / sourceWidth,
+            availableHeightDp / sourceHeight,
+        )
+        return PreviewRenderSize(
+            widthDp = (sourceWidth * fitScale).roundToInt().coerceAtLeast(1),
+            heightDp = (sourceHeight * fitScale).roundToInt().coerceAtLeast(1),
+        )
+    }
 }
+
+data class PreviewRenderSize(val widthDp: Int, val heightDp: Int)

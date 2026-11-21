@@ -117,27 +117,37 @@ class WidgetThumbnailDiskCacheTest {
     }
 
     @Test
-    fun prewarmPurgesLegacyDiskVersionSoStaleVisualsCannotLoad() {
+    fun prewarmPurgesV20SpringDogThumbnailSoOldAssetCannotLoad() {
         val context = RuntimeEnvironment.getApplication()
         WidgetCanvasRenderer.clearThumbnailRamCacheForTest()
-        val key = "${preset.presetId}_150x80"
+        val springDog = WidgetStyle.PRESETS.single { it.presetId == "p_spring_dog" }
+        val key = "${springDog.presetId}_150x80"
 
-        assertNotNull(WidgetCanvasRenderer.renderThumbnail(context, 150, 80, "", preset))
+        assertNotNull(WidgetCanvasRenderer.renderThumbnail(context, 150, 80, "", springDog))
         val currentFile = diskFile(context, key)
         val currentBytes = currentFile.readBytes()
         val cacheDir = currentFile.parentFile!!
         currentFile.delete()
 
-        // v16 是加入真透明点缀之前的缩略图缓存版本。即使文件本身能正常解码，
-        // 新版本也不能把它预热回内存，否则升级后列表仍会显示旧素材。
-        val legacyFile = File(cacheDir, "v16$key.png")
+        // v20 是春天与小狗换新素材前的缩略图缓存版本。即使文件本身能正常解码，
+        // v21 也不能把它预热回内存，否则升级后分类列表仍会显示旧素材。
+        val legacyFile = File(cacheDir, "v20$key.png")
         legacyFile.writeBytes(currentBytes)
         WidgetCanvasRenderer.clearThumbnailRamCacheForTest()
 
         WidgetCanvasRenderer.prewarmThumbnailCache(context)
 
-        assertNull(WidgetCanvasRenderer.cachedThumbnail(150, 80, preset))
-        assertTrue("旧版本缩略图应被清理", !legacyFile.exists())
+        assertNull(WidgetCanvasRenderer.cachedThumbnail(150, 80, springDog))
+        assertTrue("旧素材缩略图应被清理", !legacyFile.exists())
+
+        val rendersBefore = WidgetCanvasRenderer.thumbnailRenderCountForTest
+        assertNotNull(WidgetCanvasRenderer.renderThumbnail(context, 150, 80, "", springDog))
+        assertEquals(
+            "旧缓存失效后必须按新版素材重新渲染",
+            rendersBefore + 1,
+            WidgetCanvasRenderer.thumbnailRenderCountForTest,
+        )
+        assertTrue("新版缩略图应写入当前缓存版本", !diskFile(context, key).name.startsWith("v20"))
     }
 
     private fun <T> assertNotNull(value: T?): T {

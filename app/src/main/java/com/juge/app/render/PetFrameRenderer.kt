@@ -32,6 +32,10 @@ internal object PetFrameRenderer {
             proportionalRect(outerRect, 0.09f, 0.30f, 0.91f, 0.86f)
         WidgetShape.PANDA_BABY ->
             proportionalRect(outerRect, 0.10f, 0.30f, 0.90f, 0.86f)
+        // 2176×1088 横版素材：猫咪占右侧约 54%~91%，左下沙发与台灯占约 x 4%~18%；
+        // 正文落在粉色卡面左中部的净空区。
+        WidgetShape.BIG_EYE_CAT ->
+            proportionalRect(outerRect, 0.19f, 0.17f, 0.53f, 0.82f)
         else -> error("PetFrameRenderer 只处理萌宠花框形状：$shape")
     }
 

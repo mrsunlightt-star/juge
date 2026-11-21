@@ -73,7 +73,7 @@ enum class WidgetShape(val displayName: String) {
     DEEP_SEA("深海鲸歌"),
     SUMMER_SEA("夏天的海"),
     SUMMER_LOTUS("夏日荷花"),
-    // 春天与小狗：绿框白卡 + 上沿草丛花枝 + 右上角探头柯基（整幅抠图素材）
+    // 春天与小狗：浅色毛绒花框 + 顶部探头小狗、树花与彩纸（整幅抠图素材）
     SPRING_DOG("春天与小狗"),
     // 萌宠乐园：整幅毛毡风插画——粉色花边毛毡框 + 框顶六只毛毡小动物（猫狗兔鼠狐熊猫），
     // 框内奶油毛毡面板放正文。素材原稿是纯白底（同样被压成无 alpha 的 RGB），已抠掉。
@@ -120,6 +120,9 @@ enum class WidgetShape(val displayName: String) {
     // 极速：2176×1088 真透明赛车仪表框，顶部车模/方向盘与右下角车手都在素材里；
     // 中央浅色面板承载正文，默认 4×2。
     SPEED("极速"),
+    // 大眼猫咪：2176×1088 真透明毛绒花框，粉色卡面左侧留白、右侧是大眼猫咪，
+    // 顶部爱心气球与左下角沙发/台灯都在素材里；正文落在猫咪左侧，默认 4×2。
+    BIG_EYE_CAT("大眼猫咪"),
 }
 
 /**
@@ -489,6 +492,8 @@ data class WidgetStyle(
             "p_fluffy_cat" to "p_fluffy_dog",
             "p_keep_smiling" to "p_pure_round",
             "p_after_school" to "p_youth_sculpture",
+            // 时序天空下架后，已保存的试装组件回到免费默认款
+            "p_time_sky" to "p_pure_round",
         )
 
         /**

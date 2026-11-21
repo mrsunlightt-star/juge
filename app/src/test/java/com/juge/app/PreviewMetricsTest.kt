@@ -96,4 +96,43 @@ class PreviewMetricsTest {
                 PreviewMetrics.previewHeightForStyle(square.copy(bestDisplaySize = WidgetDisplaySize.WIDE_4X2)),
         )
     }
+
+    @Test
+    fun `宽版预览按 Fit 后的实际宽度出图`() {
+        val size = PreviewMetrics.fittedPreviewSizeDp(
+            availableWidthDp = 288f,
+            availableHeightDp = 180f,
+            sourceWidthDp = 250,
+            sourceHeightDp = 110,
+        )
+
+        assertEquals(288, size.widthDp)
+        assertEquals(127, size.heightDp)
+    }
+
+    @Test
+    fun `方版预览受高度限制时按 Fit 后的实际尺寸出图`() {
+        val size = PreviewMetrics.fittedPreviewSizeDp(
+            availableWidthDp = 288f,
+            availableHeightDp = 244f,
+            sourceWidthDp = 250,
+            sourceHeightDp = 250,
+        )
+
+        assertEquals(244, size.widthDp)
+        assertEquals(244, size.heightDp)
+    }
+
+    @Test
+    fun `无效约束回退到风格声明尺寸`() {
+        val size = PreviewMetrics.fittedPreviewSizeDp(
+            availableWidthDp = Float.NaN,
+            availableHeightDp = 0f,
+            sourceWidthDp = 250,
+            sourceHeightDp = 110,
+        )
+
+        assertEquals(250, size.widthDp)
+        assertEquals(110, size.heightDp)
+    }
 }

@@ -112,6 +112,22 @@ class RemovedPresetFallbackTest {
     }
 
     @Test
+    fun `下架的时序天空读档后换成纯色圆角`() {
+        val json = """
+            {
+              "presetId": "p_time_sky",
+              "shape": "TIME_SKY",
+              "cornerRadiusDp": 18.0,
+              "backgroundColor": -3866383
+            }
+        """.trimIndent()
+        val migrated = WidgetStyle.fromJsonString(json)
+        assertEquals("p_pure_round", migrated.presetId)
+        assertEquals(WidgetShape.RECTANGLE, migrated.shape)
+        assertEquals(18f, migrated.cornerRadiusDp)
+    }
+
+    @Test
     fun `在售预设与自定义样式不受回退影响`() {
         // 在售预设原样读回，presetId 不变
         val live = WidgetStyle.fromJsonString(WidgetStyle.DEFAULT.toJsonString())

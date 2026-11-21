@@ -166,6 +166,8 @@ private val SQUARE_CORNER_SHAPES = setOf(
     WidgetShape.PANDA_BABY,
     // 极速：赛车仪表框四角都在素材里，圆角会切掉碳纤维边框
     WidgetShape.SPEED,
+    // 大眼猫咪：毛绒框、爱心气球、沙发与猫咪都贴着素材边缘，圆角会切掉装饰
+    WidgetShape.BIG_EYE_CAT,
 )
 
 /**
@@ -184,6 +186,8 @@ private val TRANSPARENT_CARD_SHAPES = setOf(
     WidgetShape.PANDA_BABY,
     // 极速：整幅透明赛车仪表框，框外没有整卡底色
     WidgetShape.SPEED,
+    // 大眼猫咪：毛绒框外透明，背景色不能铺到整卡
+    WidgetShape.BIG_EYE_CAT,
 )
 
 /** 素材由家族自己摆放的形状：整卡铺图会与家族布局打架 */
@@ -233,6 +237,7 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.CLASSROOM_BLACKBOARD,
     WidgetShape.PLUSH_FOREST,
     // 春天与小狗：素材自带绿框与卡面，装饰由素材提供，走普通圆角矩形（无内缩、不额外绘制）
+    // 春天与小狗：毛绒框、白卡与角色装饰都由素材提供，走普通圆角矩形（实际强制直角）
     WidgetShape.SPRING_DOG -> ShapeFamily.ROUND_RECT
 
     // 萌宠乐园：毛毡框与六只小动物全在素材里，同上
@@ -260,7 +265,9 @@ internal fun WidgetShape.family(): ShapeFamily = when (this) {
     WidgetShape.SPACE_DOG,
     WidgetShape.Q_PIRATE_CREW,
     WidgetShape.CHINESE_RURAL_DOG,
-    WidgetShape.PANDA_BABY -> ShapeFamily.PET_FRAME
+    WidgetShape.PANDA_BABY,
+    // 大眼猫咪：毛绒框、猫咪与房间装饰都由素材提供，正文几何走萌宠花框
+    WidgetShape.BIG_EYE_CAT -> ShapeFamily.PET_FRAME
 
     WidgetShape.TORN_PAPER -> ShapeFamily.TORN_PAPER
     WidgetShape.FEATHER_LETTER -> ShapeFamily.FEATHER_LETTER

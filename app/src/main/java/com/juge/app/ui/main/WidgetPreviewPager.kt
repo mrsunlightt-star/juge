@@ -5,6 +5,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +35,7 @@ import com.juge.app.ReminderWidgetProvider
 import com.juge.app.WidgetCanvasRenderer
 import com.juge.app.data.WidgetConfig
 import com.juge.app.data.WidgetStyle
+import com.juge.app.ui.PreviewMetrics
 import com.juge.app.ui.theme.AppMotion
 import com.juge.app.ui.theme.rememberAppHaptics
 import kotlinx.coroutines.Dispatchers
@@ -110,100 +112,12 @@ fun WidgetPreviewPager(
 
             // 复用与预览盒一致的规格计算，避免渲染高度与盒高度不一致造成裁切/空洞
             val previewHeightDp = previewHeightForPage(page, pageStyle)
-            // 预览按**风格自己的最佳显示尺寸**出图（4×4 款 250×250、4×2 款 250×110，见
-            // WidgetStyle.bestDisplaySize），不跟桌面组件走：同一个风格无论从哪个入口添加、
-            // 在桌面上被拉成多大，App 内预览的比例都固定——4:4 款始终方形、4:2 款始终长条
-            // （产品规则，2026-10-08）。显示盒高度由 previewHeightForPage 按同一尺寸算出。
-            // 也不能写死 360dp 之类的宽度：各类按比例分配的几何（图文卡分割线、
-            // 天气盒子的腔体等）都按画布比例算，尺寸与声明尺寸脱节就会算错格子。
+            // 比例始终取风格自己的最佳显示尺寸，但出图像素尺寸取 ContentScale.Fit 后的
+            // 实际显示 dp 尺寸。否则宽版 250dp 位图会被预览页放大到约 288dp，
+            // Canvas 中同样字号的文字也会跟着放大，最终比桌面组件大约 15%。
             val displaySize = pageStyle.bestDisplaySize
-            val renderWidthDp = displaySize.widthDp
-            val renderHeightDp = displaySize.heightDp
-            // 预览位图分两步出：先磁盘成品图（冷启动首帧即有内容，不必空等约 0.8s），
-            // 再按当前样式重画一张覆盖它。
-            //
-            // 两步都必须在 IO/Default 上做——这里以前是
-            //   remember(...) { WidgetCanvasRenderer.cachedPreview(...) }
-            // 直接把 `BitmapFactory.decodeFile` 放在组合函数体里：读盘 + PNG 解压
-            // 全在**主线程的组合阶段**完成（几 MB 的位图在低端机上要几十毫秒），
-            // 每次样式变化、每次 pager 滚动到新页都要付一次，表现为掉帧与白屏。
-            val pageBitmap by produceState<Bitmap?>(
-                initialValue = null,
-                pageConfigId, pageContent, pageStyle, renderWidthDp, renderHeightDp
-            ) {
-                // 1) 磁盘缓存（可能 miss）
-                val fromDisk = withContext(Dispatchers.IO) {
-                    WidgetCanvasRenderer.cachedPreview(
-                        context = context,
-                        configId = pageConfigId,
-                        widthDp = renderWidthDp,
-                        heightDp = renderHeightDp,
-                        style = pageStyle
-                    )
-                }
-                if (fromDisk != null) {
-                    value = fromDisk
-                    // 磁盘图已经在屏上：让它先显示出来，别为了等重渲染而空白
-                    kotlinx.coroutines.yield()
-                }
-                // 2) 按当前内容与样式重渲染（会顺带落盘）
-                value = withContext(Dispatchers.Default) {
-                    try {
-                        WidgetCanvasRenderer.renderPreview(
-                            context = context,
-                            configId = pageConfigId,
-                            widthDp = renderWidthDp,
-                            heightDp = renderHeightDp,
-                            content = pageContent,
-                            style = pageStyle
-                        )
-                    } catch (t: Throwable) {
-                        // 极端情况下（如 OOM）返回一个空白位图
-                        Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
-                    }
-                }
-            }
-
-            // 只在「离散的样式身份」变化时做渐隐过渡；正文、颜色和数值调整直接更新，
-            // 避免拖动时每一帧都 Crossfade，导致预览看起来跟手性差或残影。
-            // 过渡目标（キー）只含离散身份，不包含 pageBitmap 本身。
-            val previewTransitionKey = listOf(
-                pageWidgetId,
-                pageStyle.presetId,
-                pageStyle.shape,
-                pageStyle.backgroundImagePath,
-                pageStyle.bgImageScaleMode,
-            ).joinToString("|")
-
-            // 展示槽位模型：
-            //  - current 槽 = 当前 Crossfade 目标 key + 它对应的位图；
-            //  - previous 槽 = 切换瞬间把 current 的旧值整体搬进去，供离场层继续展示。
-            // 新渲染只有两种落地方式：
-            //  1. key 未变（编辑文字/拖颜色）：current 槽原位换图——目标 key 不变，**不触发动画**；
-            //  2. key 变了：旧槽搬进 previous、新图进 current，Crossfade 才从旧图淡入**已渲染好的**新图。
-            // 此前实现是 key 一变就让两层都指着旧图干等新渲染（约 0.8s），渐变形同虚设、
-            // 新图落地发生在动画结束后，视觉上是一次硬切。
-            // 初值给 null：磁盘缓存图现在是异步来的（见上面 produceState 的说明），
-            // 同步拿它就意味着把解码放回组合线程。空一帧的代价远小于主线程卡住。
-            var currentSlot by remember(pageWidgetId) {
-                mutableStateOf(PreviewSlot(previewTransitionKey, null))
-            }
-            var previousSlot by remember(pageWidgetId) {
-                mutableStateOf(PreviewSlot(previewTransitionKey, null))
-            }
-
-            LaunchedEffect(pageBitmap, previewTransitionKey) {
-                if (pageBitmap == null) return@LaunchedEffect
-                if (previewTransitionKey == currentSlot.key) {
-                    currentSlot = currentSlot.copy(bitmap = pageBitmap)
-                } else {
-                    previousSlot = currentSlot
-                    currentSlot = PreviewSlot(previewTransitionKey, pageBitmap)
-                }
-            }
-
             val haptics = rememberAppHaptics()
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(previewHeightDp.dp)
@@ -216,6 +130,97 @@ fun WidgetPreviewPager(
                     },
                 contentAlignment = Alignment.TopCenter
             ) {
+                val fittedSize = PreviewMetrics.fittedPreviewSizeDp(
+                    availableWidthDp = maxWidth.value,
+                    availableHeightDp = maxHeight.value,
+                    sourceWidthDp = displaySize.widthDp,
+                    sourceHeightDp = displaySize.heightDp,
+                )
+                val renderWidthDp = fittedSize.widthDp
+                val renderHeightDp = fittedSize.heightDp
+                // 预览位图分两步出：先磁盘成品图（冷启动首帧即有内容，不必空等约 0.8s），
+                // 再按当前样式重画一张覆盖它。
+                //
+                // 两步都必须在 IO/Default 上做——这里以前是
+                //   remember(...) { WidgetCanvasRenderer.cachedPreview(...) }
+                // 直接把 `BitmapFactory.decodeFile` 放在组合函数体里：读盘 + PNG 解压
+                // 全在**主线程的组合阶段**完成（几 MB 的位图在低端机上要几十毫秒），
+                // 每次样式变化、每次 pager 滚动到新页都要付一次，表现为掉帧与白屏。
+                val pageBitmap by produceState<Bitmap?>(
+                    initialValue = null,
+                    pageConfigId, pageContent, pageStyle, renderWidthDp, renderHeightDp
+                ) {
+                    // 1) 磁盘缓存（可能 miss）
+                    val fromDisk = withContext(Dispatchers.IO) {
+                        WidgetCanvasRenderer.cachedPreview(
+                            context = context,
+                            configId = pageConfigId,
+                            widthDp = renderWidthDp,
+                            heightDp = renderHeightDp,
+                            style = pageStyle
+                        )
+                    }
+                    if (fromDisk != null) {
+                        value = fromDisk
+                        // 磁盘图已经在屏上：让它先显示出来，别为了等重渲染而空白
+                        kotlinx.coroutines.yield()
+                    }
+                    // 2) 按当前内容与样式重渲染（会顺带落盘）
+                    value = withContext(Dispatchers.Default) {
+                        try {
+                            WidgetCanvasRenderer.renderPreview(
+                                context = context,
+                                configId = pageConfigId,
+                                widthDp = renderWidthDp,
+                                heightDp = renderHeightDp,
+                                content = pageContent,
+                                style = pageStyle
+                            )
+                        } catch (t: Throwable) {
+                            // 极端情况下（如 OOM）返回一个空白位图
+                            Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888)
+                        }
+                    }
+                }
+
+                // 只在「离散的样式身份」变化时做渐隐过渡；正文、颜色和数值调整直接更新，
+                // 避免拖动时每一帧都 Crossfade，导致预览看起来跟手性差或残影。
+                // 过渡目标（キー）只含离散身份，不包含 pageBitmap 本身。
+                val previewTransitionKey = listOf(
+                    pageWidgetId,
+                    pageStyle.presetId,
+                    pageStyle.shape,
+                    pageStyle.backgroundImagePath,
+                    pageStyle.bgImageScaleMode,
+                ).joinToString("|")
+
+                // 展示槽位模型：
+                //  - current 槽 = 当前 Crossfade 目标 key + 它对应的位图；
+                //  - previous 槽 = 切换瞬间把 current 的旧值整体搬进去，供离场层继续展示。
+                // 新渲染只有两种落地方式：
+                //  1. key 未变（编辑文字/拖颜色）：current 槽原位换图——目标 key 不变，**不触发动画**；
+                //  2. key 变了：旧槽搬进 previous、新图进 current，Crossfade 才从旧图淡入**已渲染好的**新图。
+                // 此前实现是 key 一变就让两层都指着旧图干等新渲染（约 0.8s），渐变形同虚设、
+                // 新图落地发生在动画结束后，视觉上是一次硬切。
+                // 初值给 null：磁盘缓存图现在是异步来的（见上面 produceState 的说明），
+                // 同步拿它就意味着把解码放回组合线程。空一帧的代价远小于主线程卡住。
+                var currentSlot by remember(pageWidgetId) {
+                    mutableStateOf(PreviewSlot(previewTransitionKey, null))
+                }
+                var previousSlot by remember(pageWidgetId) {
+                    mutableStateOf(PreviewSlot(previewTransitionKey, null))
+                }
+
+                LaunchedEffect(pageBitmap, previewTransitionKey) {
+                    if (pageBitmap == null) return@LaunchedEffect
+                    if (previewTransitionKey == currentSlot.key) {
+                        currentSlot = currentSlot.copy(bitmap = pageBitmap)
+                    } else {
+                        previousSlot = currentSlot
+                        currentSlot = PreviewSlot(previewTransitionKey, pageBitmap)
+                    }
+                }
+
                 // 目标用 key 而不是 slot 对象：连续编辑换图时 key 不变，
                 // Crossfade 不会因为位图实例更新而重启动画
                 Crossfade(

@@ -3,7 +3,7 @@ package com.juge.app.data
 import android.graphics.Color
 
 /**
- * 内置风格目录：38 款预设，以及围绕它们的分类视图与付费判定。
+ * 内置风格目录：39 款预设，以及围绕它们的分类视图与付费判定。
  *
  * 原先是 [WidgetStyle] 的 companion 成员，模型、序列化、商品目录、付费判定挤在同一个
  * 1500 行文件里：改一款预设的配色要滚过序列化代码，改序列化又要滚过 900 行素材定义。
@@ -427,22 +427,21 @@ internal object WidgetStyleCatalog {
             presetImageResName = "lotus_frame",
             authorSignature = "—— 夏日荷花"
         ), // 53. 夏日荷花 (PRO)
-        // 春天与小狗 (PRO)：整幅抠图素材——绿框白卡 + 上沿草丛麦穗粉花 + 右上角探头柯基。
-        // 与「毛绒森林」同一套设计语言（素材比例 1.79:1），同样按 STRETCH 铺满：
-        // 4×2 上横向只多铺 27%，是这个系列一贯的表现；4×4 的观感也与毛绒森林一致。
-        // 卡外已抠成透明（透出壁纸），所以不设背景色、也不跟随外框圆角。
+        // 春天与小狗 (PRO)：2176×1088 真透明萌宠花框，浅色毛绒边框内是白色正文面板；
+        // 顶部小狗、左侧毛绒树与花丛、右下角小人都烘在素材里。
+        // 素材原生 4:2，整幅 STRETCH 铺满；框外透明，所以不铺背景色、强制直角。
         WidgetStyle(
             presetId = "p_spring_dog",
-            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // ⚠️ 方版素材未交付：4×4 会把横版纵向拉 76%（见 style-guide §0.1.1），方版到货后改 SQUARE_4X4
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
             shape = WidgetShape.SPRING_DOG,
-            cornerRadiusDp = 12f,
-            backgroundColor = android.graphics.Color.TRANSPARENT,
+            cornerRadiusDp = 0f,
+            backgroundColor = Color.TRANSPARENT,
             backgroundOpacity = 1f,
             backgroundImagePath = null,
             bgImageScaleMode = ImageScaleMode.STRETCH,
             font = WidgetFont.LXGW_WENKAI,
             fontSizeSp = 18f,
-            fontColor = Color.parseColor("#2F6B45"), // 深绿题字：压白卡面，与绿框同调
+            fontColor = Color.parseColor("#4D5C3F"),
             textAlign = "CENTER",
             showCardShadow = false,
             cardBorderWidthDp = 0f,
@@ -709,6 +708,24 @@ internal object WidgetStyleCatalog {
             presetImageResName = "speed_motorcycle",
             authorSignature = "—— 极速机车"
         ),
+        // 大眼猫咪 (PRO)：2176×1088 真透明毛绒花框，粉色卡面左侧留白、右侧大眼猫咪。
+        // 素材原生 4:2，整幅 STRETCH 铺满；框外透明，所以不铺背景色、强制直角。
+        WidgetStyle(
+            presetId = "p_big_eye_cat",
+            bestDisplaySize = WidgetDisplaySize.WIDE_4X2, // 产品要求：默认 4:2
+            shape = WidgetShape.BIG_EYE_CAT,
+            cornerRadiusDp = 0f,
+            backgroundColor = Color.TRANSPARENT,
+            bgImageScaleMode = ImageScaleMode.STRETCH,
+            font = WidgetFont.LXGW_WENKAI,
+            fontSizeSp = 18f,
+            fontColor = Color.parseColor("#6B3F4A"),
+            textAlign = "CENTER",
+            showCardShadow = false,
+            cardBorderWidthDp = 0f,
+            presetImageResName = "big_eye_cat",
+            authorSignature = "—— 大眼猫咪"
+        ),
     )
 
     /**
@@ -739,7 +756,7 @@ internal object WidgetStyleCatalog {
         WidgetShape.BOOKSHELF,
         WidgetShape.PLUSH_FOREST,
         WidgetShape.SUBOR_CONSOLE,
-        // 春天与小狗：绿框白卡是素材本身的一部分，卡外透明处透出壁纸；
+        // 春天与小狗：毛绒框与白色卡面是素材本身的一部分，框外透明处透出壁纸；
         // 再铺一层背景色会在卡外露出一圈色块
         WidgetShape.SPRING_DOG,
         // 萌宠乐园：同理——毛毡框内面板是素材自带的，框外（小动物周围）透明处透壁纸
@@ -762,7 +779,9 @@ internal object WidgetStyleCatalog {
         WidgetShape.CHINESE_RURAL_DOG,
         WidgetShape.PANDA_BABY,
         // 极速：赛车仪表框外已抠透明，铺底色会在轮廓外露出一圈方角
-        WidgetShape.SPEED
+        WidgetShape.SPEED,
+        // 大眼猫咪：毛绒框与粉色卡面都在素材里，框外透明处要露出壁纸
+        WidgetShape.BIG_EYE_CAT
     )
 
     /** 该形状是否支持设置背景色 */
@@ -843,11 +862,10 @@ internal object WidgetStyleCatalog {
         "撕边牛皮手账" to (PRESETS.firstOrNull { it.shape == WidgetShape.NIUPI_SHOUZHANG } ?: PRESETS[0]),
         "教室黑板" to (PRESETS.firstOrNull { it.shape == WidgetShape.CLASSROOM_BLACKBOARD } ?: PRESETS[0]),
         "小霸王游戏机" to (PRESETS.firstOrNull { it.shape == WidgetShape.SUBOR_CONSOLE } ?: PRESETS[0]),
-        "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
         "蜡笔彩虹框" to (PRESETS.firstOrNull { it.presetId == "p_crayon_frame" } ?: PRESETS[0]),
         "极速" to (PRESETS.firstOrNull { it.presetId == "p_speed" } ?: PRESETS[0]),
         "极速机车" to (PRESETS.firstOrNull { it.presetId == "p_speed_motorcycle" } ?: PRESETS[0]),
-    )
+    ).sortedByDisplaySize()
 
     // 明信片行**首位**的整幅贴图预设：按产品要求排在明信片风格第一个。
     // 与 POSTCARD_RENDERED_PRESETS 同样按组件真实渲染缩略图——整幅铺贴 + 正文面板的观感，
@@ -888,6 +906,12 @@ internal object WidgetStyleCatalog {
         "太空小狗" to (PRESETS.firstOrNull { it.presetId == "p_space_dog" } ?: PRESETS[0]),
         "Q萌海盗团" to (PRESETS.firstOrNull { it.presetId == "p_q_pirate_crew" } ?: PRESETS[0]),
         "中华田园犬" to (PRESETS.firstOrNull { it.presetId == "p_chinese_rural_dog" } ?: PRESETS[0]),
-        "熊猫宝宝" to (PRESETS.firstOrNull { it.presetId == "p_panda_baby" } ?: PRESETS[0])
-    )
+        "熊猫宝宝" to (PRESETS.firstOrNull { it.presetId == "p_panda_baby" } ?: PRESETS[0]),
+        "春天与小狗" to (PRESETS.firstOrNull { it.presetId == "p_spring_dog" } ?: PRESETS[0]),
+        "大眼猫咪" to (PRESETS.firstOrNull { it.presetId == "p_big_eye_cat" } ?: PRESETS[0])
+    ).sortedByDisplaySize()
+
+    /** 产品排序：经典与萌宠行都先展示 4×2，再展示 4×4；同一尺寸内保持原列表顺序。 */
+    private fun List<Pair<String, WidgetStyle>>.sortedByDisplaySize(): List<Pair<String, WidgetStyle>> =
+        sortedBy { if (it.second.bestDisplaySize == WidgetDisplaySize.WIDE_4X2) 0 else 1 }
 }

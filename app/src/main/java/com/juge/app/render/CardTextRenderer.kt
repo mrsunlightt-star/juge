@@ -131,13 +131,13 @@ internal object CardTextRenderer {
                 TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.47f)
             }
             WidgetShape.SPRING_DOG -> {
-                // 春天与小狗：绿框白卡在素材里，正文落在绿框以内的白卡面上。
-                // 比例取自素材实测（素材 1812×1012：框内白卡 x 46~1767 / y 388~964），
-                // 再各留一点余量，文字不贴框；素材按 STRETCH 铺满，故比例与组件尺寸无关
-                val paddingLeft = targetWidth * 0.045f
-                val paddingRight = targetWidth * 0.955f
+                // 春天与小狗：正文落在白色面板中央，避开顶部小狗、花枝与右下角小人。
+                // 白面板实测为 x 10.6%~92.0% / y 18.0%~88.1%；
+                // 左侧毛绒树伸进面板约 20%，因此正文从 20% 起。
+                val paddingLeft = targetWidth * 0.20f
+                val paddingRight = targetWidth * 0.90f
                 val textWidth = (paddingRight - paddingLeft).coerceAtLeast(100f)
-                TextBox(paddingLeft, textWidth, targetHeight * 0.40f, targetHeight * 0.545f)
+                TextBox(paddingLeft, textWidth, targetHeight * 0.27f, targetHeight * 0.55f)
             }
             WidgetShape.CUTE_FOUR_KIDS -> {
                 // 可爱四小只：正文落在头像条**上方**的整幅留白区。
@@ -224,7 +224,8 @@ internal object CardTextRenderer {
             WidgetShape.SPACE_DOG,
             WidgetShape.Q_PIRATE_CREW,
             WidgetShape.CHINESE_RURAL_DOG,
-            WidgetShape.PANDA_BABY -> {
+            WidgetShape.PANDA_BABY,
+            WidgetShape.BIG_EYE_CAT -> {
                 // 萌宠花框共用 PetFrameRenderer 的窗口几何；素材按 STRETCH 铺满，
                 // 因此 4×2、4×4 与桌面上的其他比例都能保持正文与外框的相对位置一致。
                 val rect = PetFrameRenderer.textRect(style.shape, outerRect)

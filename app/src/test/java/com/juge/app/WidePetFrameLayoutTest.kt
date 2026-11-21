@@ -35,6 +35,47 @@ class WidePetFrameLayoutTest {
     )
 
     @Test
+    fun `大眼猫咪保持二比一画布且四角透明`() {
+        val options = BitmapFactory.Options().apply { inScaled = false }
+        val bitmap = RuntimeEnvironment.getApplication().resources
+            .openRawResource(R.drawable.big_eye_cat)
+            .use { BitmapFactory.decodeStream(it, null, options) }
+            ?: error("大眼猫咪素材无法解码")
+        try {
+            assertEquals(2176, bitmap.width)
+            assertEquals(1088, bitmap.height)
+            for (corner in intArrayOf(
+                bitmap.getPixel(0, 0),
+                bitmap.getPixel(bitmap.width - 1, 0),
+                bitmap.getPixel(0, bitmap.height - 1),
+                bitmap.getPixel(bitmap.width - 1, bitmap.height - 1),
+            )) {
+                assertTrue("大眼猫咪素材四角必须透明", Color.alpha(corner) <= 8)
+            }
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    @Test
+    fun `大眼猫咪禁用底色与圆角且正文避开展示装饰`() {
+        val shape = WidgetShape.BIG_EYE_CAT
+        val traits = shape.traits()
+        assertTrue("大眼猫咪应跳过整卡底色与投影", traits.transparentCard)
+        assertTrue("大眼猫咪必须由渲染层强制直角", traits.forcesSquareCorners)
+        assertFalse("大眼猫咪不应支持背景色", WidgetStyle.supportsBackgroundColor(shape))
+
+        val outerRect = RectF(0f, 0f, 2000f, 1000f)
+        val textRect = PetFrameRenderer.textRect(shape, outerRect)
+        assertTrue("正文左侧离毛绒边框太近", textRect.left / outerRect.width() >= 0.18f)
+        assertTrue("正文右侧进入猫咪区域", textRect.right / outerRect.width() <= 0.54f)
+        assertTrue("正文顶部离边框太近", textRect.top / outerRect.height() >= 0.16f)
+        assertTrue("正文底部离边框太近", textRect.bottom / outerRect.height() <= 0.83f)
+        assertTrue("正文宽度不足", textRect.width() / outerRect.width() >= 0.32f)
+        assertTrue("正文高度不足", textRect.height() / outerRect.height() >= 0.62f)
+    }
+
+    @Test
     fun `横版萌宠素材保持二比一画布且四角透明`() {
         val resources = RuntimeEnvironment.getApplication().resources
         for ((shape, drawableRes) in drawableByShape) {
